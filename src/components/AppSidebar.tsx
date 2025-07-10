@@ -9,7 +9,7 @@ import {
   Users,
   Puzzle,
   Code,
-  SidebarTrigger,
+  PanelLeft,
 } from "lucide-react";
 import {
   Sidebar,
@@ -20,6 +20,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 
@@ -35,8 +36,9 @@ const navigationItems = [
 ];
 
 const AppSidebar = () => {
-  const { collapsed } = useSidebar();
+  const { state } = useSidebar();
   const location = useLocation();
+  const collapsed = state === "collapsed";
 
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/";
@@ -51,7 +53,7 @@ const AppSidebar = () => {
   return (
     <Sidebar
       className={`${collapsed ? "w-14" : "w-64"} transition-all duration-300 border-r border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60`}
-      collapsible
+      collapsible="icon"
     >
       <div className="p-4">
         <SidebarTrigger />

@@ -28,60 +28,42 @@ import {
   Settings,
   Eye,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { apiService, DashboardStats, TrafficData, ThreatTypeData } from "@/services/api";
+import { useToast } from "@/hooks/use-toast";
 
 const Dashboard = () => {
-  // Mock data for demonstrations
-  const trafficData = [
-    { name: "Mon", requests: 2400, blocked: 400, allowed: 2000 },
-    { name: "Tue", requests: 1398, blocked: 298, allowed: 1100 },
-    { name: "Wed", requests: 9800, blocked: 1200, allowed: 8600 },
-    { name: "Thu", requests: 3908, blocked: 508, allowed: 3400 },
-    { name: "Fri", requests: 4800, blocked: 600, allowed: 4200 },
-    { name: "Sat", requests: 3800, blocked: 480, allowed: 3320 },
-    { name: "Sun", requests: 4300, blocked: 530, allowed: 3770 },
-  ];
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [trafficData, setTrafficData] = useState<TrafficData[]>([]);
+  const [threatTypes, setThreatTypes] = useState<ThreatTypeData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const threatTypes = [
-    { name: "SQL Injection", value: 45, color: "#ef4444" },
-    { name: "XSS", value: 30, color: "#f97316" },
-    { name: "CSRF", value: 15, color: "#eab308" },
-    { name: "Brute Force", value: 10, color: "#8b5cf6" },
-  ];
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const [statsData, trafficData, threatData] = await Promise.all([
+          apiService.getDashboardStats(),
+          apiService.getTrafficData(),
+          apiService.getThreatTypeData(),
+        ]);
 
-  const recentThreats = [
-    {
-      id: 1,
-      timestamp: "2024-01-15 14:32:21",
-      source: "192.168.1.45",
-      endpoint: "/api/users",
-      threat: "SQL Injection",
-      status: "blocked",
-    },
-    {
-      id: 2,
-      timestamp: "2024-01-15 14:31:45",
-      source: "10.0.0.123",
-      endpoint: "/api/login",
-      threat: "Brute Force",
-      status: "blocked",
-    },
-    {
-      id: 3,
-      timestamp: "2024-01-15 14:30:12",
-      source: "172.16.0.89",
-      endpoint: "/api/comments",
-      threat: "XSS",
-      status: "blocked",
-    },
-    {
-      id: 4,
-      timestamp: "2024-01-15 14:28:33",
-      source: "203.0.113.42",
-      endpoint: "/api/upload",
-      threat: "Malicious File",
-      status: "quarantined",
-    },
-  ];
+        setStats(statsData);
+        setTrafficData(trafficData);
+        setThreatTypes(threatData);
+      } catch (error) {
+        toast({
+          title: "Error loading dashboard data",
+          description: "Failed to fetch dashboard statistics",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [toast]);
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -96,6 +78,25 @@ const Dashboard = () => {
       </Badge>
     );
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading dashboard data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">No dashboard data available</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -127,7 +128,7 @@ const Dashboard = () => {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2,847,392</div>
+            <div className="text-2xl font-bold">{stats.total_requests.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground flex items-center">
               <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
               +12.5% from last month
@@ -141,7 +142,7 @@ const Dashboard = () => {
             <Shield className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">18,742</div>
+            <div className="text-2xl font-bold text-red-600">{stats.blocked_threats.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground flex items-center">
               <TrendingDown className="h-3 w-3 mr-1 text-green-500" />
               -8.3% from last month
@@ -155,9 +156,9 @@ const Dashboard = () => {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">2,828,650</div>
+            <div className="text-2xl font-bold text-green-600">{stats.clean_requests.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              99.34% success rate
+              {((stats.clean_requests / stats.total_requests) * 100).toFixed(2)}% success rate
             </p>
           </CardContent>
         </Card>
@@ -168,7 +169,7 @@ const Dashboard = () => {
             <Globe className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">247</div>
+            <div className="text-2xl font-bold">{stats.active_endpoints}</div>
             <p className="text-xs text-muted-foreground">
               12 new this week
             </p>
@@ -245,22 +246,22 @@ const Dashboard = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {recentThreats.map((threat) => (
+            {stats.recent_threats.map((threat) => (
               <div
                 key={threat.id}
                 className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors"
               >
                 <div className="flex items-center gap-4">
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium">{threat.threat}</span>
+                    <span className="text-sm font-medium">{threat.threat_type}</span>
                     <span className="text-xs text-muted-foreground">
                       {threat.timestamp}
                     </span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-sm">{threat.endpoint}</span>
+                    <span className="text-sm">{threat.request_path}</span>
                     <span className="text-xs text-muted-foreground">
-                      from {threat.source}
+                      from {threat.source_ip}
                     </span>
                   </div>
                 </div>

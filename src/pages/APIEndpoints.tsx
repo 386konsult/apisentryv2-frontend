@@ -34,62 +34,40 @@ import {
   Clock,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiService, APIEndpoint, EndpointStatus } from "@/services/api";
+import { useToast } from "@/hooks/use-toast";
 
 const APIEndpoints = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [endpoints, setEndpoints] = useState<APIEndpoint[]>([]);
+  const [endpointStatus, setEndpointStatus] = useState<EndpointStatus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const mockEndpoints = [
-    {
-      id: 1,
-      path: "/api/v1/users",
-      method: "GET",
-      status: "healthy",
-      requestCount: 125847,
-      avgResponseTime: 45,
-      errorRate: 0.02,
-      lastAccessed: "2 minutes ago",
-      protection: true,
-      rulesApplied: 12,
-    },
-    {
-      id: 2,
-      path: "/api/v1/auth/login",
-      method: "POST",
-      status: "healthy",
-      requestCount: 89234,
-      avgResponseTime: 123,
-      errorRate: 0.15,
-      lastAccessed: "1 minute ago",
-      protection: true,
-      rulesApplied: 8,
-    },
-    {
-      id: 3,
-      path: "/api/v1/payments",
-      method: "POST",
-      status: "warning",
-      requestCount: 45621,
-      avgResponseTime: 234,
-      errorRate: 2.34,
-      lastAccessed: "5 minutes ago",
-      protection: true,
-      rulesApplied: 15,
-    },
-    {
-      id: 4,
-      path: "/api/v1/upload",
-      method: "POST",
-      status: "error",
-      requestCount: 12456,
-      avgResponseTime: 456,
-      errorRate: 5.67,
-      lastAccessed: "10 minutes ago",
-      protection: false,
-      rulesApplied: 0,
-    },
-  ];
+  useEffect(() => {
+    const fetchEndpoints = async () => {
+      try {
+        const [endpointsData, statusData] = await Promise.all([
+          apiService.getEndpoints(),
+          apiService.getEndpointStatus(),
+        ]);
+        setEndpoints(endpointsData);
+        setEndpointStatus(statusData);
+      } catch (error) {
+        toast({
+          title: "Error loading endpoints",
+          description: "Failed to fetch API endpoints",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEndpoints();
+  }, [toast]);
 
   const trafficData = [
     { hour: "00", requests: 1200 },
@@ -204,7 +182,7 @@ const APIEndpoints = () => {
             <Globe className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">247</div>
+            <div className="text-2xl font-bold">{endpoints.length}</div>
             <p className="text-xs text-muted-foreground">12 added this week</p>
           </CardContent>
         </Card>
@@ -215,8 +193,15 @@ const APIEndpoints = () => {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">234</div>
-            <p className="text-xs text-muted-foreground">94.7% uptime</p>
+            <div className="text-2xl font-bold text-green-600">
+              {endpointStatus.filter(s => s.status === 'healthy').length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {endpointStatus.length > 0 ? 
+                `${((endpointStatus.filter(s => s.status === 'healthy').length / endpointStatus.length) * 100).toFixed(1)}% uptime` : 
+                '0% uptime'
+              }
+            </p>
           </CardContent>
         </Card>
 
@@ -226,8 +211,15 @@ const APIEndpoints = () => {
             <Shield className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">198</div>
-            <p className="text-xs text-muted-foreground">80.2% coverage</p>
+            <div className="text-2xl font-bold">
+              {endpointStatus.filter(s => s.protection).length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {endpointStatus.length > 0 ? 
+                `${((endpointStatus.filter(s => s.protection).length / endpointStatus.length) * 100).toFixed(1)}% coverage` : 
+                '0% coverage'
+              }
+            </p>
           </CardContent>
         </Card>
 
@@ -237,7 +229,12 @@ const APIEndpoints = () => {
             <Clock className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">127ms</div>
+            <div className="text-2xl font-bold">
+              {endpointStatus.length > 0 ? 
+                `${(endpointStatus.reduce((sum, s) => sum + s.avg_response_time, 0) / endpointStatus.length).toFixed(0)}ms` : 
+                '0ms'
+              }
+            </div>
             <p className="text-xs text-muted-foreground">-15ms from last week</p>
           </CardContent>
         </Card>
@@ -312,85 +309,96 @@ const APIEndpoints = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {mockEndpoints.map((endpoint) => (
-              <div
-                key={endpoint.id}
-                className="border border-border/50 rounded-lg p-4 hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    {getStatusIcon(endpoint.status)}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={getMethodColor(endpoint.method)}>
-                          {endpoint.method}
-                        </Badge>
-                        <span className="font-mono text-sm">{endpoint.path}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Last accessed: {endpoint.lastAccessed}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={getStatusColor(endpoint.status)}>
-                      {endpoint.status}
-                    </Badge>
-                    {endpoint.protection ? (
-                      <Badge variant="outline" className="text-green-600">
-                        <Shield className="h-3 w-3 mr-1" />
-                        Protected
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-red-600">
-                        Unprotected
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Requests</Label>
-                    <div className="text-sm font-medium">
-                      {endpoint.requestCount.toLocaleString()}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Avg Response</Label>
-                    <div className="text-sm font-medium">{endpoint.avgResponseTime}ms</div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Error Rate</Label>
-                    <div className="text-sm font-medium">{endpoint.errorRate}%</div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Rules Applied</Label>
-                    <div className="text-sm font-medium">{endpoint.rulesApplied}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                  <div className="flex items-center gap-2">
-                    <Switch checked={endpoint.protection} />
-                    <Label className="text-sm">Protection enabled</Label>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm">
-                      <BarChart3 className="h-4 w-4 mr-2" />
-                      Analytics
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      <Settings className="h-4 w-4 mr-2" />
-                      Configure
-                    </Button>
-                  </div>
-                </div>
+            {loading ? (
+              <div className="text-center py-8">
+                <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
+                <p>Loading endpoints...</p>
               </div>
-            ))}
+            ) : endpointStatus.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No endpoints found</p>
+              </div>
+            ) : (
+              endpointStatus.map((status) => (
+                <div
+                  key={status.endpoint.id}
+                  className="border border-border/50 rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      {getStatusIcon(status.status)}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={getMethodColor(status.endpoint.method)}>
+                            {status.endpoint.method}
+                          </Badge>
+                          <span className="font-mono text-sm">{status.endpoint.path}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Last accessed: {status.last_accessed ? new Date(status.last_accessed).toLocaleString() : 'Never'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={getStatusColor(status.status)}>
+                        {status.status}
+                      </Badge>
+                      {status.protection ? (
+                        <Badge variant="outline" className="text-green-600">
+                          <Shield className="h-3 w-3 mr-1" />
+                          Protected
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-red-600">
+                          Unprotected
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Requests</Label>
+                      <div className="text-sm font-medium">
+                        {status.request_count.toLocaleString()}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Avg Response</Label>
+                      <div className="text-sm font-medium">{status.avg_response_time.toFixed(1)}ms</div>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Error Rate</Label>
+                      <div className="text-sm font-medium">{status.error_rate.toFixed(2)}%</div>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Rules Applied</Label>
+                      <div className="text-sm font-medium">{status.rules_applied}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={status.protection} />
+                      <Label className="text-sm">Protection enabled</Label>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm">
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        Analytics
+                      </Button>
+                      <Button variant="ghost" size="sm">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Configure
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

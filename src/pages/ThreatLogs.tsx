@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,71 +30,50 @@ import {
   Clock,
   MapPin,
   Code,
+  Activity,
 } from "lucide-react";
+import { apiService, ThreatLog } from "@/services/api";
+import { useToast } from "@/hooks/use-toast";
 
 const ThreatLogs = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [threatType, setThreatType] = useState("all");
   const [timeRange, setTimeRange] = useState("24h");
+  const [threats, setThreats] = useState<ThreatLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const mockThreats = [
-    {
-      id: 1,
-      timestamp: "2024-01-15 14:32:21",
-      sourceIp: "192.168.1.45",
-      endpoint: "/api/users",
-      method: "POST",
-      threatType: "SQL Injection",
-      severity: "high",
-      status: "blocked",
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      payload: "SELECT * FROM users WHERE id = 1 OR 1=1 --",
-      location: "New York, US",
-      ruleId: "RULE001",
-    },
-    {
-      id: 2,
-      timestamp: "2024-01-15 14:31:45",
-      sourceIp: "10.0.0.123",
-      endpoint: "/api/login",
-      method: "POST",
-      threatType: "Brute Force",
-      severity: "medium",
-      status: "blocked",
-      userAgent: "curl/7.68.0",
-      payload: "Multiple failed login attempts detected",
-      location: "London, UK",
-      ruleId: "RULE007",
-    },
-    {
-      id: 3,
-      timestamp: "2024-01-15 14:30:12",
-      sourceIp: "172.16.0.89",
-      endpoint: "/api/comments",
-      method: "POST",
-      threatType: "XSS",
-      severity: "high",
-      status: "blocked",
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-      payload: "<script>alert('XSS')</script>",
-      location: "Tokyo, JP",
-      ruleId: "RULE003",
-    },
-    {
-      id: 4,
-      timestamp: "2024-01-15 14:28:33",
-      sourceIp: "203.0.113.42",
-      endpoint: "/api/upload",
-      method: "POST",
-      threatType: "Malicious File",
-      severity: "high",
-      status: "quarantined",
-      userAgent: "PostmanRuntime/7.26.8",
-      payload: "suspicious.exe file upload attempt",
-      location: "Sydney, AU",
-      ruleId: "RULE012",
-    },
-  ];
+  useEffect(() => {
+    const fetchThreats = async () => {
+      try {
+        const threatsData = await apiService.getThreatLogs();
+        // Ensure threatsData is an array
+        if (Array.isArray(threatsData)) {
+          setThreats(threatsData);
+        } else {
+          console.error('Expected array but got:', threatsData);
+          setThreats([]);
+          toast({
+            title: "Error loading threat logs",
+            description: "Invalid data format received",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching threats:', error);
+        setThreats([]);
+        toast({
+          title: "Error loading threat logs",
+          description: "Failed to fetch threat logs",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchThreats();
+  }, [toast]);
 
   const getSeverityColor = (severity: string) => {
     const colors = {
@@ -144,7 +123,7 @@ const ThreatLogs = () => {
             <AlertTriangle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,247</div>
+            <div className="text-2xl font-bold">{threats.length}</div>
             <p className="text-xs text-muted-foreground">+18% from yesterday</p>
           </CardContent>
         </Card>
@@ -155,8 +134,15 @@ const ThreatLogs = () => {
             <Shield className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">1,189</div>
-            <p className="text-xs text-muted-foreground">95.3% success rate</p>
+            <div className="text-2xl font-bold text-green-600">
+              {threats.filter(t => t.status === 'blocked').length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {threats.length > 0 ? 
+                `${((threats.filter(t => t.status === 'blocked').length / threats.length) * 100).toFixed(1)}% success rate` : 
+                '0% success rate'
+              }
+            </p>
           </CardContent>
         </Card>
 
@@ -166,7 +152,9 @@ const ThreatLogs = () => {
             <AlertTriangle className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">89</div>
+            <div className="text-2xl font-bold">
+              {threats.filter(t => t.severity === 'high').length}
+            </div>
             <p className="text-xs text-muted-foreground">Requires attention</p>
           </CardContent>
         </Card>
@@ -177,8 +165,10 @@ const ThreatLogs = () => {
             <MapPin className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">342</div>
-            <p className="text-xs text-muted-foreground">From 45 countries</p>
+            <div className="text-2xl font-bold">
+              {new Set(threats.map(t => t.source_ip)).size}
+            </div>
+            <p className="text-xs text-muted-foreground">Unique source IPs</p>
           </CardContent>
         </Card>
       </div>
@@ -239,107 +229,131 @@ const ThreatLogs = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {mockThreats.map((threat) => (
-              <div
-                key={threat.id}
-                className="border border-border/50 rounded-lg p-4 hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <AlertTriangle className="h-5 w-5 text-red-500" />
-                    <div>
-                      <h3 className="font-medium">{threat.threatType}</h3>
-                      <p className="text-sm text-muted-foreground">{threat.timestamp}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={getSeverityColor(threat.severity)}>
-                      {threat.severity}
-                    </Badge>
-                    <Badge variant={getStatusColor(threat.status)}>
-                      {threat.status}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Source</Label>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-3 w-3" />
-                      <span className="text-sm">{threat.sourceIp}</span>
-                      <span className="text-xs text-muted-foreground">({threat.location})</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Endpoint</Label>
-                    <div className="flex items-center gap-2">
-                      <Code className="h-3 w-3" />
-                      <span className="text-sm font-mono">{threat.method} {threat.endpoint}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Rule</Label>
-                    <span className="text-sm">{threat.ruleId}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Payload</Label>
-                  <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
-                    {threat.payload}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
-                  <span className="text-xs text-muted-foreground">
-                    User Agent: {threat.userAgent.substring(0, 50)}...
-                  </span>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Details
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Threat Details - {threat.threatType}</DialogTitle>
-                        <DialogDescription>
-                          Complete information about this security event
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label>Timestamp</Label>
-                            <p className="text-sm">{threat.timestamp}</p>
-                          </div>
-                          <div>
-                            <Label>Status</Label>
-                            <Badge variant={getStatusColor(threat.status)}>
-                              {threat.status}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div>
-                          <Label>Complete Payload</Label>
-                          <div className="bg-muted p-4 rounded font-mono text-sm mt-2">
-                            {threat.payload}
-                          </div>
-                        </div>
-                        <div>
-                          <Label>Full User Agent</Label>
-                          <p className="text-sm bg-muted p-2 rounded">{threat.userAgent}</p>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+            {loading ? (
+              <div className="text-center py-8">
+                <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
+                <p>Loading threat logs...</p>
               </div>
-            ))}
+            ) : threats.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No threat logs found</p>
+              </div>
+            ) : (
+              threats.map((threat) => (
+                <div
+                  key={threat.id}
+                  className="border border-border/50 rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="h-5 w-5 text-red-500" />
+                      <div>
+                        <h3 className="font-medium">{threat.threat_type.replace('_', ' ').toUpperCase()}</h3>
+                        <p className="text-sm text-muted-foreground">{new Date(threat.timestamp).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={getSeverityColor(threat.severity)}>
+                        {threat.severity}
+                      </Badge>
+                      <Badge variant={getStatusColor(threat.status)}>
+                        {threat.status}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Source</Label>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-3 w-3" />
+                        <span className="text-sm">{threat.source_ip}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Endpoint</Label>
+                      <div className="flex items-center gap-2">
+                        <Code className="h-3 w-3" />
+                        <span className="text-sm font-mono">{threat.request_method} {threat.request_path}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Rule</Label>
+                      <span className="text-sm">{threat.waf_rule_name || 'None'}</span>
+                    </div>
+                  </div>
+
+                  {threat.details && Object.keys(threat.details).length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Details</Label>
+                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
+                        {JSON.stringify(threat.details, null, 2)}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
+                    <span className="text-xs text-muted-foreground">
+                      User Agent: {threat.user_agent ? threat.user_agent.substring(0, 50) + '...' : 'Unknown'}
+                    </span>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Threat Details - {threat.threat_type.replace('_', ' ').toUpperCase()}</DialogTitle>
+                          <DialogDescription>
+                            Complete information about this security event
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label>Timestamp</Label>
+                              <p className="text-sm">{new Date(threat.timestamp).toLocaleString()}</p>
+                            </div>
+                            <div>
+                              <Label>Status</Label>
+                              <Badge variant={getStatusColor(threat.status)}>
+                                {threat.status}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>Source IP</Label>
+                            <p className="text-sm">{threat.source_ip}</p>
+                          </div>
+                          <div>
+                            <Label>Request Path</Label>
+                            <p className="text-sm font-mono">{threat.request_method} {threat.request_path}</p>
+                          </div>
+                          {threat.details && Object.keys(threat.details).length > 0 && (
+                            <div>
+                              <Label>Details</Label>
+                              <div className="bg-muted p-4 rounded font-mono text-sm mt-2">
+                                {JSON.stringify(threat.details, null, 2)}
+                              </div>
+                            </div>
+                          )}
+                          {threat.user_agent && (
+                            <div>
+                              <Label>User Agent</Label>
+                              <p className="text-sm bg-muted p-2 rounded">{threat.user_agent}</p>
+                            </div>
+                          )}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

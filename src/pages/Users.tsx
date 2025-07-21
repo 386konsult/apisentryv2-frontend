@@ -32,80 +32,36 @@ import {
   Shield,
   Eye,
   Edit,
+  Activity,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiService, User } from "@/services/api";
+import { useToast } from "@/hooks/use-toast";
 
 const Users = () => {
   const [activeTab, setActiveTab] = useState("users");
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const mockUsers = [
-    {
-      id: 1,
-      name: "John Doe",
-      email: "john.doe@company.com",
-      role: "admin",
-      status: "active",
-      lastLogin: "2 hours ago",
-      avatar: "/api/placeholder/32/32",
-    },
-    {
-      id: 2,
-      name: "Sarah Chen",
-      email: "sarah.chen@company.com",
-      role: "analyst",
-      status: "active",
-      lastLogin: "1 day ago",
-      avatar: "/api/placeholder/32/32",
-    },
-    {
-      id: 3,
-      name: "Mike Johnson",
-      email: "mike.johnson@company.com",
-      role: "viewer",
-      status: "active",
-      lastLogin: "3 days ago",
-      avatar: "/api/placeholder/32/32",
-    },
-    {
-      id: 4,
-      name: "Lisa Wang",
-      email: "lisa.wang@company.com",
-      role: "analyst",
-      status: "inactive",
-      lastLogin: "2 weeks ago",
-      avatar: "/api/placeholder/32/32",
-    },
-  ];
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const usersData = await apiService.getUsers();
+        setUsers(usersData);
+      } catch (error) {
+        toast({
+          title: "Error loading users",
+          description: "Failed to fetch users",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const mockTokens = [
-    {
-      id: 1,
-      name: "Production API",
-      token: "sk_live_abc123...xyz789",
-      permissions: ["read", "write"],
-      created: "2024-01-01",
-      lastUsed: "2 hours ago",
-      status: "active",
-    },
-    {
-      id: 2,
-      name: "Staging Environment",
-      token: "sk_test_def456...uvw012",
-      permissions: ["read"],
-      created: "2024-01-10",
-      lastUsed: "1 day ago",
-      status: "active",
-    },
-    {
-      id: 3,
-      name: "Monitoring Service",
-      token: "sk_live_ghi789...rst345",
-      permissions: ["read"],
-      created: "2024-01-05",
-      lastUsed: "Never",
-      status: "inactive",
-    },
-  ];
+    fetchUsers();
+  }, [toast]);
 
   const getRoleColor = (role: string) => {
     const colors = {
@@ -187,7 +143,7 @@ const Users = () => {
             <UsersIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">{users.length}</div>
             <p className="text-xs text-muted-foreground">2 added this month</p>
           </CardContent>
         </Card>
@@ -198,8 +154,15 @@ const Users = () => {
             <Shield className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">11</div>
-            <p className="text-xs text-muted-foreground">91.7% active rate</p>
+            <div className="text-2xl font-bold text-green-600">
+              {users.filter(u => u.is_verified).length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {users.length > 0 ? 
+                `${((users.filter(u => u.is_verified).length / users.length) * 100).toFixed(1)}% active rate` : 
+                '0% active rate'
+              }
+            </p>
           </CardContent>
         </Card>
 
@@ -209,8 +172,8 @@ const Users = () => {
             <Key className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
-            <p className="text-xs text-muted-foreground">3 production keys</p>
+            <div className="text-2xl font-bold">0</div>
+            <p className="text-xs text-muted-foreground">Coming soon</p>
           </CardContent>
         </Card>
 
@@ -220,7 +183,9 @@ const Users = () => {
             <Shield className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3</div>
+            <div className="text-2xl font-bold">
+              {users.filter(u => u.role === 'admin').length}
+            </div>
             <p className="text-xs text-muted-foreground">Full access granted</p>
           </CardContent>
         </Card>
@@ -279,46 +244,58 @@ const Users = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between p-4 border border-border/50 rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <Avatar>
-                      <AvatarImage src={user.avatar} alt={user.name} />
-                      <AvatarFallback>
-                        {user.name.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h3 className="font-medium">{user.name}</h3>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
-                      <p className="text-xs text-muted-foreground">Last login: {user.lastLogin}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <Badge className={getRoleColor(user.role)}>
-                      {user.role}
-                    </Badge>
-                    <Badge className={getStatusColor(user.status)}>
-                      {user.status}
-                    </Badge>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+              {loading ? (
+                <div className="text-center py-8">
+                  <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
+                  <p>Loading users...</p>
                 </div>
-              ))}
+              ) : users.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No users found</p>
+                </div>
+              ) : (
+                users.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-4 border border-border/50 rounded-lg hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <Avatar>
+                        <AvatarFallback>
+                          {user.first_name[0]}{user.last_name[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h3 className="font-medium">{user.first_name} {user.last_name}</h3>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user.is_verified ? 'Verified' : 'Unverified'} • {user.role}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <Badge className={getRoleColor(user.role)}>
+                        {user.role}
+                      </Badge>
+                      <Badge className={getStatusColor(user.is_verified ? 'active' : 'inactive')}>
+                        {user.is_verified ? 'active' : 'inactive'}
+                      </Badge>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="sm">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -382,43 +359,9 @@ const Users = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockTokens.map((token) => (
-                <div
-                  key={token.id}
-                  className="flex items-center justify-between p-4 border border-border/50 rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-medium">{token.name}</h3>
-                      <Badge className={getStatusColor(token.status)}>
-                        {token.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <code className="text-sm bg-muted px-2 py-1 rounded font-mono">
-                        {token.token}
-                      </code>
-                      <Button variant="ghost" size="sm">
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="flex gap-4 text-xs text-muted-foreground">
-                      <span>Created: {token.created}</span>
-                      <span>Last used: {token.lastUsed}</span>
-                      <span>Permissions: {token.permissions.join(', ')}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="sm">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">API token management coming soon</p>
+              </div>
             </div>
           </CardContent>
         </Card>

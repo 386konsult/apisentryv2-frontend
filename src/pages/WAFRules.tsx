@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,54 +33,36 @@ import {
   Upload,
   Code,
   Filter,
+  Activity,
 } from "lucide-react";
+import { apiService, WAFRule } from "@/services/api";
+import { useToast } from "@/hooks/use-toast";
 
 const WAFRules = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [rules, setRules] = useState<WAFRule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const mockRules = [
-    {
-      id: 1,
-      name: "SQL Injection Protection",
-      pattern: "(union|select|insert|delete|drop|alter|create)",
-      category: "injection",
-      enabled: true,
-      priority: "high",
-      matches: 1247,
-      lastTriggered: "2 hours ago",
-    },
-    {
-      id: 2,
-      name: "XSS Prevention",
-      pattern: "(<script|javascript:|on\\w+=)",
-      category: "xss",
-      enabled: true,
-      priority: "high",
-      matches: 892,
-      lastTriggered: "1 hour ago",
-    },
-    {
-      id: 3,
-      name: "Rate Limiting",
-      pattern: "rate_limit: 100/min",
-      category: "dos",
-      enabled: true,
-      priority: "medium",
-      matches: 234,
-      lastTriggered: "30 min ago",
-    },
-    {
-      id: 4,
-      name: "File Upload Validation",
-      pattern: "\\.(exe|bat|cmd|scr|com|pif)",
-      category: "upload",
-      enabled: false,
-      priority: "medium",
-      matches: 45,
-      lastTriggered: "1 day ago",
-    },
-  ];
+  useEffect(() => {
+    const fetchRules = async () => {
+      try {
+        const rulesData = await apiService.getWAFRules();
+        setRules(rulesData);
+      } catch (error) {
+        toast({
+          title: "Error loading WAF rules",
+          description: "Failed to fetch WAF rules",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRules();
+  }, [toast]);
 
   const getCategoryColor = (category: string) => {
     const colors = {
@@ -200,7 +182,7 @@ const WAFRules = () => {
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">247</div>
+            <div className="text-2xl font-bold">{rules.length}</div>
             <p className="text-xs text-muted-foreground">4 added this week</p>
           </CardContent>
         </Card>
@@ -211,8 +193,15 @@ const WAFRules = () => {
             <Shield className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">234</div>
-            <p className="text-xs text-muted-foreground">94.7% enabled</p>
+            <div className="text-2xl font-bold text-green-600">
+              {rules.filter(r => r.is_active).length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {rules.length > 0 ? 
+                `${((rules.filter(r => r.is_active).length / rules.length) * 100).toFixed(1)}% enabled` : 
+                '0% enabled'
+              }
+            </p>
           </CardContent>
         </Card>
 
@@ -222,7 +211,9 @@ const WAFRules = () => {
             <Shield className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">89</div>
+            <div className="text-2xl font-bold">
+              {rules.filter(r => r.severity === 'high').length}
+            </div>
             <p className="text-xs text-muted-foreground">Critical security rules</p>
           </CardContent>
         </Card>
@@ -233,8 +224,10 @@ const WAFRules = () => {
             <Shield className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">18,742</div>
-            <p className="text-xs text-muted-foreground">+12% from yesterday</p>
+            <div className="text-2xl font-bold">
+              {rules.reduce((sum, r) => sum + r.trigger_count, 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">Total triggers today</p>
           </CardContent>
         </Card>
       </div>
@@ -281,50 +274,61 @@ const WAFRules = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {mockRules.map((rule) => (
-              <div
-                key={rule.id}
-                className="flex items-center justify-between p-4 border border-border/50 rounded-lg hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-4 flex-1">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`h-3 w-3 rounded-full ${getPriorityColor(rule.priority)}`}
-                    />
-                    <Switch checked={rule.enabled} />
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-medium">{rule.name}</h3>
-                      <Badge className={getCategoryColor(rule.category)}>
-                        {rule.category}
-                      </Badge>
-                      <Badge variant="outline">{rule.priority}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground font-mono bg-muted px-2 py-1 rounded">
-                      {rule.pattern}
-                    </p>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
-                      <span>{rule.matches} matches</span>
-                      <span>Last triggered: {rule.lastTriggered}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm">
-                    <Code className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+            {loading ? (
+              <div className="text-center py-8">
+                <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
+                <p>Loading WAF rules...</p>
               </div>
-            ))}
+            ) : rules.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No WAF rules found</p>
+              </div>
+            ) : (
+              rules.map((rule) => (
+                <div
+                  key={rule.id}
+                  className="flex items-center justify-between p-4 border border-border/50 rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`h-3 w-3 rounded-full ${getPriorityColor(rule.severity)}`}
+                      />
+                      <Switch checked={rule.is_active} />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-medium">{rule.name}</h3>
+                        <Badge className={getCategoryColor(rule.rule_type)}>
+                          {rule.rule_type}
+                        </Badge>
+                        <Badge variant="outline">{rule.severity}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground font-mono bg-muted px-2 py-1 rounded">
+                        {rule.pattern}
+                      </p>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
+                        <span>{rule.trigger_count} triggers</span>
+                        <span>Action: {rule.action}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm">
+                      <Code className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm">
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

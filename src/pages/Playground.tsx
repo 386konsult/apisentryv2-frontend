@@ -25,6 +25,27 @@ import {
   Upload,
   Zap,
 } from "lucide-react";
+import { apiService } from "@/services/api";
+import { useToast } from "@/hooks/use-toast";
+
+interface TestResult {
+  detected: boolean;
+  threatType: string;
+  severity: string;
+  ruleTriggered: string;
+  action: string;
+  confidence: number;
+  explanation: string;
+  details: Record<string, unknown>;
+}
+
+interface ExampleRequest {
+  name: string;
+  method: string;
+  endpoint: string;
+  body: string;
+  description: string;
+}
 
 const Playground = () => {
   const [method, setMethod] = useState("POST");
@@ -34,33 +55,55 @@ const Playground = () => {
   "password": "' OR 1=1 --",
   "email": "admin@test.com"
 }`);
-  const [testResult, setTestResult] = useState<any>(null);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   const runTest = async () => {
     setIsLoading(true);
     
-    // Simulate API test with mock results
-    setTimeout(() => {
-      const mockResult = {
-        detected: true,
-        threatType: "SQL Injection",
-        severity: "high",
-        ruleTriggered: "RULE001 - SQL Injection Pattern",
-        action: "BLOCKED",
-        confidence: 95,
-        explanation: "Detected SQL injection attempt in the password field. Pattern '1=1 --' matches known SQL injection signatures.",
+    try {
+      // Create a test threat log entry
+      const testData = {
+        threat_type: "test",
+        status: "test",
+        severity: "medium",
+        source_ip: "127.0.0.1",
+        request_path: endpoint,
+        request_method: method,
         details: {
-          field: "password",
-          pattern: "' OR 1=1 --",
-          rule: "OWASP_CRS_942_APPLICATION_ATTACK_SQLI",
-          matchedRegex: "(\\b(?:(?:s(?:elect\\b(?:\\s+(?:(?:distinct|all)\\s+)?(?:.*?\\bfrom\\b|\\*|\\w+))|p_(?:addextendedprop|sqlexec)|ql_(?:longvarchar|variant))|.*?\\b(?:having|where)\\b.*?\\bin\\b\\s*\\(|.*?\\bor\\b\\s+.*?[=\\w].*?[=\\w]|.*?\\b(?:and|or)\\b\\s+.*?\\b(?:select|insert|delete|update|drop|create|exec)\\b))"
+          body: requestBody,
+          test: true
         }
       };
       
-      setTestResult(mockResult);
+      const result = await apiService.createThreatLog(testData);
+      
+      const testResult = {
+        detected: true,
+        threatType: result.threat_type,
+        severity: result.severity,
+        ruleTriggered: result.waf_rule_name || "Test Rule",
+        action: result.status.toUpperCase(),
+        confidence: 95,
+        explanation: `Test request processed. Status: ${result.status}`,
+        details: result.details
+      };
+      
+      setTestResult(testResult);
+      toast({
+        title: "Test completed",
+        description: "Request processed successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Test failed",
+        description: "Failed to process test request",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 2000);
+    }
   };
 
   const exampleRequests = [
@@ -102,7 +145,7 @@ const Playground = () => {
     }
   ];
 
-  const loadExample = (example: any) => {
+  const loadExample = (example: ExampleRequest) => {
     setMethod(example.method);
     setEndpoint(example.endpoint);
     setRequestBody(example.body);
@@ -278,7 +321,7 @@ const Playground = () => {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-muted-foreground">Affected Field:</span>
-                          <span className="text-sm font-mono">{testResult.details.field}</span>
+                          <span className="text-sm font-mono">{String(testResult.details.field || 'N/A')}</span>
                         </div>
                       </div>
                     </div>
@@ -293,7 +336,7 @@ const Playground = () => {
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Matched Pattern</Label>
                       <div className="bg-muted p-3 rounded font-mono text-sm overflow-x-auto">
-                        {testResult.details.pattern}
+                        {String(testResult.details.pattern || 'N/A')}
                       </div>
                     </div>
                   </>

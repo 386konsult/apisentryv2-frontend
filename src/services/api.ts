@@ -122,6 +122,19 @@ class APIService {
     this.token = localStorage.getItem('auth_token');
   }
 
+  private getPlatformId(): string | null {
+    return localStorage.getItem('selected_platform_id');
+  }
+
+  private addPlatformQuery(endpoint: string): string {
+    const platformId = this.getPlatformId();
+    if (platformId) {
+      const separator = endpoint.includes('?') ? '&' : '?';
+      return `${endpoint}${separator}platform_id=${platformId}`;
+    }
+    return endpoint;
+  }
+
   private getHeaders(): HeadersInit {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -195,7 +208,7 @@ class APIService {
 
   // API Endpoints methods
   async getEndpoints(): Promise<APIEndpoint[]> {
-    const response = await this.request<{count: number; next: string | null; previous: string | null; results: APIEndpoint[]}>('/endpoints/');
+    const response = await this.request<{count: number; next: string | null; previous: string | null; results: APIEndpoint[]}>(this.addPlatformQuery('/endpoints/'));
     return response.results;
   }
 
@@ -225,7 +238,7 @@ class APIService {
 
   // WAF Rules methods
   async getWAFRules(): Promise<WAFRule[]> {
-    const response = await this.request<{count: number; next: string | null; previous: string | null; results: WAFRule[]}>('/waf-rules/');
+    const response = await this.request<{count: number; next: string | null; previous: string | null; results: WAFRule[]}>(this.addPlatformQuery('/waf-rules/'));
     return response.results;
   }
 
@@ -256,7 +269,8 @@ class APIService {
   // Threat Logs methods
   async getThreatLogs(params?: Record<string, string>): Promise<ThreatLog[]> {
     const queryString = params ? `?${new URLSearchParams(params).toString()}` : '';
-    const response = await this.request<{count: number; next: string | null; previous: string | null; results: ThreatLog[]}>(`/threat-logs/${queryString}`);
+    const endpoint = `/threat-logs/${queryString}`;
+    const response = await this.request<{count: number; next: string | null; previous: string | null; results: ThreatLog[]}>(this.addPlatformQuery(endpoint));
     return response.results;
   }
 
@@ -273,15 +287,15 @@ class APIService {
 
   // Dashboard methods
   async getDashboardStats(): Promise<DashboardStats> {
-    return await this.request<DashboardStats>('/dashboard/stats/');
+    return await this.request<DashboardStats>(this.addPlatformQuery('/dashboard/stats/'));
   }
 
   async getTrafficData(): Promise<TrafficData[]> {
-    return await this.request<TrafficData[]>('/dashboard/traffic/');
+    return await this.request<TrafficData[]>(this.addPlatformQuery('/dashboard/traffic/'));
   }
 
   async getThreatTypeData(): Promise<ThreatTypeData[]> {
-    return await this.request<ThreatTypeData[]>('/dashboard/threat-types/');
+    return await this.request<ThreatTypeData[]>(this.addPlatformQuery('/dashboard/threat-types/'));
   }
 
   async getEndpointStatus(): Promise<EndpointStatus[]> {

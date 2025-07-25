@@ -35,6 +35,7 @@ import CodeReviewConnect from "./pages/CodeReviewConnect";
 import CodeReviewRepos from "./pages/CodeReviewRepos";
 import CodeReviewTeam from "./pages/CodeReviewTeam";
 import CodeReviewRepoDetails from "./pages/CodeReviewRepoDetails";
+import Platforms from "./pages/Platforms";
 
 const queryClient = new QueryClient();
 
@@ -117,6 +118,7 @@ const AppContent = () => {
                       <Route path="/code-review-repos" element={<CodeReviewRepos />} />
                       <Route path="/code-review-team" element={<CodeReviewTeam />} />
                       <Route path="/code-review-repos/:repoName" element={<CodeReviewRepoDetails />} />
+                      <Route path="/platforms" element={<Platforms />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>

@@ -9,15 +9,15 @@ import { Shield, Cloud, Server, Container, Copy, Check, Upload } from 'lucide-re
 import { useNavigate } from 'react-router-dom';
 
 const platforms = [
-  { id: 'aws', name: 'Amazon Web Services', icon: Cloud, color: 'from-orange-500 to-yellow-500' },
-  { id: 'gcp', name: 'Google Cloud Platform', icon: Cloud, color: 'from-blue-500 to-green-500' },
-  { id: 'azure', name: 'Microsoft Azure', icon: Cloud, color: 'from-blue-600 to-purple-600' },
-  { id: 'kubernetes', name: 'Kubernetes', icon: Container, color: 'from-blue-500 to-cyan-500' },
-  { id: 'on-prem', name: 'On-Premises', icon: Server, color: 'from-gray-600 to-slate-600' },
+  // { id: 'aws', name: 'Amazon Web Services', icon: Cloud, color: 'from-orange-500 to-yellow-500' },
+  // { id: 'gcp', name: 'Google Cloud Platform', icon: Cloud, color: 'from-blue-500 to-green-500' },
+  // { id: 'azure', name: 'Microsoft Azure', icon: Cloud, color: 'from-blue-600 to-purple-600' },
+  // { id: 'kubernetes', name: 'Kubernetes', icon: Container, color: 'from-blue-500 to-cyan-500' },
+  // { id: 'on-prem', name: 'On-Premises', icon: Server, color: 'from-gray-600 to-slate-600' },
 ];
 
 const Onboarding = () => {
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(2);
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [platformName, setPlatformName] = useState('');
   const [environment, setEnvironment] = useState('production');
@@ -45,7 +45,31 @@ const Onboarding = () => {
     if (currentStep < 3) {
       setCurrentStep(currentStep + 1);
     } else {
-      navigate('/');
+      // Create the platform and save to localStorage
+      const newPlatform = {
+        id: Date.now().toString(), // Simple ID generation
+        name: platformName,
+        environment,
+        deployment_type: deploymentType,
+        status: 'active' as const,
+        created_at: new Date().toISOString(),
+        total_requests: 0,
+        blocked_threats: 0,
+        active_endpoints: 0,
+      };
+
+      // Get existing platforms or create empty array
+      const existingPlatforms = localStorage.getItem('user_platforms');
+      const platforms = existingPlatforms ? JSON.parse(existingPlatforms) : [];
+      
+      // Add new platform
+      platforms.push(newPlatform);
+      localStorage.setItem('user_platforms', JSON.stringify(platforms));
+      
+      // Set as selected platform
+      localStorage.setItem('selected_platform_id', newPlatform.id);
+      
+      navigate('/dashboard');
     }
   };
 

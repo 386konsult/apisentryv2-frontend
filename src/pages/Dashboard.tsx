@@ -27,21 +27,44 @@ import {
   Users,
   Settings,
   Eye,
+  Plus,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiService, DashboardStats, TrafficData, ThreatTypeData } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [trafficData, setTrafficData] = useState<TrafficData[]>([]);
   const [threatTypes, setThreatTypes] = useState<ThreatTypeData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPlatform, setSelectedPlatform] = useState<{id: string; name: string} | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Load selected platform from localStorage
+    const platformId = localStorage.getItem('selected_platform_id');
+    if (platformId) {
+      const storedPlatforms = localStorage.getItem('user_platforms');
+      if (storedPlatforms) {
+        const platforms = JSON.parse(storedPlatforms);
+        const platform = platforms.find((p: {id: string; name: string}) => p.id === platformId);
+        if (platform) {
+          setSelectedPlatform(platform);
+        }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
+        // In a real app, you would pass the platform ID to the API calls
+        const platformId = localStorage.getItem('selected_platform_id');
+        const queryParams = platformId ? `?platform_id=${platformId}` : '';
+        
         const [statsData, trafficData, threatData] = await Promise.all([
           apiService.getDashboardStats(),
           apiService.getTrafficData(),
@@ -90,6 +113,28 @@ const Dashboard = () => {
     );
   }
 
+  if (!selectedPlatform) {
+    return (
+      <div className="text-center py-12">
+        <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+        <h2 className="text-xl font-semibold mb-2">No Platform Selected</h2>
+        <p className="text-muted-foreground mb-6">
+          Please select a platform to view its dashboard
+        </p>
+        <div className="flex gap-4 justify-center">
+          <Button onClick={() => navigate('/platforms')} className="gradient-primary">
+            <Eye className="h-4 w-4 mr-2" />
+            View Platforms
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/onboarding')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create New Platform
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!stats) {
     return (
       <div className="text-center py-8">
@@ -103,19 +148,34 @@ const Dashboard = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Security Dashboard</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Security Dashboard
+            {selectedPlatform && (
+              <span className="text-lg font-normal text-muted-foreground ml-2">
+                • {selectedPlatform.name}
+              </span>
+            )}
+          </h1>
           <p className="text-muted-foreground">
             Real-time API security monitoring and threat analysis
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => navigate('/platforms')}
+          >
             <Eye className="h-4 w-4 mr-2" />
-            View Details
+            View Platforms
           </Button>
-          <Button size="sm" className="gradient-primary">
+          <Button 
+            size="sm" 
+            className="gradient-primary"
+            onClick={() => navigate('/onboarding')}
+          >
             <Settings className="h-4 w-4 mr-2" />
-            Configure
+            Create New Platform
           </Button>
         </div>
       </div>

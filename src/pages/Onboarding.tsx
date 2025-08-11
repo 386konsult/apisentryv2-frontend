@@ -1,11 +1,13 @@
 
+import apiService from '@/services/api';
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Shield, Cloud, Server, Container, Copy, Check, Upload } from 'lucide-react';
+import { Shield, Cloud, Server, Container, Copy, Check, Upload, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const platforms = [
@@ -17,16 +19,25 @@ const platforms = [
 ];
 
 const Onboarding = () => {
-  const [currentStep, setCurrentStep] = useState(2);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [installCommandResp, setInstallCommandResp] = useState<string | null>(null);
+  const [installScriptUrl, setInstallScriptUrl] = useState<string | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [platformName, setPlatformName] = useState('');
   const [environment, setEnvironment] = useState('production');
   const [deploymentType, setDeploymentType] = useState('saas');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [collectionType, setCollectionType] = useState('');
+  const [collectionData, setCollectionData] = useState<any>(null);
+  const [applicationUrl, setApplicationUrl] = useState('');
+  const [listeningPort, setListeningPort] = useState('8000');
+  const [forwardedPort, setForwardedPort] = useState('8080');
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
   const installCommand = `curl -sL https://api-shield.com/install.sh | bash`;
+  // Backend API endpoint
+  const API_URL = 'http://localhost:5000/api/v1/platforms/';
 
   const handleCopyCommand = () => {
     navigator.clipboard.writeText(installCommand);
@@ -38,48 +49,109 @@ const Onboarding = () => {
     const file = e.target.files?.[0];
     if (file) {
       setUploadedFile(file);
+      // Try to parse JSON for OpenAPI/Postman
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const text = event.target?.result as string;
+          const json = JSON.parse(text);
+          setCollectionData(json);
+          // Auto-detect type
+          if (json.openapi || json.swagger) {
+            setCollectionType('openapi');
+          } else if (json.info && json.item) {
+            setCollectionType('postman');
+          } else {
+            setCollectionType('');
+          }
+        } catch {
+          setCollectionType('');
+        }
+      };
+      reader.readAsText(file);
     }
   };
 
   const handleNext = () => {
-    if (currentStep < 3) {
-      setCurrentStep(currentStep + 1);
+    if (currentStep < 4) {
+      // If step 3, submit to backend
+      if (currentStep === 3) {
+        const formData = new FormData();
+        formData.append('name', platformName);
+        formData.append('environment', environment);
+        formData.append('deployment_type', deploymentType);
+  formData.append('status', 'active');
+  formData.append('listening_port', listeningPort);
+  formData.append('forwarded_port', forwardedPort);
+  formData.append('application_url', applicationUrl);
+        if (uploadedFile && collectionType) {
+          formData.append('collection_type', collectionType);
+          formData.append('collection_file', uploadedFile);
+        } else if (collectionData && collectionType) {
+          formData.append('collection_type', collectionType);
+          formData.append('collection_data', JSON.stringify(collectionData));
+        }
+        const token = localStorage.getItem('auth_token');
+        fetch(API_URL, {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+          headers: token ? { 'Authorization': `Token ${token}` } : {},
+        })
+          .then(async (res) => {
+            if (!res.ok) {
+              let errDetail = 'Unknown error';
+              try {
+                const errJson = await res.json();
+                errDetail = JSON.stringify(errJson, null, 2);
+              } catch {
+                errDetail = await res.text();
+              }
+              throw new Error(errDetail);
+            }
+            return res.json();
+          })
+          .then((data) => {
+            // Save platform info to localStorage for compatibility
+            const platformObj = data.platform || data;
+            const platformId = platformObj.id;
+            const existingPlatforms = localStorage.getItem('user_platforms');
+            const platforms = existingPlatforms ? JSON.parse(existingPlatforms) : [];
+            platforms.push(platformObj);
+            localStorage.setItem('user_platforms', JSON.stringify(platforms));
+            localStorage.setItem('selected_platform_id', platformId);
+            // Save install command and script url for step 4
+            setInstallCommandResp(data.install_command || null);
+            setInstallScriptUrl(data.install_script_url || null);
+            setCurrentStep(currentStep + 1);
+          })
+          .catch((err) => {
+            alert(`Error: ${err.message}`);
+            console.error('Full error:', err);
+          });
+      } else {
+        setCurrentStep(currentStep + 1);
+      }
     } else {
-      // Create the platform and save to localStorage
-      const newPlatform = {
-        id: Date.now().toString(), // Simple ID generation
-        name: platformName,
-        environment,
-        deployment_type: deploymentType,
-        status: 'active' as const,
-        created_at: new Date().toISOString(),
-        total_requests: 0,
-        blocked_threats: 0,
-        active_endpoints: 0,
-      };
-
-      // Get existing platforms or create empty array
-      const existingPlatforms = localStorage.getItem('user_platforms');
-      const platforms = existingPlatforms ? JSON.parse(existingPlatforms) : [];
-      
-      // Add new platform
-      platforms.push(newPlatform);
-      localStorage.setItem('user_platforms', JSON.stringify(platforms));
-      
-      // Set as selected platform
-      localStorage.setItem('selected_platform_id', newPlatform.id);
-      
-      navigate('/dashboard');
+      // Step 4: Finish and go to platform details page
+      const selectedPlatformId = localStorage.getItem('selected_platform_id');
+      if (selectedPlatformId) {
+        navigate(`/platforms/${selectedPlatformId}`);
+      } else {
+        navigate('/dashboard');
+      }
     }
   };
 
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return selectedPlatform !== '';
+        return true;
       case 2:
         return platformName.trim() !== '';
       case 3:
+        return true;
+      case 4:
         return true;
       default:
         return false;
@@ -99,11 +171,10 @@ const Onboarding = () => {
           <CardDescription>
             Let's set up your security platform in just a few steps
           </CardDescription>
-          
           {/* Progress indicator */}
           <div className="flex justify-center mt-6">
             <div className="flex space-x-2">
-              {[1, 2, 3].map((step) => (
+              {[1, 2, 3, 4].map((step) => (
                 <div
                   key={step}
                   className={`w-3 h-3 rounded-full ${
@@ -165,7 +236,15 @@ const Onboarding = () => {
                     onChange={(e) => setPlatformName(e.target.value)}
                   />
                 </div>
-
+                <div className="space-y-2">
+                  <Label htmlFor="application-url">Application URL</Label>
+                  <Input
+                    id="application-url"
+                    placeholder="e.g., https://api.example.com"
+                    value={applicationUrl}
+                    onChange={(e) => setApplicationUrl(e.target.value)}
+                  />
+                </div>
                 <div className="space-y-3">
                   <Label>Environment</Label>
                   <RadioGroup value={environment} onValueChange={setEnvironment}>
@@ -183,7 +262,6 @@ const Onboarding = () => {
                     </div>
                   </RadioGroup>
                 </div>
-
                 <div className="space-y-3">
                   <Label>Deployment Type</Label>
                   <RadioGroup value={deploymentType} onValueChange={setDeploymentType}>
@@ -204,17 +282,38 @@ const Onboarding = () => {
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="text-center">
-                <h3 className="text-lg font-semibold mb-2">Install WAF Protection</h3>
-                <p className="text-muted-foreground">Upload your API documentation and install the WAF</p>
+                <h3 className="text-lg font-semibold mb-2">Upload API Documentation</h3>
+                <p className="text-muted-foreground">Upload your API documentation (OpenAPI/Postman) to enable endpoint detection and protection</p>
               </div>
-              
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Listening Port</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="65535"
+                    value={listeningPort}
+                    onChange={e => setListeningPort(e.target.value)}
+                    placeholder="8000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Forwarded Port</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="65535"
+                    value={forwardedPort}
+                    onChange={e => setForwardedPort(e.target.value)}
+                    placeholder="8080"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label>API Documentation (Optional)</Label>
                   <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
                     <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground mb-2">
-                      Upload OpenAPI/Swagger specification
+                      Upload OpenAPI or Postman collection (.json)
                     </p>
                     <input
                       type="file"
@@ -231,29 +330,57 @@ const Onboarding = () => {
                     </Button>
                     {uploadedFile && (
                       <p className="text-sm text-green-600 mt-2">
-                        ✓ {uploadedFile.name}
+                        ✓ {uploadedFile.name} ({collectionType ? collectionType : 'Unknown'})
                       </p>
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
 
+          {currentStep === 4 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-lg font-semibold mb-2">Install WAF Protection</h3>
+                <p className="text-muted-foreground">Run the installation command below and download the install script to complete setup.</p>
+              </div>
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Installation Command</Label>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <code className="text-sm font-mono">{installCommand}</code>
+                  <div className="bg-muted p-4 rounded-lg flex items-center">
+                    <code className="text-sm font-mono flex-1">{installCommandResp || '...'}</code>
                     <Button
                       variant="outline"
                       size="sm"
                       className="ml-2"
-                      onClick={handleCopyCommand}
+                      onClick={() => {
+                        if (installCommandResp) {
+                          navigator.clipboard.writeText(installCommandResp);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }
+                      }}
+                      disabled={!installCommandResp}
                     >
                       {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       {copied ? 'Copied!' : 'Copy'}
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    This will install Envoy, download the .wasm module from GitHub, 
-                    and configure it to listen on port 443 while forwarding to port 8000.
+                  {installScriptUrl && (
+                    <div className="mt-2 flex justify-center">
+                      <a
+                        href={installScriptUrl}
+                        download
+                        className="inline-flex items-center gap-2 px-5 py-2.5 font-semibold bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg shadow-lg hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all duration-150"
+                      >
+                        <Download className="h-5 w-5" />
+                        <span>Download Install Script</span>
+                      </a>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    This will install Envoy, download the .wasm module from GitHub, and configure it to listen on port 443 while forwarding to port 8000.
                   </p>
                 </div>
               </div>
@@ -268,12 +395,11 @@ const Onboarding = () => {
             >
               Previous
             </Button>
-            
             <Button
               onClick={handleNext}
               disabled={!canProceed()}
             >
-              {currentStep === 3 ? 'Proceed to Dashboard' : 'Next'}
+              {currentStep === 4 ? 'Proceed to Dashboard' : 'Next'}
             </Button>
           </div>
         </CardContent>

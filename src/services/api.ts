@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+const API_BASE_URL = 'http://localhost:5000/api/v1';
 
 // Types for API responses
 export interface User {
@@ -114,6 +114,114 @@ export interface EndpointStatus {
 
 // API service class
 class APIService {
+  // Get platform details
+  async getPlatformDetails(platformId: string): Promise<any> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/platforms/${platformId}/`, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    return res.json();
+  }
+
+  // Get endpoints for a platform
+  async getPlatformEndpoints(platformId: string): Promise<any[]> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/platforms/${platformId}/endpoints/`, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.results || []);
+  }
+
+  // Get WAF rules for a platform
+  async getPlatformWAFRules(platformId: string): Promise<any[]> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/waf-rules/?platform_id=${platformId}`, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.results || []);
+  }
+
+  // Get request logs for a platform
+  async getPlatformRequestLogs(platformId: string): Promise<any[]> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/platforms/${platformId}/request-logs/`, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    const data = await res.json();
+    return Array.isArray(data.logs) ? data.logs : [];
+  }
+  // Upload collection to platform
+  async uploadCollection(platformId: string, collectionType: string, fileOrData: File | object): Promise<any> {
+    const formData = new FormData();
+    formData.append('collection_type', collectionType);
+    if (fileOrData instanceof File) {
+      formData.append('collection_file', fileOrData);
+    } else {
+      formData.append('collection_data', JSON.stringify(fileOrData));
+    }
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/platforms/${platformId}/upload-collection/`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    return res.json();
+  }
+
+  // List collections for a platform
+  async getCollections(platformId: string): Promise<any> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/platforms/${platformId}/collections/`, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    return res.json();
+  }
+
+  // Get analytics for a platform
+  async getAnalytics(platformId: string): Promise<any> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/platforms/${platformId}/analytics/`, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    return res.json();
+  }
+
+  // Send WAF log
+  async sendWAFLog(logData: object): Promise<any> {
+    const res = await fetch(`${this.baseURL}/waf/log-request/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(logData),
+    });
+    return res.json();
+  }
+
+  // Detect collection type
+  async detectCollectionType(collectionDataOrFile: File | object): Promise<any> {
+    const formData = new FormData();
+    if (collectionDataOrFile instanceof File) {
+      formData.append('collection_file', collectionDataOrFile);
+    } else {
+      formData.append('collection_data', JSON.stringify(collectionDataOrFile));
+    }
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/platforms/detect-collection-type/`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    return res.json();
+  }
   private baseURL: string;
   private token: string | null = null;
 

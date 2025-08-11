@@ -25,60 +25,42 @@ const Platforms = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Load platforms from localStorage for now
-    // In a real app, this would come from the API
-    const loadPlatforms = () => {
+    // Fetch platforms from backend API
+    const fetchPlatforms = async () => {
+      setLoading(true);
       try {
-        const storedPlatforms = localStorage.getItem('user_platforms');
-        if (storedPlatforms) {
-          setPlatforms(JSON.parse(storedPlatforms));
-        } else {
-          // Mock data for demonstration
-          const mockPlatforms: Platform[] = [
-            {
-              id: '1',
-              name: 'Production API Gateway',
-              environment: 'production',
-              deployment_type: 'saas',
-              status: 'active',
-              created_at: '2024-01-15T10:30:00Z',
-              total_requests: 15420,
-              blocked_threats: 234,
-              active_endpoints: 12,
-            },
-            {
-              id: '2',
-              name: 'Staging Environment',
-              environment: 'staging',
-              deployment_type: 'saas',
-              status: 'active',
-              created_at: '2024-01-10T14:20:00Z',
-              total_requests: 8230,
-              blocked_threats: 89,
-              active_endpoints: 8,
-            },
-          ];
-          setPlatforms(mockPlatforms);
-          localStorage.setItem('user_platforms', JSON.stringify(mockPlatforms));
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch('http://localhost:5000/api/v1/platforms/', {
+          method: 'GET',
+          credentials: 'include',
+          headers: token ? { 'Authorization': `Token ${token}` } : {},
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || 'Failed to fetch platforms');
         }
+        const data = await res.json();
+        // If backend returns a list, use it directly; if paginated, use data.results
+        const platformsList = Array.isArray(data) ? data : (data.results || []);
+        setPlatforms(platformsList);
+        localStorage.setItem('user_platforms', JSON.stringify(platformsList));
       } catch (error) {
         console.error('Error loading platforms:', error);
         toast({
           title: 'Error loading platforms',
-          description: 'Failed to load your platforms',
+          description: error.message || 'Failed to load your platforms',
           variant: 'destructive',
         });
       } finally {
         setLoading(false);
       }
     };
-
-    loadPlatforms();
+    fetchPlatforms();
   }, [toast]);
 
   const handleSelectPlatform = (platform: Platform) => {
-    localStorage.setItem('selected_platform_id', platform.id);
-    navigate('/dashboard');
+  localStorage.setItem('selected_platform_id', platform.id);
+  navigate(`/platforms/${platform.id}`);
   };
 
   const handleCreateNewPlatform = () => {

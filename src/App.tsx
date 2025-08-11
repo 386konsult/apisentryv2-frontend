@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -36,6 +35,7 @@ import CodeReviewRepos from "./pages/CodeReviewRepos";
 import CodeReviewTeam from "./pages/CodeReviewTeam";
 import CodeReviewRepoDetails from "./pages/CodeReviewRepoDetails";
 import Platforms from "./pages/Platforms";
+import PlatformDetails from "./pages/PlatformDetails";
 
 const queryClient = new QueryClient();
 
@@ -119,6 +119,7 @@ const AppContent = () => {
                       <Route path="/code-review-team" element={<CodeReviewTeam />} />
                       <Route path="/code-review-repos/:repoName" element={<CodeReviewRepoDetails />} />
                       <Route path="/platforms" element={<Platforms />} />
+                      <Route path="/platforms/:id" element={<PlatformDetails />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>

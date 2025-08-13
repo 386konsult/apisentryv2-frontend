@@ -101,7 +101,7 @@ const AppContent = () => {
                   </header>
                   <main className="p-6">
                     <Routes>
-                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/" element={<Platforms />} />
                       <Route path="/waf-rules" element={<WAFRules />} />
                       <Route path="/threat-logs" element={<ThreatLogs />} />
                       <Route path="/api-endpoints" element={<APIEndpoints />} />

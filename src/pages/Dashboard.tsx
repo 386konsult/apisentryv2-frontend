@@ -61,19 +61,34 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // In a real app, you would pass the platform ID to the API calls
-        const platformId = localStorage.getItem('selected_platform_id');
-        const queryParams = platformId ? `?platform_id=${platformId}` : '';
-        
-        const [statsData, trafficData, threatData] = await Promise.all([
-          apiService.getDashboardStats(),
-          apiService.getTrafficData(),
-          apiService.getThreatTypeData(),
-        ]);
-
+        const statsData = await apiService.getDashboardStats();
         setStats(statsData);
-        setTrafficData(trafficData);
-        setThreatTypes(threatData);
+
+        // Parse traffic data if available (example: from method_breakdown)
+        if (statsData.method_breakdown) {
+          const trafficArr = Object.entries(statsData.method_breakdown).map(([name, value]) => ({
+            name,
+            requests: Number(value),
+            blocked: 0,
+            allowed: 0,
+          }));
+          setTrafficData(trafficArr);
+        } else {
+          setTrafficData([]);
+        }
+
+        // Parse threat types if available (example: from status_code_breakdown)
+        if (statsData.status_code_breakdown) {
+          const colors = ["#6366f1", "#ef4444", "#22c55e", "#eab308", "#06b6d4"];
+          const threatArr = Object.entries(statsData.status_code_breakdown).map(([name, value], i) => ({
+            name,
+            value: Number(value),
+            color: colors[i % colors.length],
+          }));
+          setThreatTypes(threatArr);
+        } else {
+          setThreatTypes([]);
+        }
       } catch (error) {
         toast({
           title: "Error loading dashboard data",
@@ -188,7 +203,7 @@ const Dashboard = () => {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total_requests.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{(stats.total_requests ?? 0).toLocaleString()}</div>
             <p className="text-xs text-muted-foreground flex items-center">
               <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
               +12.5% from last month
@@ -202,7 +217,7 @@ const Dashboard = () => {
             <Shield className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.blocked_threats.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-red-600">{(stats.blocked_threats ?? 0).toLocaleString()}</div>
             <p className="text-xs text-muted-foreground flex items-center">
               <TrendingDown className="h-3 w-3 mr-1 text-green-500" />
               -8.3% from last month
@@ -216,9 +231,9 @@ const Dashboard = () => {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.clean_requests.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-green-600">{(stats.clean_requests ?? 0).toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              {((stats.clean_requests / stats.total_requests) * 100).toFixed(2)}% success rate
+              {stats.total_requests && stats.clean_requests ? ((stats.clean_requests / stats.total_requests) * 100).toFixed(2) : '0.00'}% success rate
             </p>
           </CardContent>
         </Card>
@@ -229,7 +244,7 @@ const Dashboard = () => {
             <Globe className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.active_endpoints}</div>
+            <div className="text-2xl font-bold">{stats.active_endpoints ?? 0}</div>
             <p className="text-xs text-muted-foreground">
               12 new this week
             </p>
@@ -282,7 +297,7 @@ const Dashboard = () => {
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
-                  {threatTypes.map((entry, index) => (
+                  {(Array.isArray(threatTypes) ? threatTypes : []).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -306,7 +321,7 @@ const Dashboard = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {stats.recent_threats.map((threat) => (
+            {(Array.isArray(stats?.recent_threats) ? stats.recent_threats : []).map((threat) => (
               <div
                 key={threat.id}
                 className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors"

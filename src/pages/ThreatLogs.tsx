@@ -32,27 +32,31 @@ import {
   Code,
   Activity,
 } from "lucide-react";
-import { apiService, ThreatLog } from "@/services/api";
+import { apiService } from "@/services/api";
+import { useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 const ThreatLogs = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [threatType, setThreatType] = useState("all");
   const [timeRange, setTimeRange] = useState("24h");
-  const [threats, setThreats] = useState<ThreatLog[]>([]);
+  const [allLogs, setAllLogs] = useState<any[]>([]);
+  const threats = allLogs.filter(t => t.waf_blocked);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { id: platformId } = useParams();
 
   useEffect(() => {
     const fetchThreats = async () => {
+      if (!platformId) return;
       try {
-        const threatsData = await apiService.getThreatLogs();
-        // Ensure threatsData is an array
-        if (Array.isArray(threatsData)) {
-          setThreats(threatsData);
+  // Use the same endpoint logic as PlatformDetails
+        const logs = await apiService.getPlatformRequestLogs(platformId);
+        console.log('Fetched request logs:', logs);
+        if (Array.isArray(logs)) {
+          setAllLogs(logs);
         } else {
-          console.error('Expected array but got:', threatsData);
-          setThreats([]);
+          setAllLogs([]);
           toast({
             title: "Error loading threat logs",
             description: "Invalid data format received",
@@ -60,8 +64,7 @@ const ThreatLogs = () => {
           });
         }
       } catch (error) {
-        console.error('Error fetching threats:', error);
-        setThreats([]);
+        setAllLogs([]);
         toast({
           title: "Error loading threat logs",
           description: "Failed to fetch threat logs",
@@ -71,26 +74,20 @@ const ThreatLogs = () => {
         setLoading(false);
       }
     };
-
     fetchThreats();
-  }, [toast]);
+  }, [platformId, toast]);
 
-  const getSeverityColor = (severity: string) => {
+  const getSeverityColor = (threat_level: string) => {
     const colors = {
       high: "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400",
       medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400",
       low: "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400",
     };
-    return colors[severity as keyof typeof colors] || "bg-gray-100 text-gray-800";
+    return colors[threat_level as keyof typeof colors] || "bg-gray-100 text-gray-800";
   };
 
-  const getStatusColor = (status: string) => {
-    const colors = {
-      blocked: "destructive",
-      quarantined: "secondary",
-      allowed: "default",
-    } as const;
-    return colors[status as keyof typeof colors] || "default";
+  const getStatusColor = (waf_blocked: boolean) => {
+    return waf_blocked ? "destructive" : "default";
   };
 
   return (
@@ -124,7 +121,7 @@ const ThreatLogs = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{threats.length}</div>
-            <p className="text-xs text-muted-foreground">+18% from yesterday</p>
+            <p className="text-xs text-muted-foreground">Blocked requests in last 24h</p>
           </CardContent>
         </Card>
 
@@ -135,12 +132,12 @@ const ThreatLogs = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {threats.filter(t => t.status === 'blocked').length}
+              {threats.length}
             </div>
             <p className="text-xs text-muted-foreground">
-              {threats.length > 0 ? 
-                `${((threats.filter(t => t.status === 'blocked').length / threats.length) * 100).toFixed(1)}% success rate` : 
-                '0% success rate'
+              {allLogs.length > 0 ? 
+                `${((threats.length / allLogs.length) * 100).toFixed(1)}% blocked` : 
+                '0% blocked'
               }
             </p>
           </CardContent>
@@ -153,7 +150,7 @@ const ThreatLogs = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {threats.filter(t => t.severity === 'high').length}
+              {threats.filter(t => t.threat_level === 'high').length}
             </div>
             <p className="text-xs text-muted-foreground">Requires attention</p>
           </CardContent>
@@ -166,7 +163,7 @@ const ThreatLogs = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {new Set(threats.map(t => t.source_ip)).size}
+              {new Set(threats.map(t => t.client_ip)).size}
             </div>
             <p className="text-xs text-muted-foreground">Unique source IPs</p>
           </CardContent>
@@ -236,7 +233,7 @@ const ThreatLogs = () => {
               </div>
             ) : threats.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-muted-foreground">No threat logs found</p>
+                <p className="text-muted-foreground">No blocked threat logs found</p>
               </div>
             ) : (
               threats.map((threat) => (
@@ -248,16 +245,16 @@ const ThreatLogs = () => {
                     <div className="flex items-center gap-3">
                       <AlertTriangle className="h-5 w-5 text-red-500" />
                       <div>
-                        <h3 className="font-medium">{threat.threat_type.replace('_', ' ').toUpperCase()}</h3>
-                        <p className="text-sm text-muted-foreground">{new Date(threat.timestamp).toLocaleString()}</p>
+                        <h3 className="font-medium">{threat.waf_rule_triggered ? threat.waf_rule_triggered : (threat.threat_level && threat.threat_level !== 'none' ? threat.threat_level.toUpperCase() : 'Request')}</h3>
+                        <p className="text-sm text-muted-foreground">{threat.timestamp}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className={getSeverityColor(threat.severity)}>
-                        {threat.severity}
+                      <Badge className={getSeverityColor(threat.threat_level)}>
+                        {threat.threat_level}
                       </Badge>
-                      <Badge variant={getStatusColor(threat.status)}>
-                        {threat.status}
+                      <Badge variant={getStatusColor(threat.waf_blocked)}>
+                        {threat.waf_blocked ? 'Blocked' : 'Allowed'}
                       </Badge>
                     </div>
                   </div>
@@ -267,7 +264,7 @@ const ThreatLogs = () => {
                       <Label className="text-xs text-muted-foreground">Source</Label>
                       <div className="flex items-center gap-2">
                         <MapPin className="h-3 w-3" />
-                        <span className="text-sm">{threat.source_ip}</span>
+                        <span className="text-sm">{threat.client_ip}</span>
                       </div>
                     </div>
                     
@@ -275,21 +272,61 @@ const ThreatLogs = () => {
                       <Label className="text-xs text-muted-foreground">Endpoint</Label>
                       <div className="flex items-center gap-2">
                         <Code className="h-3 w-3" />
-                        <span className="text-sm font-mono">{threat.request_method} {threat.request_path}</span>
+                        <span className="text-sm font-mono">{threat.method} {threat.path}</span>
                       </div>
                     </div>
                     
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Rule</Label>
-                      <span className="text-sm">{threat.waf_rule_name || 'None'}</span>
+                      <span className="text-sm">{threat.waf_rule_triggered || 'None'}</span>
                     </div>
                   </div>
 
-                  {threat.details && Object.keys(threat.details).length > 0 && (
+                  {(threat.query_params && Object.keys(threat.query_params).length > 0) && (
                     <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Details</Label>
+                      <Label className="text-xs text-muted-foreground">Query Params</Label>
                       <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
-                        {JSON.stringify(threat.details, null, 2)}
+                        {JSON.stringify(threat.query_params, null, 2)}
+                      </div>
+                    </div>
+                  )}
+                  {(threat.headers && Object.keys(threat.headers).length > 0) && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Headers</Label>
+                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
+                        {JSON.stringify(threat.headers, null, 2)}
+                      </div>
+                    </div>
+                  )}
+                  {threat.request_body && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Request Body</Label>
+                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
+                        {typeof threat.request_body === 'object' ? JSON.stringify(threat.request_body, null, 2) : threat.request_body}
+                      </div>
+                    </div>
+                  )}
+                  {(threat.response_headers && Object.keys(threat.response_headers).length > 0) && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Response Headers</Label>
+                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
+                        {JSON.stringify(threat.response_headers, null, 2)}
+                      </div>
+                    </div>
+                  )}
+                  {threat.response_body && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Response Body</Label>
+                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
+                        {typeof threat.response_body === 'object' ? JSON.stringify(threat.response_body, null, 2) : threat.response_body}
+                      </div>
+                    </div>
+                  )}
+                  {typeof threat.response_time_ms === 'number' && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Response Time (ms)</Label>
+                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
+                        {threat.response_time_ms}
                       </div>
                     </div>
                   )}
@@ -307,7 +344,7 @@ const ThreatLogs = () => {
                       </DialogTrigger>
                       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
                         <DialogHeader>
-                          <DialogTitle>Threat Details - {threat.threat_type.replace('_', ' ').toUpperCase()}</DialogTitle>
+                          <DialogTitle>Threat Details - {threat.waf_rule_triggered ? threat.waf_rule_triggered : (threat.threat_level && threat.threat_level !== 'none' ? threat.threat_level.toUpperCase() : 'Request')}</DialogTitle>
                           <DialogDescription>
                             Complete information about this security event
                           </DialogDescription>
@@ -316,28 +353,44 @@ const ThreatLogs = () => {
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <Label>Timestamp</Label>
-                              <p className="text-sm">{new Date(threat.timestamp).toLocaleString()}</p>
+                              <p className="text-sm">{threat.timestamp}</p>
                             </div>
                             <div>
                               <Label>Status</Label>
-                              <Badge variant={getStatusColor(threat.status)}>
-                                {threat.status}
+                              <Badge variant={getStatusColor(threat.waf_blocked)}>
+                                {threat.waf_blocked ? 'Blocked' : 'Allowed'}
                               </Badge>
                             </div>
                           </div>
                           <div>
                             <Label>Source IP</Label>
-                            <p className="text-sm">{threat.source_ip}</p>
+                            <p className="text-sm">{threat.client_ip}</p>
                           </div>
                           <div>
                             <Label>Request Path</Label>
-                            <p className="text-sm font-mono">{threat.request_method} {threat.request_path}</p>
+                            <p className="text-sm font-mono">{threat.method} {threat.path}</p>
                           </div>
-                          {threat.details && Object.keys(threat.details).length > 0 && (
+                          {(threat.query_params && Object.keys(threat.query_params).length > 0) && (
                             <div>
-                              <Label>Details</Label>
+                              <Label>Query Params</Label>
                               <div className="bg-muted p-4 rounded font-mono text-sm mt-2">
-                                {JSON.stringify(threat.details, null, 2)}
+                                {JSON.stringify(threat.query_params, null, 2)}
+                              </div>
+                            </div>
+                          )}
+                          {(threat.headers && Object.keys(threat.headers).length > 0) && (
+                            <div>
+                              <Label>Headers</Label>
+                              <div className="bg-muted p-4 rounded font-mono text-sm mt-2">
+                                {JSON.stringify(threat.headers, null, 2)}
+                              </div>
+                            </div>
+                          )}
+                          {threat.request_body && (
+                            <div>
+                              <Label>Request Body</Label>
+                              <div className="bg-muted p-4 rounded font-mono text-sm mt-2">
+                                {threat.request_body}
                               </div>
                             </div>
                           )}

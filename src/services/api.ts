@@ -114,6 +114,23 @@ export interface EndpointStatus {
 
 // API service class
 class APIService {
+  // Dashboard stats for selected platform
+  async getDashboardStats(): Promise<any> {
+    const platformId = localStorage.getItem('selected_platform_id');
+    if (!platformId) throw new Error('No platform selected');
+    // /platforms/<uuid:pk>/analytics/
+    const response = await this.request<{success: boolean; analytics: any}>(`/platforms/${platformId}/analytics/`);
+    return response.analytics;
+  }
+
+  // Threat logs for selected platform
+  async getThreatLogs(): Promise<any[]> {
+    const platformId = localStorage.getItem('selected_platform_id');
+    if (!platformId) throw new Error('No platform selected');
+    // /platforms/<uuid:pk>/request-logs/
+    const response = await this.request<{success: boolean; logs: any[]}>(`/platforms/${platformId}/request-logs/`);
+    return response.logs;
+  }
   // Get platform details
   async getPlatformDetails(platformId: string): Promise<any> {
     const token = localStorage.getItem('auth_token');
@@ -132,7 +149,10 @@ class APIService {
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
     const data = await res.json();
-    return Array.isArray(data) ? data : (data.results || []);
+    // If paginated, return data.results, else return data
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.results)) return data.results;
+    return [];
   }
 
   // Get WAF rules for a platform
@@ -154,7 +174,13 @@ class APIService {
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
     const data = await res.json();
-    return Array.isArray(data.logs) ? data.logs : [];
+    if (Array.isArray(data)) {
+      return data;
+    } else if (Array.isArray(data.logs)) {
+      return data.logs;
+    } else {
+      return [];
+    }
   }
   // Upload collection to platform
   async uploadCollection(platformId: string, collectionType: string, fileOrData: File | object): Promise<any> {
@@ -222,6 +248,8 @@ class APIService {
     });
     return res.json();
   }
+
+  
   private baseURL: string;
   private token: string | null = null;
 
@@ -374,29 +402,6 @@ class APIService {
     });
   }
 
-  // Threat Logs methods
-  async getThreatLogs(params?: Record<string, string>): Promise<ThreatLog[]> {
-    const queryString = params ? `?${new URLSearchParams(params).toString()}` : '';
-    const endpoint = `/threat-logs/${queryString}`;
-    const response = await this.request<{count: number; next: string | null; previous: string | null; results: ThreatLog[]}>(this.addPlatformQuery(endpoint));
-    return response.results;
-  }
-
-  async getThreatLog(id: number): Promise<ThreatLog> {
-    return await this.request<ThreatLog>(`/threat-logs/${id}/`);
-  }
-
-  async createThreatLog(threatData: Partial<ThreatLog>): Promise<ThreatLog> {
-    return await this.request<ThreatLog>('/threat-logs/create/', {
-      method: 'POST',
-      body: JSON.stringify(threatData),
-    });
-  }
-
-  // Dashboard methods
-  async getDashboardStats(): Promise<DashboardStats> {
-    return await this.request<DashboardStats>(this.addPlatformQuery('/dashboard/stats/'));
-  }
 
   async getTrafficData(): Promise<TrafficData[]> {
     return await this.request<TrafficData[]>(this.addPlatformQuery('/dashboard/traffic/'));

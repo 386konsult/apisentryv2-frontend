@@ -2,9 +2,33 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Shield, AlertTriangle, Globe, Settings, Activity } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
+import {
+  Shield,
+  AlertTriangle,
+  CheckCircle,
+  Activity,
+  TrendingUp,
+  TrendingDown,
+  Globe,
+  Users,
+  Settings,
+  Eye,
+  Plus,
+} from 'lucide-react';
 import apiService from '@/services/api';
 
 const PlatformDetails = () => {
@@ -12,10 +36,12 @@ const PlatformDetails = () => {
   const [platform, setPlatform] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [stats, setStats] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
   const [endpoints, setEndpoints] = useState([]);
   const [wafRules, setWafRules] = useState([]);
   const [threatLogs, setThreatLogs] = useState([]);
+  const [trafficData, setTrafficData] = useState([]);
+  const [threatTypes, setThreatTypes] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,21 +60,56 @@ const PlatformDetails = () => {
 
   useEffect(() => {
     if (!id) return;
-    // Fetch stats
-    apiService.getDashboardStats()
-      .then(setStats)
-      .catch(() => {});
-    // Fetch endpoints
+    // Fetch analytics using API service (auth, correct endpoint)
+    apiService.getAnalytics(id)
+      .then(data => {
+        if (data.success && data.analytics) {
+          setAnalytics(data.analytics);
+          // Traffic chart data
+          // Add 404 requests to traffic overview
+          if (data.analytics.method_breakdown) {
+            const trafficArr = Object.entries(data.analytics.method_breakdown).map(([name, value]) => ({
+              name,
+              requests: Number(value),
+              allowed: name === 'GET' ? data.analytics.successful_requests : 0,
+              blocked: name === 'GET' ? data.analytics.blocked_requests : 0,
+              notFound: name === 'GET' && data.analytics.status_code_breakdown && data.analytics.status_code_breakdown['404'] ? data.analytics.status_code_breakdown['404'] : 0,
+            }));
+            setTrafficData(trafficArr);
+          } else {
+            setTrafficData([]);
+          }
+          // Threat types pie chart
+          if (data.analytics.status_code_breakdown) {
+            const colors = {
+              '200': '#22c55e', // green for 200
+              '403': '#ef4444', // red for 403
+              '404': '#6366f1',
+              '500': '#eab308',
+              'other': '#06b6d4',
+            };
+            const threatArr = Object.entries(data.analytics.status_code_breakdown).map(([name, value], i) => ({
+              name,
+              value: Number(value),
+              color: colors[name] || colors['other'],
+            }));
+            setThreatTypes(threatArr);
+          } else {
+            setThreatTypes([]);
+          }
+        }
+      });
+    // Endpoints
     apiService.getPlatformEndpoints(id)
       .then(setEndpoints)
       .catch(() => {});
-    // Fetch WAF rules
+    // WAF rules
     apiService.getPlatformWAFRules(id)
       .then(setWafRules)
       .catch(() => {});
-    // Fetch threat logs from request-logs endpoint
+    // Request logs using API service (auth, correct endpoint)
     apiService.getPlatformRequestLogs(id)
-      .then(setThreatLogs)
+      .then(logs => setThreatLogs(logs))
       .catch(() => {});
   }, [id]);
 
@@ -57,140 +118,274 @@ const PlatformDetails = () => {
   if (!platform) return <div className="p-8 text-center">Platform not found.</div>;
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
-      {/* Back to platforms button (red X, bottom right, always visible) */}
-      <button
-        onClick={() => navigate('/platforms')}
-        className="fixed bottom-8 right-8 z-50 p-2 rounded-full bg-red-100 hover:bg-red-200 text-xl text-red-600 hover:text-red-800 transition shadow"
-        title="Back to Platforms"
-      >
-        &#10005;
-      </button>
-      <div className="w-full max-w-4xl space-y-8">
-        {/* Platform Summary */}
-        <Card>
+    <div className="space-y-6 p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Security Dashboard
+            {platform && (
+              <span className="text-lg font-normal text-muted-foreground ml-2">
+                • {platform.name}
+              </span>
+            )}
+          </h1>
+          <p className="text-muted-foreground">
+            Real-time API security monitoring and threat analysis
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => navigate('/platforms')}
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            View Platforms
+          </Button>
+          <Button 
+            size="sm" 
+            className="gradient-primary"
+            onClick={() => navigate('/onboarding')}
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Create New Platform
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <Card className="tech-glow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{analytics ? (analytics.total_requests ?? 0).toLocaleString() : '--'}</div>
+            <p className="text-xs text-muted-foreground flex items-center">
+              <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
+              +12.5% from last month
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="tech-glow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Blocked Threats</CardTitle>
+            <Shield className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{analytics ? (analytics.blocked_requests ?? 0).toLocaleString() : '--'}</div>
+            <p className="text-xs text-muted-foreground flex items-center">
+              <TrendingDown className="h-3 w-3 mr-1 text-green-500" />
+              -8.3% from last month
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="tech-glow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Clean Requests</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{analytics ? (analytics.successful_requests ?? 0).toLocaleString() : '--'}</div>
+            <p className="text-xs text-muted-foreground">
+              {analytics ? (analytics.success_rate ? analytics.success_rate.toFixed(2) : '0.00') : '--'}% success rate
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="tech-glow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Other Requests</CardTitle>
+            <Activity className="h-4 w-4 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">{analytics && analytics.status_code_breakdown && analytics.status_code_breakdown['404'] ? analytics.status_code_breakdown['404'] : '--'}</div>
+            <p className="text-xs text-muted-foreground">
+              Includes 404 and other non-success requests
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="tech-glow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Endpoints</CardTitle>
+            <Globe className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{endpoints ? endpoints.filter(e => e.status === 'active' || e.is_active).length : '--'}</div>
+            <p className="text-xs text-muted-foreground">
+              {endpoints ? endpoints.filter(e => e.status === 'active' || e.is_active).length : '0'} new this week
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Traffic Overview */}
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-blue-500" />
-              {platform.name}
-            </CardTitle>
+            <CardTitle>Traffic Overview</CardTitle>
             <CardDescription>
-              {platform.deployment_type === 'saas' ? 'SaaS (Managed)' : 'On-Premises'} • {platform.environment}
+              Request volume and threat blocking over the last 7 days
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4">
-            <div><Label>Status:</Label> <Badge>{platform.status}</Badge></div>
-            <div><Label>Application URL:</Label> <span>{platform.application_url}</span></div>
-            <div><Label>Created At:</Label> <span>{platform.created_at}</span></div>
+          <CardContent className="pt-2">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={trafficData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="allowed" stackId="a" fill="hsl(142 71% 45%)" />
+                <Bar dataKey="blocked" stackId="a" fill="hsl(0 84% 60%)" />
+                <Bar dataKey="notFound" stackId="a" fill="#6366f1" />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Platform Stats (from platform object, fallback to stats) */}
+        {/* Threat Types */}
         <Card>
           <CardHeader>
-            <CardTitle>Platform Stats</CardTitle>
+            <CardTitle>Threats by Type</CardTitle>
+            <CardDescription>
+              Distribution of detected threat categories
+            </CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <Label>Total Requests</Label>
-              <div className="font-bold text-lg">{platform.total_requests ?? stats?.total_requests ?? 0}</div>
-            </div>
-            <div>
-              <Label>Blocked Threats</Label>
-              <div className="font-bold text-lg text-red-600">{platform.blocked_threats ?? stats?.blocked_threats ?? 0}</div>
-            </div>
-            <div>
-              <Label>Active Endpoints</Label>
-              <div className="font-bold text-lg">{platform.active_endpoints ?? stats?.active_endpoints ?? 0}</div>
-            </div>
-            <div>
-              <Label>Avg Response Time</Label>
-              <div className="font-bold text-lg">{stats?.avg_response_time ?? 0} ms</div>
-            </div>
+          <CardContent className="pt-2">
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={threatTypes}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                >
+                  {(Array.isArray(threatTypes) ? threatTypes : []).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
+      </div>
 
-        {/* Endpoints List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>API Endpoints</CardTitle>
+      {/* Live Threat Activity Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-orange-500" />
+            Live Threat Activity
+          </CardTitle>
+          <CardDescription>
+            Real-time API requests and security events
+          </CardDescription>
+        </CardHeader>
+  <CardContent className="max-w-3xl overflow-x-auto" style={{maxHeight: '350px', overflowY: 'auto'}}>
+          {threatLogs.length === 0 ? (
+            <div className="text-muted-foreground">No threat logs found.</div>
+          ) : (
+            <table className="min-w-[700px] text-sm border rounded-lg">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="px-3 py-2 text-left">Time</th>
+                  <th className="px-3 py-2 text-left">Method</th>
+                  <th className="px-3 py-2 text-left">Path</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left">Blocked</th>
+                  <th className="px-3 py-2 text-left">Threat</th>
+                  <th className="px-3 py-2 text-left">Rule</th>
+                  <th className="px-3 py-2 text-left">IP</th>
+                  <th className="px-3 py-2 text-left">User Agent</th>
+                </tr>
+              </thead>
+              <tbody>
+                {threatLogs.slice(0, 10).map((log) => (
+                  <tr key={log.id} className="border-b hover:bg-muted/30 transition-colors">
+                    <td className="px-3 py-2 whitespace-nowrap">{log.timestamp}</td>
+                    <td className="px-3 py-2 font-mono">{log.method}</td>
+                    <td className="px-3 py-2 font-mono">{log.path}</td>
+                    <td className="px-3 py-2 font-mono">{log.status_code}</td>
+                    <td className="px-3 py-2">
+                      {log.waf_blocked ? (
+                        <Badge variant="destructive">Blocked</Badge>
+                      ) : (
+                        <Badge variant="default">Allowed</Badge>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {log.threat_level && log.threat_level !== 'none' ? (
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${log.threat_level === 'high' ? 'bg-red-100 text-red-700' : log.threat_level === 'medium' ? 'bg-yellow-100 text-yellow-700' : log.threat_level === 'low' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{log.threat_level}</span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {log.waf_rule_triggered ? (
+                        <span className="text-orange-600 text-xs">{log.waf_rule_triggered}</span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 font-mono">{log.client_ip}</td>
+                    <td className="px-3 py-2 truncate max-w-xs" title={log.user_agent}>{log.user_agent}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Shield className="h-5 w-5 text-blue-500" />
+              WAF Rules
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {endpoints.length === 0 ? (
-              <div className="text-muted-foreground">No endpoints found.</div>
-            ) : (
-              <ul className="space-y-2">
-                {endpoints.map((ep: any) => (
-                  <li key={ep.id} className="border-b pb-2">
-                    <span className="font-semibold">{ep.name}</span> <span className="text-xs">({ep.method} {ep.path})</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <p className="text-sm text-muted-foreground mb-3">
+              Manage security rules and policies
+            </p>
+            <Button variant="outline" size="sm" className="w-full">
+              Configure Rules
+            </Button>
           </CardContent>
         </Card>
 
-        {/* WAF Rules List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>WAF Rules</CardTitle>
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Threat Logs
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {wafRules.length === 0 ? (
-              <div className="text-muted-foreground">No WAF rules found.</div>
-            ) : (
-              <ul className="space-y-2">
-                {wafRules.map((rule: any) => (
-                  <li key={rule.id} className="border-b pb-2">
-                    <span className="font-semibold">{rule.name}</span> <span className="text-xs">({rule.rule_type}, {rule.severity})</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <p className="text-sm text-muted-foreground mb-3">
+              Review detailed security events
+            </p>
+            <Button variant="outline" size="sm" className="w-full">
+              View Logs
+            </Button>
           </CardContent>
         </Card>
 
-        {/* Threat Logs List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Threat Logs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {threatLogs.length === 0 ? (
-              <div className="text-muted-foreground">No threat logs found.</div>
-            ) : (
-              <ul className="space-y-3">
-                {threatLogs.slice(0, 10).map((log: any) => (
-                  <li key={log.id} className="border-b pb-2">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                      <div className="flex flex-col">
-                        <span className="font-semibold">
-                          {log.waf_blocked ? (
-                            <span className="text-red-600">Blocked</span>
-                          ) : (
-                            <span className="text-green-600">Allowed</span>
-                          )}
-                          {log.threat_level && (
-                            <span className={`ml-2 px-2 py-0.5 rounded text-xs ${log.threat_level === 'high' ? 'bg-red-100 text-red-700' : log.threat_level === 'medium' ? 'bg-yellow-100 text-yellow-700' : log.threat_level === 'low' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{log.threat_level}</span>
-                          )}
-                        </span>
-                        {log.waf_rule_triggered && (
-                          <span className="text-xs text-orange-600">Rule: {log.waf_rule_triggered}</span>
-                        )}
-                        <span className="text-xs text-muted-foreground">{log.timestamp}</span>
-                      </div>
-                      <div className="flex flex-col md:items-end">
-                        <span className="text-xs font-mono">{log.method} {log.path}</span>
-                        <span className="text-xs">Status: {log.status_code}</span>
-                        <span className="text-xs">IP: {log.client_ip}</span>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+      {/* Threat Logs List (improved UI) */}
+      
       </div>
     </div>
   );

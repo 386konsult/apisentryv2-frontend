@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Plus, Activity, Globe, Users, Settings, Eye } from 'lucide-react';
+import { Shield, Plus, Activity, Globe, Users, Settings, Eye, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
@@ -21,6 +21,8 @@ interface Platform {
 const Platforms = () => {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [dropdownOpenId, setDropdownOpenId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -59,12 +61,43 @@ const Platforms = () => {
   }, [toast]);
 
   const handleSelectPlatform = (platform: Platform) => {
-  localStorage.setItem('selected_platform_id', platform.id);
-  navigate(`/platforms/${platform.id}`);
+    localStorage.setItem('selected_platform_id', platform.id);
+    navigate(`/platforms/${platform.id}`);
   };
 
   const handleCreateNewPlatform = () => {
     navigate('/onboarding');
+  };
+
+  const handleDeletePlatform = async (platformId: string) => {
+    if (!window.confirm('Are you sure you want to delete this platform?')) return;
+    setDeletingId(platformId);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`http://localhost:5000/api/v1/platforms/${platformId}/`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Token ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to delete platform');
+      }
+      setPlatforms(prev => prev.filter(p => p.id !== platformId));
+      toast({
+        title: 'Platform deleted',
+        description: 'The platform was deleted successfully.',
+        variant: 'default',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error deleting platform',
+        description: error.message || 'Failed to delete platform',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -172,7 +205,6 @@ const Platforms = () => {
                     <div className="text-muted-foreground text-xs">Endpoints</div>
                   </div>
                 </div>
-                
                 <div className="flex gap-2">
                   <Button 
                     onClick={() => handleSelectPlatform(platform)}
@@ -181,9 +213,32 @@ const Platforms = () => {
                     <Eye className="h-4 w-4 mr-2" />
                     View Dashboard
                   </Button>
-                  <Button variant="outline" size="sm">
-                    <Settings className="h-4 w-4" />
-                  </Button>
+                  {/* Settings button with dropdown */}
+                  <div className="relative">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setDropdownOpenId(dropdownOpenId === platform.id ? null : platform.id)
+                      }
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                    {dropdownOpenId === platform.id && (
+                      <div className="absolute right-0 mt-2 w-32 bg-white border rounded shadow-lg z-10">
+                        <button
+                          className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600"
+                          onClick={() => {
+                            setDropdownOpenId(null);
+                            handleDeletePlatform(platform.id);
+                          }}
+                          disabled={deletingId === platform.id}
+                        >
+                          {deletingId === platform.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -194,4 +249,4 @@ const Platforms = () => {
   );
 };
 
-export default Platforms; 
+export default Platforms;

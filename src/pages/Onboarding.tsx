@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Shield, Cloud, Server, Container, Copy, Check, Upload, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '@/services/api';
 
 const platforms = [
   // { id: 'aws', name: 'Amazon Web Services', icon: Cloud, color: 'from-orange-500 to-yellow-500' },
@@ -20,9 +21,7 @@ const platforms = [
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [installCommandResp, setInstallCommandResp] = useState<string | null>(null);
-  const [installCommandWindows, setInstallCommandWindows] = useState<string | null>(null);
-  const [installCommandLinux, setInstallCommandLinux] = useState<string | null>(null);
-  const [accessUrls, setAccessUrls] = useState<{ direct_access?: string; waf_protected?: string } | null>(null);
+  const [installScriptUrl, setInstallScriptUrl] = useState<string | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [platformName, setPlatformName] = useState('');
   const [environment, setEnvironment] = useState('production');
@@ -34,13 +33,11 @@ const Onboarding = () => {
   const [listeningPort, setListeningPort] = useState('8000');
   const [forwardedPort, setForwardedPort] = useState('8080');
   const [copied, setCopied] = useState(false);
-  const [osType, setOsType] = useState<'windows' | 'linux'>('linux');
-  const [cmdType, setCmdType] = useState<'curl' | 'wget'>('curl');
   const navigate = useNavigate();
 
   const installCommand = `curl -sL https://api-shield.com/install.sh | bash`;
   // Backend API endpoint
-  const API_URL = 'http://localhost:5000/api/v1/platforms/';
+  const API_URL = `${API_BASE_URL}/platforms/`;
 
   const handleCopyCommand = () => {
     navigator.clipboard.writeText(installCommand);
@@ -125,9 +122,7 @@ const Onboarding = () => {
             localStorage.setItem('selected_platform_id', platformId);
             // Save install command and script url for step 4
             setInstallCommandResp(data.install_command || null);
-            setInstallCommandWindows(data.install_command_windows || null);
-            setInstallCommandLinux(data.install_command_linux || null);
-            setAccessUrls(data.access_urls || null);
+            setInstallScriptUrl(data.install_script_url || null);
             setCurrentStep(currentStep + 1);
           })
           .catch((err) => {
@@ -161,22 +156,6 @@ const Onboarding = () => {
       default:
         return false;
     }
-  };
-
-  // Helper to get the right command
-  const getInstallCommand = () => {
-    if (osType === 'windows') {
-      if (cmdType === 'curl') return installCommandWindows || '...';
-      // Wget for Windows (example, adjust as needed)
-      if (installCommandWindows)
-        return installCommandWindows.replace('curl -L', 'wget').replace('-o install.bat', '-O install.bat');
-      return '...';
-    }
-    // Linux (and Mac)
-    if (cmdType === 'curl') return installCommandLinux || '...';
-    if (installCommandLinux)
-      return installCommandLinux.replace('curl -L', 'wget').replace('-o install.sh', '-O install.sh');
-    return '...';
   };
 
   return (
@@ -364,62 +343,46 @@ const Onboarding = () => {
             <div className="space-y-6">
               <div className="text-center">
                 <h3 className="text-lg font-semibold mb-2">Install WAF Protection</h3>
-                <p className="text-muted-foreground">Choose your OS and command type, then run the installation command below.</p>
+                <p className="text-muted-foreground">Run the installation command below and download the install script to complete setup.</p>
               </div>
               <div className="space-y-4">
-                {/* OS Slider */}
-                <div className="flex justify-center gap-2 mb-2">
-                  <Button
-                    variant={osType === 'windows' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setOsType('windows')}
-                  >Windows</Button>
-                  <Button
-                    variant={osType === 'linux' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setOsType('linux')}
-                  >Linux</Button>
-                </div>
-                {/* Command Type Slider */}
-                <div className="flex justify-center gap-2 mb-4">
-                  <Button
-                    variant={cmdType === 'curl' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setCmdType('curl')}
-                  >curl</Button>
-                  <Button
-                    variant={cmdType === 'wget' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setCmdType('wget')}
-                  >wget</Button>
-                </div>
-                {/* Command Display */}
                 <div className="space-y-2">
                   <Label>Installation Command</Label>
                   <div className="bg-muted p-4 rounded-lg flex items-center">
-                    <code className="text-sm font-mono flex-1">{getInstallCommand()}</code>
+                    <code className="text-sm font-mono flex-1">{installCommandResp || '...'}</code>
                     <Button
                       variant="outline"
                       size="sm"
                       className="ml-2"
                       onClick={() => {
-                        const cmd = getInstallCommand();
-                        if (cmd && cmd !== '...') {
-                          navigator.clipboard.writeText(cmd);
+                        if (installCommandResp) {
+                          navigator.clipboard.writeText(installCommandResp);
                           setCopied(true);
                           setTimeout(() => setCopied(false), 2000);
                         }
                       }}
-                      disabled={getInstallCommand() === '...'}
+                      disabled={!installCommandResp}
                     >
                       {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       {copied ? 'Copied!' : 'Copy'}
                     </Button>
                   </div>
+                  {installScriptUrl && (
+                    <div className="mt-2 flex justify-center">
+                      <a
+                        href={installScriptUrl}
+                        download
+                        className="inline-flex items-center gap-2 px-5 py-2.5 font-semibold bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg shadow-lg hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all duration-150"
+                      >
+                        <Download className="h-5 w-5" />
+                        <span>Download Install Script</span>
+                      </a>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    This will install Envoy, download the .wasm module from GitHub, and configure it to listen on port 443 while forwarding to port 8000.
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  This will install Envoy, download the .wasm module, and configure it to listen on your selected ports.
-                </p>
               </div>
             </div>
           )}
@@ -444,6 +407,5 @@ const Onboarding = () => {
     </div>
   );
 };
-
 
 export default Onboarding;

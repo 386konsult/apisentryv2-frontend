@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,7 +32,7 @@ import {
   Activity,
 } from "lucide-react";
 import { apiService } from "@/services/api";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 const ThreatLogs = () => {
@@ -44,15 +43,26 @@ const ThreatLogs = () => {
   const threats = allLogs.filter(t => t.waf_blocked);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { id: platformId } = useParams();
+  const navigate = useNavigate();
+
+  const [platformName, setPlatformName] = useState<string>('');
 
   useEffect(() => {
+    const platformId = localStorage.getItem('selected_platform_id');
+    if (!platformId) {
+      navigate('/platforms');
+      return;
+    }
+    // Get platform name from localStorage user_platforms
+    const platforms = localStorage.getItem('user_platforms');
+    if (platforms) {
+      const arr = JSON.parse(platforms);
+      const found = arr.find((p: any) => p.id === platformId);
+      if (found) setPlatformName(found.name);
+    }
     const fetchThreats = async () => {
-      if (!platformId) return;
       try {
-  // Use the same endpoint logic as PlatformDetails
         const logs = await apiService.getPlatformRequestLogs(platformId);
-        console.log('Fetched request logs:', logs);
         if (Array.isArray(logs)) {
           setAllLogs(logs);
         } else {
@@ -75,7 +85,7 @@ const ThreatLogs = () => {
       }
     };
     fetchThreats();
-  }, [platformId, toast]);
+  }, [toast, navigate]);
 
   const getSeverityColor = (threat_level: string) => {
     const colors = {
@@ -95,7 +105,14 @@ const ThreatLogs = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Threat Logs</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Threat Logs
+            {platformName && (
+              <span className="text-lg font-normal text-muted-foreground ml-2">
+                • {platformName}
+              </span>
+            )}
+          </h1>
           <p className="text-muted-foreground">
             Security events and threat detection history
           </p>

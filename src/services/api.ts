@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5000/api/v1';
+export const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 // Types for API responses
 export interface User {
@@ -142,17 +142,13 @@ class APIService {
   }
 
   // Get endpoints for a platform
-  async getPlatformEndpoints(platformId: string): Promise<any[]> {
+  async getPlatformEndpoints(platformId: string): Promise<any> {
     const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/platforms/${platformId}/endpoints/`, {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
-    const data = await res.json();
-    // If paginated, return data.results, else return data
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data.results)) return data.results;
-    return [];
+    return res.json(); // returns { count, next, previous, results }
   }
 
   // Get WAF rules for a platform
@@ -208,7 +204,7 @@ class APIService {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
-    return res.json();
+    return res.json(); // returns { success, collections, ... }
   }
 
   // Get analytics for a platform
@@ -457,4 +453,4 @@ class APIService {
 
 // Create and export a singleton instance
 export const apiService = new APIService();
-export default apiService; 
+export default apiService;

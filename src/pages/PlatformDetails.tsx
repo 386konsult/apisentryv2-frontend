@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -101,8 +100,12 @@ const PlatformDetails = () => {
       });
     // Endpoints
     apiService.getPlatformEndpoints(id)
-      .then(setEndpoints)
-      .catch(() => {});
+      .then(res => {
+        // Ensure endpoints is always an array
+        const endpointsArr = Array.isArray(res) ? res : (res.results || []);
+        setEndpoints(endpointsArr);
+      })
+      .catch(() => setEndpoints([]));
     // WAF rules
     apiService.getPlatformWAFRules(id)
       .then(setWafRules)
@@ -216,9 +219,15 @@ const PlatformDetails = () => {
             <Globe className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{endpoints ? endpoints.filter(e => e.status === 'active' || e.is_active).length : '--'}</div>
+            <div className="text-2xl font-bold">
+              {Array.isArray(endpoints)
+                ? endpoints.filter(e => e.status === 'active' || e.is_active).length
+                : '--'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {endpoints ? endpoints.filter(e => e.status === 'active' || e.is_active).length : '0'} new this week
+              {Array.isArray(endpoints)
+                ? endpoints.filter(e => e.status === 'active' || e.is_active).length
+                : '0'} new this week
             </p>
           </CardContent>
         </Card>

@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +36,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useState, useEffect } from "react";
 import { apiService, APIEndpoint, EndpointStatus } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const APIEndpoints = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -44,17 +44,39 @@ const APIEndpoints = () => {
   const [endpoints, setEndpoints] = useState<APIEndpoint[]>([]);
   const [endpointStatus, setEndpointStatus] = useState<EndpointStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [platformName, setPlatformName] = useState<string>('');
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
+    const platformId = localStorage.getItem('selected_platform_id');
+    if (!platformId) {
+      navigate('/platforms');
+      return;
+    }
+    // Get platform name from localStorage user_platforms
+    const platforms = localStorage.getItem('user_platforms');
+    if (platforms) {
+      const arr = JSON.parse(platforms);
+      const found = arr.find((p: any) => p.id === platformId);
+      if (found) setPlatformName(found.name);
+    }
+
     const fetchEndpoints = async () => {
       try {
-        const [endpointsData, statusData] = await Promise.all([
-          apiService.getEndpoints(),
-          apiService.getEndpointStatus(),
-        ]);
-        setEndpoints(endpointsData);
-        setEndpointStatus(statusData);
+        const res = await apiService.getPlatformEndpoints(platformId);
+        const endpointsArr = Array.isArray(res) ? res : (res.results || []);
+        setEndpoints(endpointsArr);
+        setEndpointStatus(endpointsArr.map((ep: any) => ({
+          endpoint: ep,
+          status: ep.status,
+          request_count: ep.request_count,
+          avg_response_time: ep.avg_response_time,
+          error_rate: ep.error_rate,
+          last_accessed: ep.last_accessed,
+          protection: ep.is_protected,
+          rules_applied: ep.rules_applied || 0,
+        })));
       } catch (error) {
         toast({
           title: "Error loading endpoints",
@@ -67,7 +89,7 @@ const APIEndpoints = () => {
     };
 
     fetchEndpoints();
-  }, [toast]);
+  }, [toast, navigate]);
 
   const trafficData = [
     { hour: "00", requests: 1200 },
@@ -115,7 +137,14 @@ const APIEndpoints = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">API Endpoints</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            API Endpoints
+            {platformName && (
+              <span className="text-lg font-normal text-muted-foreground ml-2">
+                • {platformName}
+              </span>
+            )}
+          </h1>
           <p className="text-muted-foreground">
             Monitor and manage your API endpoints and their security
           </p>

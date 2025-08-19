@@ -34,6 +34,8 @@ import CodeReviewConnect from "./pages/CodeReviewConnect";
 import CodeReviewRepos from "./pages/CodeReviewRepos";
 import CodeReviewTeam from "./pages/CodeReviewTeam";
 import CodeReviewRepoDetails from "./pages/CodeReviewRepoDetails";
+import CodeReviewScanReports from "./pages/CodeReviewScanReports";
+import CodeReviewReport from "./pages/CodeReviewReport";
 import Platforms from "./pages/Platforms";
 import PlatformDetails from "./pages/PlatformDetails";
 
@@ -118,6 +120,8 @@ const AppContent = () => {
                       <Route path="/code-review-repos" element={<CodeReviewRepos />} />
                       <Route path="/code-review-team" element={<CodeReviewTeam />} />
                       <Route path="/code-review-repos/:repoName" element={<CodeReviewRepoDetails />} />
+                      <Route path="/code-review-scan-reports" element={<CodeReviewScanReports />} />
+                      <Route path="/code-review-report/:reportId" element={<CodeReviewReport />} />
                       <Route path="/platforms" element={<Platforms />} />
                       <Route path="/platforms/:id" element={<PlatformDetails />} />
                       <Route path="*" element={<NotFound />} />

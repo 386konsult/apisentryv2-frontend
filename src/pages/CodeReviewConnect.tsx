@@ -32,7 +32,7 @@ const CodeReviewConnect = () => {
 
     if (code) {
       setLoading(true);
-      fetch("http://localhost:8000/api/v1/auth/github/callback/?code=" + code,
+      fetch("http://127.0.0.1:8000/api/v1/auth/github/callback/?code=" + code,
         { 
       method: "GET", // Ensure method matches backend
       headers: {

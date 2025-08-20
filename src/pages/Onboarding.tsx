@@ -18,6 +18,11 @@ const platforms = [
   // { id: 'on-prem', name: 'On-Premises', icon: Server, color: 'from-gray-600 to-slate-600' },
 ];
 
+const osOptions = [
+  { id: 'linux', name: 'Linux', icon: Server },
+  { id: 'windows', name: 'Windows', icon: Cloud },
+];
+
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [installCommandResp, setInstallCommandResp] = useState<string | null>(null);
@@ -33,6 +38,9 @@ const Onboarding = () => {
   const [listeningPort, setListeningPort] = useState('8000');
   const [forwardedPort, setForwardedPort] = useState('8080');
   const [copied, setCopied] = useState(false);
+  const [selectedOS, setSelectedOS] = useState<'linux' | 'windows'>('linux');
+  const [installCommandLinux, setInstallCommandLinux] = useState<string | null>(null);
+  const [installCommandWindows, setInstallCommandWindows] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const installCommand = `curl -sL https://api-shield.com/install.sh | bash`;
@@ -73,17 +81,17 @@ const Onboarding = () => {
   };
 
   const handleNext = () => {
-    if (currentStep < 4) {
-      // If step 3, submit to backend
-      if (currentStep === 3) {
+    if (currentStep < 5) {
+      // If step 4, submit to backend
+      if (currentStep === 4) {
         const formData = new FormData();
         formData.append('name', platformName);
         formData.append('environment', environment);
         formData.append('deployment_type', deploymentType);
-  formData.append('status', 'active');
-  formData.append('listening_port', listeningPort);
-  formData.append('forwarded_port', forwardedPort);
-  formData.append('application_url', applicationUrl);
+        formData.append('status', 'active');
+        formData.append('listening_port', listeningPort);
+        formData.append('forwarded_port', forwardedPort);
+        formData.append('application_url', applicationUrl);
         if (uploadedFile && collectionType) {
           formData.append('collection_type', collectionType);
           formData.append('collection_file', uploadedFile);
@@ -121,7 +129,8 @@ const Onboarding = () => {
             localStorage.setItem('user_platforms', JSON.stringify(platforms));
             localStorage.setItem('selected_platform_id', platformId);
             // Save install command and script url for step 4
-            setInstallCommandResp(data.install_command || null);
+            setInstallCommandLinux(data.install_command_linux || null);
+            setInstallCommandWindows(data.install_command_windows || null);
             setInstallScriptUrl(data.install_script_url || null);
             setCurrentStep(currentStep + 1);
           })
@@ -133,7 +142,7 @@ const Onboarding = () => {
         setCurrentStep(currentStep + 1);
       }
     } else {
-      // Step 4: Finish and go to platform details page
+      // Step 5: Finish and go to platform details page
       const selectedPlatformId = localStorage.getItem('selected_platform_id');
       if (selectedPlatformId) {
         navigate(`/platforms/${selectedPlatformId}`);
@@ -148,10 +157,12 @@ const Onboarding = () => {
       case 1:
         return true;
       case 2:
-        return platformName.trim() !== '';
+        return !!selectedOS;
       case 3:
-        return true;
+        return platformName.trim() !== '';
       case 4:
+        return true;
+      case 5:
         return true;
       default:
         return false;
@@ -174,7 +185,7 @@ const Onboarding = () => {
           {/* Progress indicator */}
           <div className="flex justify-center mt-6">
             <div className="flex space-x-2">
-              {[1, 2, 3, 4].map((step) => (
+              {[1, 2, 3, 4, 5].map((step) => (
                 <div
                   key={step}
                   className={`w-3 h-3 rounded-full ${
@@ -189,6 +200,7 @@ const Onboarding = () => {
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {/* Step 1: Platform selection */}
           {currentStep === 1 && (
             <div className="space-y-6">
               <div className="text-center">
@@ -219,7 +231,38 @@ const Onboarding = () => {
             </div>
           )}
 
+          {/* Step 2: OS selection */}
           {currentStep === 2 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-lg font-semibold mb-2">Select Operating System</h3>
+                <p className="text-muted-foreground">Choose the OS for your deployment environment</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {osOptions.map((os) => (
+                  <Card
+                    key={os.id}
+                    className={`cursor-pointer transition-all hover:shadow-md ${
+                      selectedOS === os.id
+                        ? 'ring-2 ring-primary border-primary'
+                        : 'hover:border-primary/50'
+                    }`}
+                    onClick={() => setSelectedOS(os.id as 'linux' | 'windows')}
+                  >
+                    <CardContent className="p-4 text-center">
+                      <div className="inline-flex p-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 mb-3">
+                        <os.icon className="h-6 w-6 text-white" />
+                      </div>
+                      <h4 className="font-medium">{os.name}</h4>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Platform config */}
+          {currentStep === 3 && (
             <div className="space-y-6">
               <div className="text-center">
                 <h3 className="text-lg font-semibold mb-2">Create Your Platform</h3>
@@ -279,7 +322,8 @@ const Onboarding = () => {
             </div>
           )}
 
-          {currentStep === 3 && (
+          {/* Step 4: API doc upload */}
+          {currentStep === 4 && (
             <div className="space-y-6">
               <div className="text-center">
                 <h3 className="text-lg font-semibold mb-2">Upload API Documentation</h3>
@@ -339,7 +383,8 @@ const Onboarding = () => {
             </div>
           )}
 
-          {currentStep === 4 && (
+          {/* Step 5: Install command */}
+          {currentStep === 5 && (
             <div className="space-y-6">
               <div className="text-center">
                 <h3 className="text-lg font-semibold mb-2">Install WAF Protection</h3>
@@ -347,21 +392,30 @@ const Onboarding = () => {
               </div>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Installation Command</Label>
+                  <Label>Installation Command ({selectedOS === 'linux' ? 'Linux' : 'Windows'})</Label>
                   <div className="bg-muted p-4 rounded-lg flex items-center">
-                    <code className="text-sm font-mono flex-1">{installCommandResp || '...'}</code>
+                    <code className="text-sm font-mono flex-1">
+                      {selectedOS === 'linux'
+                        ? installCommandLinux || '...'
+                        : installCommandWindows || '...'}
+                    </code>
                     <Button
                       variant="outline"
                       size="sm"
                       className="ml-2"
                       onClick={() => {
-                        if (installCommandResp) {
-                          navigator.clipboard.writeText(installCommandResp);
+                        const cmd = selectedOS === 'linux' ? installCommandLinux : installCommandWindows;
+                        if (cmd) {
+                          navigator.clipboard.writeText(cmd);
                           setCopied(true);
                           setTimeout(() => setCopied(false), 2000);
                         }
                       }}
-                      disabled={!installCommandResp}
+                      disabled={
+                        selectedOS === 'linux'
+                          ? !installCommandLinux
+                          : !installCommandWindows
+                      }
                     >
                       {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       {copied ? 'Copied!' : 'Copy'}
@@ -399,7 +453,7 @@ const Onboarding = () => {
               onClick={handleNext}
               disabled={!canProceed()}
             >
-              {currentStep === 4 ? 'Proceed to Dashboard' : 'Next'}
+              {currentStep === 5 ? 'Proceed to Dashboard' : 'Next'}
             </Button>
           </div>
         </CardContent>

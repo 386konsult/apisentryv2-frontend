@@ -64,16 +64,25 @@ const PlatformDetails = () => {
       .then(data => {
         if (data.success && data.analytics) {
           setAnalytics(data.analytics);
-          // Traffic chart data
-          // Add 404 requests to traffic overview
+          // Traffic chart data - properly distribute data across all methods
           if (data.analytics.method_breakdown) {
-            const trafficArr = Object.entries(data.analytics.method_breakdown).map(([name, value]) => ({
-              name,
-              requests: Number(value),
-              allowed: name === 'GET' ? data.analytics.successful_requests : 0,
-              blocked: name === 'GET' ? data.analytics.blocked_requests : 0,
-              notFound: name === 'GET' && data.analytics.status_code_breakdown && data.analytics.status_code_breakdown['404'] ? data.analytics.status_code_breakdown['404'] : 0,
-            }));
+            const totalRequests = data.analytics.total_requests || 0;
+            const successfulRequests = data.analytics.successful_requests || 0;
+            const blockedRequests = data.analytics.blocked_requests || 0;
+            const notFoundRequests = (data.analytics.status_code_breakdown && data.analytics.status_code_breakdown['404']) || 0;
+            
+            const trafficArr = Object.entries(data.analytics.method_breakdown).map(([method, methodCount]) => {
+              const methodTotal = Number(methodCount);
+              const methodPercentage = totalRequests > 0 ? methodTotal / totalRequests : 0;
+              
+              return {
+                name: method,
+                requests: methodTotal,
+                allowed: Math.round(successfulRequests * methodPercentage),
+                blocked: Math.round(blockedRequests * methodPercentage),
+                notFound: Math.round(notFoundRequests * methodPercentage),
+              };
+            });
             setTrafficData(trafficArr);
           } else {
             setTrafficData([]);

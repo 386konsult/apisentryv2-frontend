@@ -22,6 +22,10 @@ const osOptions = [
   { id: 'linux', name: 'Linux', icon: Server },
   { id: 'windows', name: 'Windows', icon: Cloud },
 ];
+const linuxTools = [
+  { id: 'curl', name: 'cURL' },
+  { id: 'wget', name: 'Wget' },
+];
 
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -39,6 +43,7 @@ const Onboarding = () => {
   const [forwardedPort, setForwardedPort] = useState('8080');
   const [copied, setCopied] = useState(false);
   const [selectedOS, setSelectedOS] = useState<'linux' | 'windows'>('linux');
+  const [selectedTool, setSelectedTool] = useState<'curl' | 'wget'>('curl');
   const [installCommandLinux, setInstallCommandLinux] = useState<string | null>(null);
   const [installCommandWindows, setInstallCommandWindows] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -81,9 +86,9 @@ const Onboarding = () => {
   };
 
   const handleNext = () => {
-    if (currentStep < 5) {
-      // If step 4, submit to backend
-      if (currentStep === 4) {
+    if (currentStep < 4) {
+      // If step 3, submit to backend
+      if (currentStep === 3) {
         const formData = new FormData();
         formData.append('name', platformName);
         formData.append('environment', environment);
@@ -142,7 +147,7 @@ const Onboarding = () => {
         setCurrentStep(currentStep + 1);
       }
     } else {
-      // Step 5: Finish and go to platform details page
+      // Step 4: Finish and go to platform details page
       const selectedPlatformId = localStorage.getItem('selected_platform_id');
       if (selectedPlatformId) {
         navigate(`/platforms/${selectedPlatformId}`);
@@ -157,15 +162,35 @@ const Onboarding = () => {
       case 1:
         return true;
       case 2:
-        return !!selectedOS;
-      case 3:
         return platformName.trim() !== '';
-      case 4:
+      case 3:
         return true;
-      case 5:
+      case 4:
         return true;
       default:
         return false;
+    }
+  };
+
+  // Helper for install command (simulate wget for Linux)
+  const getInstallCommand = () => {
+    if (selectedOS === 'linux') {
+      if (selectedTool === 'curl') {
+        return installCommandLinux || '...';
+      }
+      // Wget version for Linux only
+      if (installCommandLinux) {
+        const curlMatch = installCommandLinux.match(/curl\s+-L\s+([^\s]+)\s+-o\s+install\.sh\s+&&\s+chmod\s+\+x\s+install\.sh\s+&&\s+\.\/install\.sh\s+(.+)/);
+        if (curlMatch) {
+          const url = curlMatch[1];
+          const args = curlMatch[2];
+          return `wget ${url} -O install.sh && chmod +x install.sh && ./install.sh ${args}`;
+        }
+      }
+      return '...';
+    } else {
+      // Windows always uses curl (no wget option)
+      return installCommandWindows || '...';
     }
   };
 
@@ -185,7 +210,7 @@ const Onboarding = () => {
           {/* Progress indicator */}
           <div className="flex justify-center mt-6">
             <div className="flex space-x-2">
-              {[1, 2, 3, 4, 5].map((step) => (
+              {[1, 2, 3, 4].map((step) => (
                 <div
                   key={step}
                   className={`w-3 h-3 rounded-full ${
@@ -231,38 +256,8 @@ const Onboarding = () => {
             </div>
           )}
 
-          {/* Step 2: OS selection */}
+          {/* Step 2: Platform config */}
           {currentStep === 2 && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h3 className="text-lg font-semibold mb-2">Select Operating System</h3>
-                <p className="text-muted-foreground">Choose the OS for your deployment environment</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {osOptions.map((os) => (
-                  <Card
-                    key={os.id}
-                    className={`cursor-pointer transition-all hover:shadow-md ${
-                      selectedOS === os.id
-                        ? 'ring-2 ring-primary border-primary'
-                        : 'hover:border-primary/50'
-                    }`}
-                    onClick={() => setSelectedOS(os.id as 'linux' | 'windows')}
-                  >
-                    <CardContent className="p-4 text-center">
-                      <div className="inline-flex p-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 mb-3">
-                        <os.icon className="h-6 w-6 text-white" />
-                      </div>
-                      <h4 className="font-medium">{os.name}</h4>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Platform config */}
-          {currentStep === 3 && (
             <div className="space-y-6">
               <div className="text-center">
                 <h3 className="text-lg font-semibold mb-2">Create Your Platform</h3>
@@ -322,8 +317,8 @@ const Onboarding = () => {
             </div>
           )}
 
-          {/* Step 4: API doc upload */}
-          {currentStep === 4 && (
+          {/* Step 3: API doc upload */}
+          {currentStep === 3 && (
             <div className="space-y-6">
               <div className="text-center">
                 <h3 className="text-lg font-semibold mb-2">Upload API Documentation</h3>
@@ -383,39 +378,70 @@ const Onboarding = () => {
             </div>
           )}
 
-          {/* Step 5: Install command */}
-          {currentStep === 5 && (
+          {/* Step 4: Install command & OS selection */}
+          {currentStep === 4 && (
             <div className="space-y-6">
               <div className="text-center">
                 <h3 className="text-lg font-semibold mb-2">Install WAF Protection</h3>
-                <p className="text-muted-foreground">Run the installation command below and download the install script to complete setup.</p>
+                <p className="text-muted-foreground">
+                  Select your operating system and copy the installation command below. You can choose between cURL and Wget for Linux.
+                </p>
               </div>
               <div className="space-y-4">
+                {/* OS selection tabs (only in step 5) */}
+                <div className="flex justify-center gap-4 mb-2">
+                  {osOptions.map((os) => (
+                    <Button
+                      key={os.id}
+                      variant={selectedOS === os.id ? 'default' : 'outline'}
+                      onClick={() => {
+                        setSelectedOS(os.id as 'linux' | 'windows');
+                        setSelectedTool('curl');
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <os.icon className="h-5 w-5" />
+                      {os.name}
+                    </Button>
+                  ))}
+                </div>
+                {/* Tool selection for Linux only */}
+                {selectedOS === 'linux' && (
+                  <div className="flex justify-center gap-2 mb-2">
+                    {linuxTools.map((tool) => (
+                      <Button
+                        key={tool.id}
+                        variant={selectedTool === tool.id ? 'default' : 'outline'}
+                        onClick={() => setSelectedTool(tool.id as 'curl' | 'wget')}
+                        size="sm"
+                      >
+                        {tool.name}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+                {/* Install command box */}
                 <div className="space-y-2">
-                  <Label>Installation Command ({selectedOS === 'linux' ? 'Linux' : 'Windows'})</Label>
+                  <Label>
+                    Installation Command ({selectedOS === 'linux' ? selectedTool.toUpperCase() : 'cURL for Windows'})
+                  </Label>
                   <div className="bg-muted p-4 rounded-lg flex items-center">
                     <code className="text-sm font-mono flex-1">
-                      {selectedOS === 'linux'
-                        ? installCommandLinux || '...'
-                        : installCommandWindows || '...'}
+                      {getInstallCommand()}
                     </code>
                     <Button
                       variant="outline"
                       size="sm"
                       className="ml-2"
                       onClick={() => {
-                        const cmd = selectedOS === 'linux' ? installCommandLinux : installCommandWindows;
-                        if (cmd) {
+                        const cmd = getInstallCommand();
+                        if (cmd && cmd !== '...') {
                           navigator.clipboard.writeText(cmd);
                           setCopied(true);
                           setTimeout(() => setCopied(false), 2000);
                         }
                       }}
-                      disabled={
-                        selectedOS === 'linux'
-                          ? !installCommandLinux
-                          : !installCommandWindows
-                      }
+                      disabled={!getInstallCommand() || getInstallCommand() === '...'}
                     >
                       {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       {copied ? 'Copied!' : 'Copy'}
@@ -445,7 +471,7 @@ const Onboarding = () => {
             <Button
               variant="outline"
               onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
-              disabled={currentStep === 1}
+              disabled={currentStep === 1 || (currentStep === 4 && (!!installCommandLinux || !!installCommandWindows))}
             >
               Previous
             </Button>
@@ -453,7 +479,7 @@ const Onboarding = () => {
               onClick={handleNext}
               disabled={!canProceed()}
             >
-              {currentStep === 5 ? 'Proceed to Dashboard' : 'Next'}
+              {currentStep === 4 ? 'Proceed to Dashboard' : 'Next'}
             </Button>
           </div>
         </CardContent>
@@ -461,5 +487,6 @@ const Onboarding = () => {
     </div>
   );
 };
+
 
 export default Onboarding;

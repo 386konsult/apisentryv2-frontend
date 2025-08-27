@@ -10,6 +10,8 @@ import { API_BASE_URL } from "@/services/api";
 interface Repository {
   id: number;
   name: string;
+  full_name: string;
+  html_url: string;
   score?: number;
   risk?: "Low" | "Medium" | "High" | "Critical";
   lastScan?: string;
@@ -65,8 +67,8 @@ const CodeReviewRepos = () => {
     }
   };
 
-  const handleScan = async (repoFullName: string) => {
-    setScanningRepos(prev => new Set(prev).add(repoFullName));
+  const handleScan = async (repo: Repository) => {
+    setScanningRepos(prev => new Set(prev).add(repo.name));
     const token = localStorage.getItem('auth_token');
     try {
       const response = await fetch(`${API_BASE_URL}/github/scan/`, {
@@ -75,7 +77,7 @@ const CodeReviewRepos = () => {
           'Content-Type': 'application/json',
           'Authorization': `Token ${token}`
         },
-        body: JSON.stringify({ repo_url: `https://github.com/${repoFullName}` })
+        body: JSON.stringify({ repo_url: repo.html_url })
       });
       if (!response.ok) {
         throw new Error('Scan initiation failed');
@@ -88,7 +90,7 @@ const CodeReviewRepos = () => {
       setTimeout(() => {
         setScanningRepos(prev => {
           const newSet = new Set(prev);
-          newSet.delete(repoFullName);
+          newSet.delete(repo.name);
           return newSet;
         });
       }, 3000); // Keep spinner for a few seconds for user feedback
@@ -128,7 +130,7 @@ const CodeReviewRepos = () => {
                     <div className="flex gap-2">
                       <Button 
                         variant="outline" 
-                        onClick={() => handleScan(repo.name)}
+                        onClick={() => handleScan(repo)}
                         disabled={scanningRepos.has(repo.name)}
                       >
                         {scanningRepos.has(repo.name) ? (

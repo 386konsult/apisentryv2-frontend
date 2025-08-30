@@ -101,14 +101,14 @@ const ThreatLogs = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden min-w-0">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             Threat Logs
             {platformName && (
-              <span className="text-lg font-normal text-muted-foreground ml-2">
+              <span className="text-base sm:text-lg font-normal text-muted-foreground ml-2">
                 • {platformName}
               </span>
             )}
@@ -190,9 +190,9 @@ const ThreatLogs = () => {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4 flex-1">
-              <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1 w-full">
+              <div className="relative flex-1 max-w-sm w-full">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search logs..."
@@ -203,7 +203,7 @@ const ThreatLogs = () => {
               </div>
               
               <Select value={threatType} onValueChange={setThreatType}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="Threat Type" />
                 </SelectTrigger>
@@ -217,7 +217,7 @@ const ThreatLogs = () => {
               </Select>
 
               <Select value={timeRange} onValueChange={setTimeRange}>
-                <SelectTrigger className="w-[120px]">
+                <SelectTrigger className="w-full sm:w-[120px]">
                   <Clock className="h-4 w-4 mr-2" />
                   <SelectValue />
                 </SelectTrigger>
@@ -234,15 +234,15 @@ const ThreatLogs = () => {
       </Card>
 
       {/* Threat Logs Table */}
-      <Card>
+      <Card className="w-full overflow-hidden">
         <CardHeader>
           <CardTitle>Security Events</CardTitle>
           <CardDescription>
             Detailed view of detected threats and security incidents
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
+        <CardContent className="w-full overflow-hidden">
+          <div className="space-y-4 w-full">
             {loading ? (
               <div className="text-center py-8">
                 <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
@@ -256,17 +256,17 @@ const ThreatLogs = () => {
               threats.map((threat) => (
                 <div
                   key={threat.id}
-                  className="border border-border/50 rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                  className="border border-border/50 rounded-lg p-4 hover:bg-muted/50 transition-colors w-full overflow-hidden"
                 >
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
                     <div className="flex items-center gap-3">
-                      <AlertTriangle className="h-5 w-5 text-red-500" />
-                      <div>
-                        <h3 className="font-medium">{threat.waf_rule_triggered ? threat.waf_rule_triggered : (threat.threat_level && threat.threat_level !== 'none' ? threat.threat_level.toUpperCase() : 'Request')}</h3>
+                      <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <h3 className="font-medium truncate">{threat.waf_rule_triggered ? threat.waf_rule_triggered : (threat.threat_level && threat.threat_level !== 'none' ? threat.threat_level.toUpperCase() : 'Request')}</h3>
                         <p className="text-sm text-muted-foreground">{threat.timestamp}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <Badge className={getSeverityColor(threat.threat_level)}>
                         {threat.threat_level}
                       </Badge>
@@ -276,74 +276,78 @@ const ThreatLogs = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-3">
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Source</Label>
                       <div className="flex items-center gap-2">
-                        <MapPin className="h-3 w-3" />
-                        <span className="text-sm">{threat.client_ip}</span>
+                        <MapPin className="h-3 w-3 flex-shrink-0" />
+                        <span className="text-sm truncate">{threat.client_ip}</span>
                       </div>
                     </div>
                     
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Endpoint</Label>
                       <div className="flex items-center gap-2">
-                        <Code className="h-3 w-3" />
-                        <span className="text-sm font-mono">{threat.method} {threat.path}</span>
+                        <Code className="h-3 w-3 flex-shrink-0" />
+                        <span className="text-sm font-mono truncate">{threat.method} {threat.path}</span>
                       </div>
                     </div>
                     
-                    <div className="space-y-1">
+                    <div className="space-y-1 sm:col-span-2 lg:col-span-1">
                       <Label className="text-xs text-muted-foreground">Rule</Label>
-                      <span className="text-sm">{threat.waf_rule_triggered || 'None'}</span>
+                      <span className="text-sm truncate">{threat.waf_rule_triggered || 'None'}</span>
                     </div>
                   </div>
 
                   {(threat.query_params && Object.keys(threat.query_params).length > 0) && (
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Query Params</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
-                        {JSON.stringify(threat.query_params, null, 2)}
+                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
+                        <pre className="whitespace-pre-wrap break-all overflow-hidden">{JSON.stringify(threat.query_params, null, 2)}</pre>
                       </div>
                     </div>
                   )}
                   {(threat.headers && Object.keys(threat.headers).length > 0) && (
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Headers</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
-                        {JSON.stringify(threat.headers, null, 2)}
+                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
+                        <pre className="whitespace-pre-wrap break-all overflow-hidden">{JSON.stringify(threat.headers, null, 2)}</pre>
                       </div>
                     </div>
                   )}
                   {threat.request_body && (
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Request Body</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
-                        {typeof threat.request_body === 'object' ? JSON.stringify(threat.request_body, null, 2) : threat.request_body}
+                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
+                        <pre className="whitespace-pre-wrap break-all overflow-hidden">
+                          {typeof threat.request_body === 'object' ? JSON.stringify(threat.request_body, null, 2) : threat.request_body}
+                        </pre>
                       </div>
                     </div>
                   )}
                   {(threat.response_headers && Object.keys(threat.response_headers).length > 0) && (
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Response Headers</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
-                        {JSON.stringify(threat.response_headers, null, 2)}
+                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
+                        <pre className="whitespace-pre-wrap break-all overflow-hidden">{JSON.stringify(threat.response_headers, null, 2)}</pre>
                       </div>
                     </div>
                   )}
                   {threat.response_body && (
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Response Body</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
-                        {typeof threat.response_body === 'object' ? JSON.stringify(threat.response_body, null, 2) : threat.response_body}
+                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
+                        <pre className="whitespace-pre-wrap break-all overflow-hidden">
+                          {typeof threat.response_body === 'object' ? JSON.stringify(threat.response_body, null, 2) : threat.response_body}
+                        </pre>
                       </div>
                     </div>
                   )}
                   {typeof threat.response_time_ms === 'number' && (
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Response Time (ms)</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-sm overflow-x-auto">
-                        {threat.response_time_ms}
+                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
+                        <pre className="whitespace-pre-wrap break-all overflow-hidden">{threat.response_time_ms}</pre>
                       </div>
                     </div>
                   )}
@@ -390,24 +394,24 @@ const ThreatLogs = () => {
                           {(threat.query_params && Object.keys(threat.query_params).length > 0) && (
                             <div>
                               <Label>Query Params</Label>
-                              <div className="bg-muted p-4 rounded font-mono text-sm mt-2">
-                                {JSON.stringify(threat.query_params, null, 2)}
+                              <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto max-w-full">
+                                <pre className="whitespace-pre-wrap break-words">{JSON.stringify(threat.query_params, null, 2)}</pre>
                               </div>
                             </div>
                           )}
                           {(threat.headers && Object.keys(threat.headers).length > 0) && (
                             <div>
                               <Label>Headers</Label>
-                              <div className="bg-muted p-4 rounded font-mono text-sm mt-2">
-                                {JSON.stringify(threat.headers, null, 2)}
+                              <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto max-w-full">
+                                <pre className="whitespace-pre-wrap break-words">{JSON.stringify(threat.headers, null, 2)}</pre>
                               </div>
                             </div>
                           )}
                           {threat.request_body && (
                             <div>
                               <Label>Request Body</Label>
-                              <div className="bg-muted p-4 rounded font-mono text-sm mt-2">
-                                {threat.request_body}
+                              <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto max-w-full">
+                                <pre className="whitespace-pre-wrap break-words">{threat.request_body}</pre>
                               </div>
                             </div>
                           )}

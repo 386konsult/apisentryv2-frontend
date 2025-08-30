@@ -33,7 +33,8 @@ const CodeReviewConnect = () => {
     if (code) {
       setLoading(true);
       // Backend will handle the code and set session/cookie
-      fetch(`${API_BASE_URL}/auth/github/callback/?code=${code}`, {
+      const platformId = localStorage.getItem('selected_platform_id');
+      fetch(`${API_BASE_URL}/auth/github/callback/?code=${code}&platform_uuid=${platformId}`, {
         method: "GET",
         credentials: "include",
       })

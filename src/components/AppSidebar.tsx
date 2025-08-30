@@ -36,20 +36,20 @@ import { Button } from "@/components/ui/button";
 
 const securityPlatformItems = [
   { title: "Dashboard", url: "/", icon: BarChart3 },
-  { title: "WAF Rules", url: "/waf-rules", icon: Shield },
+  // { title: "WAF Rules", url: "/waf-rules", icon: Shield },
   { title: "Threat Logs", url: "/threat-logs", icon: AlertTriangle },
   { title: "API Endpoints", url: "/api-endpoints", icon: Globe },
-  { title: "Integrations", url: "/integrations", icon: Puzzle },
+  // { title: "Integrations", url: "/integrations", icon: Puzzle },
   { title: "Users & Teams", url: "/users", icon: Users },
   { title: "Settings", url: "/settings", icon: Settings },
   { title: "Playground", url: "/playground", icon: Code },
 ];
 
 const vulnerabilityManagementItems = [
-  { title: "Vulnerability Dashboard", url: "/vulnerability-dashboard", icon: Bug },
-  { title: "Run Scan", url: "/vulnerability-scan", icon: Search },
-  { title: "Reports", url: "/vulnerability-reports", icon: FileText },
-  { title: "Scan Settings", url: "/vulnerability-settings", icon: Clock },
+  // { title: "Vulnerability Dashboard", url: "/vulnerability-dashboard", icon: Bug },
+  // { title: "Run Scan", url: "/vulnerability-scan", icon: Search },
+  // { title: "Reports", url: "/vulnerability-reports", icon: FileText },
+  // { title: "Scan Settings", url: "/vulnerability-settings", icon: Clock },
 ];
 
 const sourceCodeReviewItems = [

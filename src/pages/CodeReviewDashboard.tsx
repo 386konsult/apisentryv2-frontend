@@ -53,16 +53,39 @@ const CodeReviewDashboard = () => {
         const reposResponse = await fetch(`${API_BASE_URL}/github/repos/`, { headers });
         if (reposResponse.ok) {
           const reposData = await reposResponse.json();
-          setRepos(reposData);
+          setRepos(reposData || []);
         } else {
-          throw new Error("Failed to fetch repositories");
+          console.error('Repositories API error:', reposResponse.status, reposResponse.statusText);
+          setRepos([]);
+          // Try to parse error message from response
+          try {
+            const errorData = await reposResponse.json();
+            throw new Error(errorData.error || `Failed to fetch repositories: ${reposResponse.status} ${reposResponse.statusText}`);
+          } catch (parseError) {
+            throw new Error(`Failed to fetch repositories: ${reposResponse.status} ${reposResponse.statusText}`);
+          }
         }
 
         // Fetch security findings
         const findingsResponse = await fetch(`${API_BASE_URL}/github/security-findings/`, { headers });
         if (findingsResponse.ok) {
           const findingsData = await findingsResponse.json();
-          const mappedFindings = findingsData.issues.map((issue: any) => ({
+          const mappedFindings = (findingsData.issues || []).map((issue: {
+            id: string;
+            file: string;
+            line: number;
+            code: string;
+            type: string;
+            risk: string;
+            recommendation: string;
+            suggestedFix: string;
+            cve?: string;
+            assignedTo?: string;
+            status: string;
+            repository: string;
+            createdAt: string;
+            resolvedAt?: string;
+          }) => ({
             id: issue.id,
             file: issue.file,
             line: issue.line,
@@ -80,7 +103,15 @@ const CodeReviewDashboard = () => {
           }));
           setSecurityFindings(mappedFindings);
         } else {
-          throw new Error("Failed to fetch security findings");
+          console.error('Security findings API error:', findingsResponse.status, findingsResponse.statusText);
+          setSecurityFindings([]);
+          // Try to parse error message from response
+          try {
+            const errorData = await findingsResponse.json();
+            throw new Error(errorData.error || `Failed to fetch security findings: ${findingsResponse.status} ${findingsResponse.statusText}`);
+          } catch (parseError) {
+            throw new Error(`Failed to fetch security findings: ${findingsResponse.status} ${findingsResponse.statusText}`);
+          }
         }
 
         // Fetch review feedback statistics
@@ -90,10 +121,25 @@ const CodeReviewDashboard = () => {
           setReviewFeedbackData(feedbackData.feedback_breakdown || []);
           setToolFindingsData(feedbackData.tool_findings || []);
         } else {
-          throw new Error("Failed to fetch review stats");
+          console.error('Review stats API error:', feedbackResponse.status, feedbackResponse.statusText);
+          setReviewFeedbackData([]);
+          setToolFindingsData([]);
+          // Try to parse error message from response
+          try {
+            const errorData = await feedbackResponse.json();
+            throw new Error(errorData.error || `Failed to fetch review stats: ${feedbackResponse.status} ${feedbackResponse.statusText}`);
+          } catch (parseError) {
+            throw new Error(`Failed to fetch review stats: ${feedbackResponse.status} ${feedbackResponse.statusText}`);
+          }
         }
       } catch (err) {
+        console.error('Dashboard data fetch error:', err);
         setError(err.message || "An unexpected error occurred while loading the dashboard.");
+        // Set default empty states to prevent further errors
+        setRepos([]);
+        setSecurityFindings([]);
+        setReviewFeedbackData([]);
+        setToolFindingsData([]);
       } finally {
         setLoading(false);
       }
@@ -186,10 +232,41 @@ const CodeReviewDashboard = () => {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-          <p className="font-bold">Error:</p>
-          <p>{error}</p>
-        </div>
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          className="bg-red-50 border border-red-200 text-red-800 px-6 py-4 rounded-lg shadow-sm"
+        >
+          <div className="flex items-start space-x-3">
+            <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-red-900 mb-1">GitHub Authentication Required</p>
+              <p className="text-red-700 text-sm mb-3">{error}</p>
+              {error.includes("GitHub profile not found") && (
+                <div className="flex space-x-3">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate('/integrations')}
+                    className="border-red-300 text-red-700 hover:bg-red-100"
+                  >
+                    <GitBranch className="w-4 h-4 mr-2" />
+                    Connect GitHub
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => window.location.reload()}
+                    className="border-red-300 text-red-700 hover:bg-red-100"
+                  >
+                    <Zap className="w-4 h-4 mr-2" />
+                    Retry
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
       )}
 
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="flex items-center justify-between">
@@ -226,7 +303,9 @@ const CodeReviewDashboard = () => {
               <Shield className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-900 dark:text-green-100">{Math.round(repos.reduce((a,b)=>a+b.score,0)/repos.length)}</div>
+              <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+                {repos.length > 0 ? Math.round(repos.reduce((a,b)=>a+(b.score || 0),0)/repos.length) : 'N/A'}
+              </div>
               <p className="text-xs text-green-700 dark:text-green-300">Across all repos</p>
             </CardContent>
           </Card>
@@ -238,7 +317,9 @@ const CodeReviewDashboard = () => {
               <TrendingUp className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">{repos.filter(r=>r.risk!=='Low').length}</div>
+              <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+                {repos.filter(r=>r.risk && r.risk!=='Low').length}
+              </div>
               <p className="text-xs text-orange-700 dark:text-orange-300">Repos with risk</p>
             </CardContent>
           </Card>
@@ -250,7 +331,9 @@ const CodeReviewDashboard = () => {
               <BookOpen className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{repos[0].lastScan}</div>
+              <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                {repos.length > 0 && repos[0]?.lastScan ? repos[0].lastScan : 'N/A'}
+              </div>
               <p className="text-xs text-purple-700 dark:text-purple-300">Most recent</p>
             </CardContent>
           </Card>

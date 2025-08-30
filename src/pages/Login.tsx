@@ -28,7 +28,7 @@ const Login = () => {
         title: "Login successful",
         description: "Welcome to API Shield!",
       });
-      navigate('/dashboard');
+      navigate('/');
     } catch (error) {
       toast({
         title: "Login failed",
@@ -63,7 +63,7 @@ const Login = () => {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@apishield.com"
+                placeholder="your@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -76,7 +76,7 @@ const Login = () => {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="adminpass123"
+                  placeholder="yourpassword"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required

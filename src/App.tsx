@@ -38,6 +38,7 @@ import CodeReviewScanReports from "./pages/CodeReviewScanReports";
 import CodeReviewReport from "./pages/CodeReviewReport";
 import Platforms from "./pages/Platforms";
 import PlatformDetails from "./pages/PlatformDetails";
+import GitHubCallback from "./pages/GitHubCallback";
 
 const queryClient = new QueryClient();
 
@@ -78,7 +79,8 @@ const AppContent = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/otp-verification" element={<OTPVerification />} />
         <Route path="/onboarding" element={<Onboarding />} />
-        
+        <Route path="/auth/github/callback" element={<GitHubCallback />} />
+
         {/* Main App Routes */}
         <Route path="/*" element={
           <ProtectedRoute>

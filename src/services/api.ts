@@ -443,6 +443,36 @@ class APIService {
     });
   }
 
+  // GitHub App methods
+  async getGitHubStatus(): Promise<any> {
+    return await this.request('/github/status/');
+  }
+
+  async getGitHubAppInstallUrl(): Promise<{ install_url: string }> {
+    return await this.request('/auth/github/login/');
+  }
+
+  async processGitHubInstallation(installationData: {
+    installation_id?: string;
+    setup_action?: string;
+    code?: string;
+  }): Promise<any> {
+    return await this.request('/auth/github/details/', {
+      method: 'POST',
+      body: JSON.stringify(installationData),
+    });
+  }
+
+  async getGitHubRepos(page: number = 1, pageSize: number = 20): Promise<any> {
+    return await this.request(`/github/repos/basic/?page=${page}&page_size=${pageSize}`);
+  }
+
+  async disconnectGitHub(): Promise<void> {
+    await this.request('/github/disconnect/', {
+      method: 'DELETE',
+    });
+  }
+
   // Utility methods
   isAuthenticated(): boolean {
     return !!this.token;

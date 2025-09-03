@@ -14,76 +14,31 @@ import {
   RefreshCw,
   GitBranch,
   Shield,
-  TrendingUp
+  TrendingUp,
+  User
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { apiService } from "@/services/api";
+import { API_BASE_URL } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface ScanReport {
   id: string;
-  scanId: string;
   status: 'in_progress' | 'completed' | 'failed';
   startTime: string;
   endTime?: string;
-  totalRepositories: number;
-  scannedRepositories: number;
   openFindings: number;
   resolvedFindings: number;
   averageScore: number;
+  scan_by: string;
   repositories: RepositoryScan[];
 }
 
 interface RepositoryScan {
   name: string;
   status: 'pending' | 'scanning' | 'completed' | 'failed';
-  score: number;
-  openFindings: number;
-  resolvedFindings: number;
-  lastScan: string;
   risk: 'Low' | 'Medium' | 'High' | 'Critical';
 }
-
-const mockScanReports: ScanReport[] = [
-  {
-    id: "1",
-    scanId: "SCAN-2024-001",
-    status: "completed",
-    startTime: "2024-01-15T10:00:00Z",
-    endTime: "2024-01-15T10:45:00Z",
-    totalRepositories: 5,
-    scannedRepositories: 5,
-    openFindings: 12,
-    resolvedFindings: 8,
-    averageScore: 78,
-    repositories: [
-      { name: "api-gateway", status: "completed", score: 92, openFindings: 2, resolvedFindings: 1, lastScan: "2024-01-15", risk: "Low" },
-      { name: "frontend-app", status: "completed", score: 78, openFindings: 5, resolvedFindings: 3, lastScan: "2024-01-15", risk: "Medium" },
-      { name: "auth-service", status: "completed", score: 65, openFindings: 3, resolvedFindings: 2, lastScan: "2024-01-15", risk: "High" },
-      { name: "payment-service", status: "completed", score: 85, openFindings: 1, resolvedFindings: 1, lastScan: "2024-01-15", risk: "Low" },
-      { name: "notification-service", status: "completed", score: 72, openFindings: 1, resolvedFindings: 1, lastScan: "2024-01-15", risk: "Medium" },
-    ]
-  },
-  {
-    id: "2",
-    scanId: "SCAN-2024-002",
-    status: "in_progress",
-    startTime: "2024-01-16T09:00:00Z",
-    totalRepositories: 5,
-    scannedRepositories: 2,
-    openFindings: 0,
-    resolvedFindings: 0,
-    averageScore: 0,
-    repositories: [
-      { name: "api-gateway", status: "completed", score: 92, openFindings: 2, resolvedFindings: 1, lastScan: "2024-01-16", risk: "Low" },
-      { name: "frontend-app", status: "completed", score: 78, openFindings: 5, resolvedFindings: 3, lastScan: "2024-01-16", risk: "Medium" },
-      { name: "auth-service", status: "scanning", score: 0, openFindings: 0, resolvedFindings: 0, lastScan: "", risk: "Low" },
-      { name: "payment-service", status: "pending", score: 0, openFindings: 0, resolvedFindings: 0, lastScan: "", risk: "Low" },
-      { name: "notification-service", status: "pending", score: 0, openFindings: 0, resolvedFindings: 0, lastScan: "", risk: "Low" },
-    ]
-  }
-];
 
 const CodeReviewScanReports = () => {
   const [scanReports, setScanReports] = useState<ScanReport[]>([]);
@@ -101,11 +56,34 @@ const CodeReviewScanReports = () => {
   const loadScanReports = async () => {
     setLoading(true);
     try {
-      const reports = await apiService.getCodeReviewScanReports();
-      setScanReports(reports);
+      const token = localStorage.getItem("auth_token");
+      const headers = token ? { Authorization: `Token ${token}` } : {};
+      
+      // Get platform ID from localStorage
+      const platformId = localStorage.getItem('selected_platform_id');
+      if (!platformId) {
+        throw new Error("No platform selected. Please select a platform first.");
       }
-    catch (error) {
+
+      const response = await fetch(
+        `${API_BASE_URL}/github/scan-reports/?platform_id=${platformId}`,
+        { headers }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch scan reports: ${response.status}`);
+      }
+      
+      const reports = await response.json();
+      console.log("Scan reports response:", reports);
+      setScanReports(reports);
+    } catch (error) {
       console.error('Failed to load scan reports:', error);
+      toast({
+        title: "Error loading scan reports",
+        description: error.message || "Failed to fetch scan reports",
+        variant: "destructive",
+      });
       // Use empty array to show empty state
       setScanReports([]);
     } finally {
@@ -146,7 +124,40 @@ const CodeReviewScanReports = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
+    try {
+      // Fix malformed timezone format: "2025-09-03T16:30:57.174274+00:00Z" -> "2025-09-03T16:30:57.174274+00:00"
+      const fixedDateString = dateString.replace(/\+00:00Z$/, '+00:00');
+      return new Date(fixedDateString).toLocaleString();
+    } catch (error) {
+      console.error('Error parsing date:', dateString, error);
+      return 'Invalid Date';
+    }
+  };
+
+  const calculateDuration = (startTime: string, endTime?: string) => {
+    try {
+      // Fix malformed timezone format
+      const fixedStartTime = startTime.replace(/\+00:00Z$/, '+00:00');
+      const start = new Date(fixedStartTime);
+      
+      if (!endTime) return 'In Progress';
+      
+      const fixedEndTime = endTime.replace(/\+00:00Z$/, '+00:00');
+      const end = new Date(fixedEndTime);
+      
+      const durationMs = end.getTime() - start.getTime();
+      const durationMinutes = Math.round(durationMs / 1000 / 60);
+      
+      if (durationMinutes < 1) return '< 1m';
+      if (durationMinutes < 60) return `${durationMinutes}m`;
+      
+      const hours = Math.floor(durationMinutes / 60);
+      const minutes = durationMinutes % 60;
+      return `${hours}h ${minutes}m`;
+    } catch (error) {
+      console.error('Error calculating duration:', error);
+      return 'Unknown';
+    }
   };
 
   const viewReport = (report: ScanReport) => {
@@ -169,13 +180,23 @@ const CodeReviewScanReports = () => {
             View and manage code review scan reports and results
           </p>
         </div>
-        <Button 
-          onClick={() => navigate('/code-review-dashboard')}
-          className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-        >
-          <Shield className="w-4 h-4 mr-2" />
-          Back to Dashboard
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={loadScanReports}
+            variant="outline"
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button 
+            onClick={() => navigate('/code-review-dashboard')}
+            className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+          >
+            <Shield className="w-4 h-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        </div>
       </motion.div>
 
       {/* Summary Stats */}
@@ -183,7 +204,7 @@ const CodeReviewScanReports = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        className="grid grid-cols-1 md:grid-cols-4 gap-6"
       >
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -196,7 +217,7 @@ const CodeReviewScanReports = () => {
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-blue-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-green-800 dark:text-green-200">Active Scans</CardTitle>
             <RefreshCw className="h-4 w-4 text-green-600" />
@@ -211,17 +232,30 @@ const CodeReviewScanReports = () => {
         
         <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-purple-800 dark:text-purple-200">Avg Score</CardTitle>
-            <TrendingUp className="h-4 w-4 text-purple-600" />
+            <CardTitle className="text-sm font-medium text-purple-800 dark:text-purple-200">Total Findings</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+              {scanReports.reduce((sum, r) => sum + r.openFindings + r.resolvedFindings, 0)}
+            </div>
+            <p className="text-xs text-purple-700 dark:text-purple-300">Open + Resolved</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-orange-800 dark:text-orange-200">Avg Score</CardTitle>
+            <TrendingUp className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
               {scanReports.length > 0 
                 ? Math.round(scanReports.reduce((sum, r) => sum + (r.averageScore || 0), 0) / scanReports.length)
                 : 0
               }
             </div>
-            <p className="text-xs text-purple-700 dark:text-purple-300">Overall average</p>
+            <p className="text-xs text-orange-700 dark:text-orange-300">Overall average</p>
           </CardContent>
         </Card>
       </motion.div>
@@ -240,40 +274,50 @@ const CodeReviewScanReports = () => {
                 <span>Current Scan in Progress</span>
               </CardTitle>
               <CardDescription className="text-blue-600 dark:text-blue-300">
-                Scan ID: {currentScan.scanId} | Started: {formatDate(currentScan.startTime)}
+                Started: {formatDate(currentScan.startTime)} | Scanned by: {currentScan.scan_by}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                    {currentScan.scannedRepositories}/{currentScan.totalRepositories}
+                    {currentScan.repositories.filter(r => r.status === 'completed').length}/{currentScan.repositories.length}
                   </div>
-                  <div className="text-sm text-blue-600 dark:text-blue-300">Repositories Scanned</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                    {Math.round((currentScan.scannedRepositories / currentScan.totalRepositories) * 100)}%
-                  </div>
-                  <div className="text-sm text-blue-600 dark:text-blue-300">Progress</div>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">Repositories Scanned</p>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
                     {currentScan.openFindings}
                   </div>
-                  <div className="text-sm text-blue-600 dark:text-blue-300">Open Findings</div>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">Open Findings</p>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                    {currentScan.averageScore || 0}
+                    {currentScan.repositories.filter(r => r.status === 'scanning').length}
                   </div>
-                  <div className="text-sm text-blue-600 dark:text-blue-300">Avg Score</div>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">Currently Scanning</p>
                 </div>
               </div>
-              <Progress 
-                value={(currentScan.scannedRepositories / currentScan.totalRepositories) * 100} 
-                className="h-3"
-              />
+              
+              {/* Repository Progress */}
+              <div className="space-y-2">
+                <h4 className="font-medium text-blue-800 dark:text-blue-200">Repository Progress</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {currentScan.repositories.map((repo, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-white dark:bg-blue-900 rounded">
+                      <span className="text-sm text-blue-900 dark:text-blue-100">{repo.name}</span>
+                      <div className="flex items-center gap-2">
+                        {repo.status === 'scanning' && <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />}
+                        {repo.status === 'completed' && <CheckCircle className="w-4 h-4 text-green-600" />}
+                        {repo.status === 'failed' && <XCircle className="w-4 h-4 text-red-600" />}
+                        <Badge variant="outline" className="text-xs">
+                          {repo.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -283,40 +327,26 @@ const CodeReviewScanReports = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
+        transition={{ duration: 0.5 }}
       >
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <FileText className="w-5 h-5 text-blue-600" />
-              <span>Previous Scan Reports</span>
-            </CardTitle>
+            <CardTitle>Scan Reports</CardTitle>
             <CardDescription>
-              Complete history of code review scans and their results
+              {loading ? 'Loading scan reports...' : `${scanReports.length} scan reports found`}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <div className="text-center">
-                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
-                  <p className="text-muted-foreground">Loading scan reports...</p>
-                </div>
+                <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Loading scan reports...</span>
               </div>
             ) : scanReports.length === 0 ? (
-              <div className="text-center py-12">
-                <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <h3 className="text-lg font-semibold text-muted-foreground mb-2">No Scan Reports Found</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  No code review scans have been performed yet. Start your first scan to generate reports.
-                </p>
-                <Button 
-                  onClick={() => navigate('/code-review-dashboard')}
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-                >
-                  <Shield className="w-4 h-4 mr-2" />
-                  Start First Scan
-                </Button>
+              <div className="text-center py-8">
+                <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">No scan reports found</h3>
+                <p className="text-muted-foreground">No scan reports have been generated yet.</p>
               </div>
             ) : (
               <Table>
@@ -324,52 +354,69 @@ const CodeReviewScanReports = () => {
                   <TableRow>
                     <TableHead>Scan ID</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Start Time</TableHead>
-                    <TableHead>Repositories</TableHead>
+                    <TableHead>Started</TableHead>
+                    <TableHead>Duration</TableHead>
                     <TableHead>Findings</TableHead>
                     <TableHead>Score</TableHead>
+                    <TableHead>Scanned By</TableHead>
+                    <TableHead>Repositories</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {scanReports.map((report) => (
                     <TableRow key={report.id}>
-                      <TableCell className="font-medium">{report.scanId}</TableCell>
+                      <TableCell className="font-medium">#{report.id}</TableCell>
                       <TableCell>{getStatusBadge(report.status)}</TableCell>
                       <TableCell>{formatDate(report.startTime)}</TableCell>
                       <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <GitBranch className="w-4 h-4 text-muted-foreground" />
-                          <span>{report.scannedRepositories}/{report.totalRepositories}</span>
+                        {calculateDuration(report.startTime, report.endTime)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          <div className="text-red-600">{report.openFindings} open</div>
+                          <div className="text-green-600">{report.resolvedFindings} resolved</div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline" className="text-orange-600">
-                            <AlertTriangle className="w-3 h-3 mr-1" />
-                            {report.openFindings} Open
-                          </Badge>
-                          <Badge variant="outline" className="text-green-600">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            {report.resolvedFindings} Resolved
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <TrendingUp className="w-4 h-4 text-muted-foreground" />
+                        <div className="flex items-center gap-2">
                           <span className="font-medium">{report.averageScore}</span>
+                          <div className="w-16 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 h-2 rounded-full"
+                              style={{ width: `${report.averageScore}%` }}
+                            />
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm">{report.scan_by}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {report.repositories.slice(0, 3).map((repo, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {repo.name}
+                            </Badge>
+                          ))}
+                          {report.repositories.length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{report.repositories.length - 3} more
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
                         <Button
-                          variant="outline"
                           size="sm"
+                          variant="outline"
                           onClick={() => viewReport(report)}
-                          disabled={report.status === 'in_progress'}
                         >
                           <Eye className="w-4 h-4 mr-1" />
-                          View Report
+                          View
                         </Button>
                       </TableCell>
                     </TableRow>

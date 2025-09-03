@@ -36,7 +36,7 @@ import CodeReviewDashboard from "./pages/CodeReviewDashboard";
 import CodeReviewConnect from "./pages/CodeReviewConnect";
 import CodeReviewRepos from "./pages/CodeReviewRepos";
 import CodeReviewTeam from "./pages/CodeReviewTeam";
-import CodeReviewRepoDetails from "./pages/CodeReviewRepoDetails";
+import SecurityDashboard from "./pages/CodeReviewRepoDetails2";
 import CodeReviewScanReports from "./pages/CodeReviewScanReports";
 import CodeReviewReport from "./pages/CodeReviewReport";
 import Platforms from "./pages/Platforms";
@@ -153,7 +153,7 @@ const AppContent = () => {
                       } />
                       <Route path="/code-review-repos/:repoName" element={
                         <ProtectedPlatformRoute>
-                          <CodeReviewRepoDetails />
+                          <SecurityDashboard />
                         </ProtectedPlatformRoute>
                       } />
                       <Route path="/code-review-scan-reports" element={

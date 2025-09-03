@@ -32,14 +32,20 @@ const CodeReviewRepoDetails = () => {
           throw new Error("Repository name is undefined. Check the route or parameter.");
         }
 
+        // Get platform ID from localStorage
+        const platformId = localStorage.getItem('selected_platform_id');
+        if (!platformId) {
+          throw new Error("No platform selected. Please select a platform first.");
+        }
+
         // Fetch repository list to get full_name and html_url
         const reposResponse = await fetch(
-          `${API_BASE_URL}/github/repos/?page=1&page_size=100`,
+          `${API_BASE_URL}/github/repos/?page=1&page_size=100&platform_id=${platformId}`,
           { headers }
         );
         if (!reposResponse.ok) throw new Error("Failed to fetch repository list");
         const repos = await reposResponse.json();
-        const repoDetails = repos.find((repo: any) => repo.name === repoName);
+        const repoDetails = repos.find((repo: { name: string; full_name: string }) => repo.name === repoName);
         if (!repoDetails) {
           throw new Error(`Repository with name '${repoName}' not found in the list.`);
         }
@@ -49,10 +55,10 @@ const CodeReviewRepoDetails = () => {
         if (!owner || !repo) {
           throw new Error("Invalid repository full_name format. Expected 'owner/repo'.");
         }
-
+        const repo_url = repoDetails.html_url;
         // Fetch vulnerabilities
         const issuesResponse = await fetch(
-          `${API_BASE_URL}/github/repos/${owner}/${repo}/issues/`,
+          `${API_BASE_URL}/github/repos/${owner}/${repo}/issues/?platform_id=${platformId}&repo_url=${repo_url}`,
           { headers }
         );
         if (!issuesResponse.ok) throw new Error("Failed to fetch issues");
@@ -61,7 +67,7 @@ const CodeReviewRepoDetails = () => {
 
         // Fetch summary
         const summaryResponse = await fetch(
-          `${API_BASE_URL}/github/repos/${owner}/${repo}/summary/`,
+          `${API_BASE_URL}/github/repos/${owner}/${repo}/summary/?platform_id=${platformId}`,
           { headers }
         );
         if (!summaryResponse.ok) throw new Error("Failed to fetch summary");
@@ -70,7 +76,7 @@ const CodeReviewRepoDetails = () => {
 
         // Fetch commits
         const commitsResponse = await fetch(
-          `${API_BASE_URL}/github/repos/${owner}/${repo}/commits/`,
+          `${API_BASE_URL}/github/repos/${owner}/${repo}/commits/?platform_id=${platformId}`,
           { headers }
         );
         if (commitsResponse.ok) {
@@ -181,9 +187,9 @@ const CodeReviewRepoDetails = () => {
                   <TableRow>
                     <TableHead>Commit</TableHead>
                     <TableHead>Committer</TableHead>
-                    <TableHead>PR Status</TableHead>
-                    <TableHead>Issue Status</TableHead>
-                    <TableHead>Score</TableHead>
+                    {/* <TableHead>PR Status</TableHead>
+                    <TableHead>Issue Status</TableHead> */}
+                    {/* <TableHead>Score</TableHead> */}
                     <TableHead>Date</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -191,10 +197,10 @@ const CodeReviewRepoDetails = () => {
                   {commits.map(commit => (
                     <TableRow key={commit.id || commit.message}>
                       <TableCell className="font-mono text-xs">{commit.message}</TableCell>
-                      <TableCell>{commit.committer}</TableCell>
-                      <TableCell><Badge variant="secondary">{commit.prStatus}</Badge></TableCell>
+                      <TableCell>{commit.author}</TableCell>
+                      {/* <TableCell><Badge variant="secondary">{commit.prStatus}</Badge></TableCell>
                       <TableCell><Badge variant="secondary">{commit.issueStatus}</Badge></TableCell>
-                      <TableCell><Badge className={commit.score > 85 ? 'bg-green-500 text-white' : commit.score > 70 ? 'bg-orange-500 text-white' : 'bg-red-500 text-white'}>{commit.score}</Badge></TableCell>
+                      <TableCell><Badge className={commit.score > 85 ? 'bg-green-500 text-white' : commit.score > 70 ? 'bg-orange-500 text-white' : 'bg-red-500 text-white'}>{commit.score}</Badge></TableCell> */}
                       <TableCell>{commit.date}</TableCell>
                     </TableRow>
                   ))}

@@ -5,10 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "./components/AppSidebar";
+import ProtectedPlatformRoute from "./components/ProtectedPlatformRoute";
+import PlatformIndicator from "./components/PlatformIndicator";
 import { useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { PlatformProvider } from "@/contexts/PlatformContext";
 
 // Auth Pages
 import Login from "./pages/Login";
@@ -94,14 +97,17 @@ const AppContent = () => {
                         {/* APISentry */}
                       </h1>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={toggleDarkMode}
-                      className="h-9 w-9"
-                    >
-                      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                    </Button>
+                    <div className="flex items-center space-x-4">
+                      <PlatformIndicator />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={toggleDarkMode}
+                        className="h-9 w-9"
+                      >
+                        {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   </header>
                   <main className="p-6">
                     <Routes>
@@ -111,19 +117,55 @@ const AppContent = () => {
                       <Route path="/api-endpoints" element={<APIEndpoints />} />
                       <Route path="/integrations" element={<Integrations />} />
                       <Route path="/users" element={<Users />} />
-                      <Route path="/settings" element={<Settings />} />
-                      <Route path="/playground" element={<Playground />} />
+                      <Route path="/settings" element={
+                        <ProtectedPlatformRoute>
+                          <Settings />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/playground" element={
+                        <ProtectedPlatformRoute>
+                          <Playground />
+                        </ProtectedPlatformRoute>
+                      } />
                       <Route path="/vulnerability-dashboard" element={<VulnerabilityDashboard />} />
                       <Route path="/vulnerability-scan" element={<VulnerabilityScan />} />
                       <Route path="/vulnerability-reports" element={<VulnerabilityReports />} />
                       <Route path="/vulnerability-settings" element={<VulnerabilitySettings />} />
-                      <Route path="/code-review-dashboard" element={<CodeReviewDashboard />} />
-                      <Route path="/code-review-connect" element={<CodeReviewConnect />} />
-                      <Route path="/code-review-repos" element={<CodeReviewRepos />} />
-                      <Route path="/code-review-team" element={<CodeReviewTeam />} />
-                      <Route path="/code-review-repos/:repoName" element={<CodeReviewRepoDetails />} />
-                      <Route path="/code-review-scan-reports" element={<CodeReviewScanReports />} />
-                      <Route path="/code-review-report/:reportId" element={<CodeReviewReport />} />
+                      <Route path="/code-review-dashboard" element={
+                        <ProtectedPlatformRoute>
+                          <CodeReviewDashboard />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/code-review-connect" element={
+                        <ProtectedPlatformRoute>
+                          <CodeReviewConnect />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/code-review-repos" element={
+                        <ProtectedPlatformRoute>
+                          <CodeReviewRepos />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/code-review-team" element={
+                        <ProtectedPlatformRoute>
+                          <CodeReviewTeam />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/code-review-repos/:repoName" element={
+                        <ProtectedPlatformRoute>
+                          <CodeReviewRepoDetails />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/code-review-scan-reports" element={
+                        <ProtectedPlatformRoute>
+                          <CodeReviewScanReports />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/code-review-report/:reportId" element={
+                        <ProtectedPlatformRoute>
+                          <CodeReviewReport />
+                        </ProtectedPlatformRoute>
+                      } />
                       <Route path="/platforms" element={<Platforms />} />
                       <Route path="/platforms/:id" element={<PlatformDetails />} />
                       <Route path="*" element={<NotFound />} />
@@ -144,9 +186,11 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <AppContent />
+          <PlatformProvider>
+            <Toaster />
+            <Sonner />
+            <AppContent />
+          </PlatformProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

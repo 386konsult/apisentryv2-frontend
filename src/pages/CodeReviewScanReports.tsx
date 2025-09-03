@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { apiService, CodeReviewScanReport } from "@/services/api";
+import { apiService } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface ScanReport {
@@ -86,7 +86,7 @@ const mockScanReports: ScanReport[] = [
 ];
 
 const CodeReviewScanReports = () => {
-  const [scanReports, setScanReports] = useState<ScanReport[]>(mockScanReports);
+  const [scanReports, setScanReports] = useState<ScanReport[]>([]);
   const [currentScan, setCurrentScan] = useState<ScanReport | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -103,13 +103,11 @@ const CodeReviewScanReports = () => {
     try {
       const reports = await apiService.getCodeReviewScanReports();
       setScanReports(reports);
-    } catch (error) {
+      }
+    catch (error) {
       console.error('Failed to load scan reports:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load scan reports. Using mock data for demonstration.",
-        variant: "destructive",
-      });
+      // Use empty array to show empty state
+      setScanReports([]);
     } finally {
       setLoading(false);
     }
@@ -178,6 +176,54 @@ const CodeReviewScanReports = () => {
           <Shield className="w-4 h-4 mr-2" />
           Back to Dashboard
         </Button>
+      </motion.div>
+
+      {/* Summary Stats */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+      >
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-blue-800 dark:text-blue-200">Total Scans</CardTitle>
+            <FileText className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{scanReports.length}</div>
+            <p className="text-xs text-blue-700 dark:text-blue-300">Completed scans</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-green-800 dark:text-green-200">Active Scans</CardTitle>
+            <RefreshCw className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+              {scanReports.filter(r => r.status === 'in_progress').length}
+            </div>
+            <p className="text-xs text-green-700 dark:text-green-300">Currently running</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-purple-800 dark:text-purple-200">Avg Score</CardTitle>
+            <TrendingUp className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+              {scanReports.length > 0 
+                ? Math.round(scanReports.reduce((sum, r) => sum + (r.averageScore || 0), 0) / scanReports.length)
+                : 0
+              }
+            </div>
+            <p className="text-xs text-purple-700 dark:text-purple-300">Overall average</p>
+          </CardContent>
+        </Card>
       </motion.div>
 
       {/* Current Scan Progress */}
@@ -250,63 +296,87 @@ const CodeReviewScanReports = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Scan ID</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Start Time</TableHead>
-                  <TableHead>Repositories</TableHead>
-                  <TableHead>Findings</TableHead>
-                  <TableHead>Score</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {scanReports.map((report) => (
-                  <TableRow key={report.id}>
-                    <TableCell className="font-medium">{report.scanId}</TableCell>
-                    <TableCell>{getStatusBadge(report.status)}</TableCell>
-                    <TableCell>{formatDate(report.startTime)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-1">
-                        <GitBranch className="w-4 h-4 text-muted-foreground" />
-                        <span>{report.scannedRepositories}/{report.totalRepositories}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline" className="text-orange-600">
-                          <AlertTriangle className="w-3 h-3 mr-1" />
-                          {report.openFindings} Open
-                        </Badge>
-                        <Badge variant="outline" className="text-green-600">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          {report.resolvedFindings} Resolved
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                        <span className="font-medium">{report.averageScore}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => viewReport(report)}
-                        disabled={report.status === 'in_progress'}
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        View Report
-                      </Button>
-                    </TableCell>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+                  <p className="text-muted-foreground">Loading scan reports...</p>
+                </div>
+              </div>
+            ) : scanReports.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <h3 className="text-lg font-semibold text-muted-foreground mb-2">No Scan Reports Found</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  No code review scans have been performed yet. Start your first scan to generate reports.
+                </p>
+                <Button 
+                  onClick={() => navigate('/code-review-dashboard')}
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+                >
+                  <Shield className="w-4 h-4 mr-2" />
+                  Start First Scan
+                </Button>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Scan ID</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Start Time</TableHead>
+                    <TableHead>Repositories</TableHead>
+                    <TableHead>Findings</TableHead>
+                    <TableHead>Score</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {scanReports.map((report) => (
+                    <TableRow key={report.id}>
+                      <TableCell className="font-medium">{report.scanId}</TableCell>
+                      <TableCell>{getStatusBadge(report.status)}</TableCell>
+                      <TableCell>{formatDate(report.startTime)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-1">
+                          <GitBranch className="w-4 h-4 text-muted-foreground" />
+                          <span>{report.scannedRepositories}/{report.totalRepositories}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="outline" className="text-orange-600">
+                            <AlertTriangle className="w-3 h-3 mr-1" />
+                            {report.openFindings} Open
+                          </Badge>
+                          <Badge variant="outline" className="text-green-600">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            {report.resolvedFindings} Resolved
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <TrendingUp className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-medium">{report.averageScore}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => viewReport(report)}
+                          disabled={report.status === 'in_progress'}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          View Report
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </motion.div>

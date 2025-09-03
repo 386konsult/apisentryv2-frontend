@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Shield, Cloud, Server, Container, Copy, Check, Upload, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '@/services/api';
+import { usePlatform } from '@/contexts/PlatformContext';
 
 const platforms = [
   // { id: 'aws', name: 'Amazon Web Services', icon: Cloud, color: 'from-orange-500 to-yellow-500' },
@@ -37,7 +38,7 @@ const Onboarding = () => {
   const [deploymentType, setDeploymentType] = useState('saas');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [collectionType, setCollectionType] = useState('');
-  const [collectionData, setCollectionData] = useState<any>(null);
+  const [collectionData, setCollectionData] = useState<Record<string, unknown> | null>(null);
   const [applicationUrl, setApplicationUrl] = useState('');
   const [listeningPort, setListeningPort] = useState('8000');
   const [forwardedPort, setForwardedPort] = useState('8080');
@@ -47,6 +48,7 @@ const Onboarding = () => {
   const [installCommandLinux, setInstallCommandLinux] = useState<string | null>(null);
   const [installCommandWindows, setInstallCommandWindows] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { setSelectedPlatformId } = usePlatform();
 
   const installCommand = `curl -sL https://api-shield.com/install.sh | bash`;
   // Backend API endpoint
@@ -132,7 +134,7 @@ const Onboarding = () => {
             const platforms = existingPlatforms ? JSON.parse(existingPlatforms) : [];
             platforms.push(platformObj);
             localStorage.setItem('user_platforms', JSON.stringify(platforms));
-            localStorage.setItem('selected_platform_id', platformId);
+            setSelectedPlatformId(platformId);
             // Save install command and script url for step 4
             setInstallCommandLinux(data.install_command_linux || null);
             setInstallCommandWindows(data.install_command_windows || null);
@@ -152,7 +154,7 @@ const Onboarding = () => {
       if (selectedPlatformId) {
         navigate(`/platforms/${selectedPlatformId}`);
       } else {
-        navigate('/dashboard');
+        navigate('/platforms');
       }
     }
   };

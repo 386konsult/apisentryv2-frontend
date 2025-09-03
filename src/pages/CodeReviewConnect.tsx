@@ -1,18 +1,35 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link2, GitBranch, PlusCircle, ExternalLink, Settings, Users, Star } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Link2, GitBranch, PlusCircle, ExternalLink, Settings, Users, Star, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "@/services/api";
+import { usePlatform } from "@/contexts/PlatformContext";
 
 interface Repo {
   id: number;
   name: string;
+  full_name: string;
   html_url: string;
   description: string | null;
   private: boolean;
   language: string | null;
-  owner: {
+  lastScan: string | null;
+  risk: string;
+  score: number | null;
+  status: string;
+  totalSuggestions: number;
+  openSuggestions: number;
+  resolvedSuggestions: number;
+  owner?: {
     login: string;
     avatar_url: string;
   };
@@ -25,22 +42,31 @@ interface GitHubProfile {
   name: string;
   installation_id: string | null;
   connected: boolean;
+  platform_name?: string;
 }
 
 const CodeReviewConnect = () => {
+  const { selectedPlatformId } = usePlatform();
   const [repos, setRepos] = useState<Repo[]>([]);
   const [profile, setProfile] = useState<GitHubProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
 
   // Fetch GitHub profile
   const fetchProfile = () => {
+    if (!selectedPlatformId) {
+      setProfileLoading(false);
+      return;
+    }
+    
     setProfileLoading(true);
     const token = localStorage.getItem('auth_token');
-    fetch(`${API_BASE_URL}/github/status/`, {
+    fetch(`${API_BASE_URL}/github/status/?platform_id=${selectedPlatformId}`, {
       method: "GET",
       credentials: "include",
       headers: token ? { 'Authorization': `Token ${token}` } : {},
@@ -50,7 +76,25 @@ const CodeReviewConnect = () => {
         return res.json();
       })
       .then((data) => {
-        setProfile(data);
+        // Handle the actual API response structure
+        if (data && typeof data === 'object') {
+          if (data.connected === true) {
+            // Profile is connected and has user data
+            setProfile(data);
+          
+          } else {
+            // Fallback case - treat as not connected
+            setProfile({
+              username: 'unknown',
+              avatar_url: '',
+              profile_url: '',
+              name: 'GitHub App User',
+              installation_id: null,
+              connected: false,
+              platform_name: 'Unknown Platform'
+            });
+          }
+        }
         setProfileLoading(false);
       })
       .catch(() => {
@@ -59,30 +103,64 @@ const CodeReviewConnect = () => {
       });
   };
 
-  // Handle OAuth callback and fetch repos
+  // Handle OAuth callback and GitHub App installation callback
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
+    const installationId = urlParams.get("installation_id");
+    const setupAction = urlParams.get("setup_action");
 
-    if (code) {
+    if (installationId ) {
+      // Handle GitHub App installation callback
       setLoading(true);
-      // Backend will handle the code and set session/cookie
-      const platformId = localStorage.getItem('selected_platform_id');
-      fetch(`${API_BASE_URL}/auth/github/callback/?code=${code}&platform_uuid=${platformId}`, {
-        method: "GET",
+      if (!selectedPlatformId) {
+        setError("No platform selected. Please select a platform first.");
+        setSuccessMessage(""); // Clear success message
+        setLoading(false);
+        return;
+      }
+      
+      // Call backend API to handle GitHub App installation
+      fetch(`${API_BASE_URL}/github/installation/`, {
+        method: "POST",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(localStorage.getItem('auth_token') ? { 'Authorization': `Token ${localStorage.getItem('auth_token')}` } : {}),
+        },
+        body: JSON.stringify({
+          installation_id: installationId,
+          platform_id: selectedPlatformId,
+          setup_action: setupAction
+        }),
       })
         .then((res) => {
-          if (!res.ok) throw new Error("GitHub OAuth failed");
+          if (res.status === 409) {
+            // 409 Conflict - GitHub App already installed, fetch updated profile
+            fetchProfile();
+            fetchRepos(page);
+            setError(""); // Clear any previous errors
+            setSuccessMessage("GitHub App is already installed. Fetching updated status...");
+            setTimeout(() => setSuccessMessage(""), 3000);
+            return;
+          }
+          if (!res.ok) throw new Error("GitHub App installation failed");
           return res.json();
         })
-        .then(() => {
-          // After OAuth, fetch repos and profile
-          fetchRepos(page);
-          fetchProfile();
+        .then((data) => {
+          if (data) { // Only proceed if we have data (not a 409 case)
+            // After successful installation, fetch repos and profile
+            fetchRepos(page);
+            fetchProfile();
+            setError(""); // Clear any previous errors
+            setSuccessMessage("GitHub App installed successfully! Your repositories are now connected.");
+            // Clear success message after 5 seconds
+            setTimeout(() => setSuccessMessage(""), 5000);
+          }
         })
         .catch(() => {
-          setError("GitHub authentication failed.");
+          setError("GitHub App installation failed. Please try again.");
+          setSuccessMessage(""); // Clear success message
           setLoading(false);
         });
     } else {
@@ -94,9 +172,16 @@ const CodeReviewConnect = () => {
   }, [page]);
 
   const fetchRepos = (pageNum: number) => {
+    if (!selectedPlatformId) {
+      setError("No platform selected. Please select a platform first.");
+      setSuccessMessage(""); // Clear success message
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     const token = localStorage.getItem('auth_token');
-    fetch(`${API_BASE_URL}/github/repos/basic/?page=${pageNum}&page_size=${pageSize}`, {
+    fetch(`${API_BASE_URL}/github/repos/?page=${pageNum}&page_size=${pageSize}&platform_id=${selectedPlatformId}`, {
       method: "GET",
       credentials: "include",
       headers: token ? { 'Authorization': `Token ${token}` } : {},
@@ -111,31 +196,28 @@ const CodeReviewConnect = () => {
       })
       .catch(() => {
         setError("Could not load repositories.");
+        setSuccessMessage(""); // Clear success message
         setLoading(false);
       });
   };
 
-  // Start OAuth flow via backend (for first time connection or when disconnected)
+  // Start GitHub App installation flow
   const handleConnectGitHub = () => {
-    window.location.href = `${API_BASE_URL}/auth/github/login/?action=authorize`;
+    // Redirect to GitHub App installation page
+    window.location.href = "https://github.com/apps/apisentry-ai/installations/select_target";
   };
 
-  // Connect additional organizations via OAuth (when already connected)
+  // Connect additional organizations via GitHub App installation
   const handleConnectOrganization = () => {
-    if (profile && profile.connected) {
-      // If already connected, use install action for GitHub App installation
-      window.location.href = `${API_BASE_URL}/auth/github/login/?action=install`;
-    } else {
-      // If not connected, use authorize action for OAuth
-      window.location.href = `${API_BASE_URL}/auth/github/login/?action=authorize`;
-    }
+    // Always use GitHub App installation for consistency
+    window.location.href = "https://github.com/apps/apisentry-ai/installations/select_target";
   };
 
   // Disconnect GitHub
   const handleDisconnectGitHub = async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE_URL}/auth/github/disconnect/`, {
+      const response = await fetch(`${API_BASE_URL}/auth/github/disconnect/?platform_id=${selectedPlatformId}`, {
         method: 'POST',
         credentials: 'include',
         headers: token ? { 'Authorization': `Token ${token}` } : {},
@@ -145,11 +227,14 @@ const CodeReviewConnect = () => {
         setProfile(null);
         setRepos([]);
         setError("");
+        setSuccessMessage(""); // Clear success message
       } else {
         setError("Failed to disconnect GitHub");
+        setSuccessMessage(""); // Clear success message
       }
     } catch (err) {
       setError("Error disconnecting GitHub");
+      setSuccessMessage(""); // Clear success message
     }
   };
 
@@ -157,13 +242,87 @@ const CodeReviewConnect = () => {
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Connect Repository</h1>
-          <p className="text-muted-foreground mt-2">Connect your GitHub repositories for automated code review and security scanning</p>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Github Connect</h1>
+          <p className="text-muted-foreground mt-2">Manage your GitHub App installation and view connected repositories</p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleConnectGitHub}
+            className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+          >
+            <PlusCircle className="w-4 h-4 mr-2" />
+            {profile && profile.connected ? 'Update Installation' : 'Install GitHub App'}
+          </Button>
+          {profile && profile.connected && (
+            <Dialog open={showDisconnectConfirm} onOpenChange={setShowDisconnectConfirm}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="outline"
+                  className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950"
+                >
+                  <Link2 className="w-4 h-4 mr-2" />
+                  Disconnect
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Confirm GitHub Disconnection</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to disconnect the GitHub App? This action will:
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="text-sm text-muted-foreground space-y-2">
+                    <p>• Remove access to all connected repositories</p>
+                    <p>• Stop code review and security scanning</p>
+                    <p>• Require a new installation to reconnect</p>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowDisconnectConfirm(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      onClick={() => {
+                        setShowDisconnectConfirm(false);
+                        handleDisconnectGitHub();
+                      }}
+                    >
+                      Disconnect GitHub App
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </motion.div>
 
-      {/* GitHub Profile Section - only show if actually connected */}
-      {profile && profile.connected && (
+      {/* GitHub Connection Status */}
+      {profileLoading ? (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span>Loading GitHub Status...</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32 animate-pulse"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-24 animate-pulse"></div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      ) : profile && profile.connected ? (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <Card className="bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-950 dark:to-blue-950 border-green-200 dark:border-green-800">
             <CardHeader>
@@ -171,142 +330,24 @@ const CodeReviewConnect = () => {
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span>GitHub Connected</span>
               </CardTitle>
-              <CardDescription>Your GitHub account is successfully connected</CardDescription>
+              <CardDescription>Your GitHub account is successfully connected via GitHub App</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <img src={profile.avatar_url} alt={profile.username} className="w-12 h-12 rounded-full border-2 border-green-200" />
-                  <div>
-                    <h3 className="font-semibold text-lg">{profile.name || profile.username}</h3>
-                    <p className="text-muted-foreground">@{profile.username}</p>
-                  </div>
-                </div>
-                <div className="flex space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => window.open(profile.profile_url, '_blank')}>
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    View Profile
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={handleDisconnectGitHub}>
-                    <Link2 className="w-4 h-4 mr-2" />
-                    Disconnect
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
           </Card>
         </motion.div>
-      )}
-
-      {/* Disconnected GitHub Profile Section */}
-      {profile && !profile.connected && (
+      ) :  (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-950 dark:to-orange-950 border-yellow-200 dark:border-yellow-800">
+          <Card className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-yellow-950 dark:to-orange-950 border-red-200 dark:border-red-800">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <span>GitHub Disconnected</span>
+                <span>GitHub Not Connected</span>
               </CardTitle>
-              <CardDescription>Your GitHub profile exists but connection is not active</CardDescription>
+              <CardDescription>GitHub App is not installed for this platform</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <img src={profile.avatar_url} alt={profile.username} className="w-12 h-12 rounded-full border-2 border-yellow-200" />
-                  <div>
-                    <h3 className="font-semibold text-lg">{profile.name || profile.username}</h3>
-                    <p className="text-muted-foreground">@{profile.username}</p>
-                    <p className="text-xs text-yellow-600">Connection inactive</p>
-                  </div>
-                </div>
-                <div className="flex space-x-2">
-                  <Button onClick={handleConnectGitHub} size="sm" className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
-                    <PlusCircle className="w-4 h-4 mr-2" />
-                    Reconnect
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
+           
           </Card>
         </motion.div>
-      )}
-
-      {/* Connect GitHub card if no profile */}
-      {(!profileLoading && !profile) && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <Card className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 border-blue-200 dark:border-blue-800">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Link2 className="w-5 h-5 text-blue-600" />
-                <span>Connect GitHub</span>
-              </CardTitle>
-              <CardDescription>Authenticate with GitHub to enable repository scanning and code review</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <Button onClick={handleConnectGitHub} className="bg-gradient-to-r from-blue-500 to-purple-500 text-white" disabled={loading}>
-                    <PlusCircle className="w-4 h-4 mr-2" />
-                    Connect GitHub Account
-                  </Button>
-                  {error && <p className="text-xs text-red-500">{error}</p>}
-                </div>
-                <div className="text-right space-y-1">
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Star className="w-4 h-4 mr-1" />
-                    <span>Secure OAuth flow</span>
-                  </div>
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Settings className="w-4 h-4 mr-1" />
-                    <span>Manage permissions</span>
-                  </div>
-                </div>
-              </div>
-              <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
-                <strong>What happens next:</strong><br />
-                1. You'll be redirected to GitHub for authorization<br />
-                2. Grant access to your repositories<br />
-                3. Select which repositories to include for scanning
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* Management Section for connected users only */}
-      {profile && profile.connected && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Settings className="w-5 h-5 text-blue-600" />
-                <span>GitHub App Management</span>
-              </CardTitle>
-              <CardDescription>Manage GitHub App installations and OAuth connections</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium">Current Connection</h4>
-                  <div className="flex items-center space-x-2 text-sm">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span>OAuth connected as @{profile.username}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">OAuth access granted for repositories</p>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-medium">Install GitHub App</h4>
-                  <Button variant="outline" size="sm" onClick={handleConnectOrganization} className="w-full">
-                    <Users className="w-4 h-4 mr-2" />
-                    Install in Organization
-                  </Button>
-                  <p className="text-xs text-muted-foreground">Install GitHub App for enhanced repository access</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+      ) }
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
         <Card>
@@ -325,11 +366,7 @@ const CodeReviewConnect = () => {
             <CardDescription>Repositories available for code review and security scanning</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {error && (
-              <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950 p-3 rounded-lg border border-red-200 dark:border-red-800">
-                {error}
-              </div>
-            )}
+
             {loading ? (
               <div className="text-muted-foreground flex items-center space-x-2">
                 <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -339,28 +376,62 @@ const CodeReviewConnect = () => {
               <div className="text-center py-8 text-muted-foreground">
                 <GitBranch className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>No repositories found.</p>
-                <p className="text-sm">Make sure you've granted access to repositories during OAuth.</p>
+                <p className="text-sm">Make sure you've installed the GitHub App and granted access to repositories.</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {repos.map((repo) => (
                   <div key={repo.id} className="flex items-center justify-between p-3 border rounded-lg hover:shadow-md transition-all duration-200 hover:border-blue-200">
                     <div className="flex items-center space-x-3">
-                      <img src={repo.owner.avatar_url} alt={repo.owner.login} className="w-8 h-8 rounded-full" />
+                      {/* Use a default avatar if owner.avatar_url is not available */}
+                      <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                        {repo.owner?.avatar_url ? (
+                          <img src={repo.owner.avatar_url} alt={repo.owner.login || repo.name} className="w-8 h-8 rounded-full" />
+                        ) : (
+                          <GitBranch className="w-4 h-4 text-gray-500" />
+                        )}
+                      </div>
                       <div>
                         <div className="flex items-center space-x-2">
-                          <span className="font-medium text-blue-700 dark:text-blue-300">{repo.owner.login}/{repo.name}</span>
+                          <span className="font-medium">
+                            {repo.owner?.login ? `${repo.owner.login}/${repo.name}` : repo.full_name || repo.name}
+                          </span>
                           {repo.private && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full">Private</span>}
                           {repo.language && <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full">{repo.language}</span>}
                         </div>
                         {repo.description && (
                           <p className="text-xs text-muted-foreground mt-1 max-w-md truncate">{repo.description}</p>
                         )}
+                        {/* Display additional repository info */}
+                        <div className="flex items-center space-x-2 mt-1">
+                          {repo.risk && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              repo.risk === 'Low' ? 'bg-green-100 text-green-600' :
+                              repo.risk === 'Medium' ? 'bg-yellow-100 text-yellow-600' :
+                              repo.risk === 'High' ? 'bg-orange-100 text-orange-600' :
+                              'bg-red-100 text-red-600'
+                            }`}>
+                              {repo.risk} Risk
+                            </span>
+                          )}
+                          {repo.score !== null && (
+                            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full">
+                              Score: {repo.score}
+                            </span>
+                          )}
+                          {repo.totalSuggestions > 0 && (
+                            <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-600 rounded-full">
+                              {repo.openSuggestions} open / {repo.totalSuggestions} total
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => window.open(repo.html_url, '_blank')}>
-                      <ExternalLink className="w-4 h-4" />
-                    </Button>
+                    <div className="flex items-center space-x-2">
+                      <Button variant="ghost" size="sm" onClick={() => window.open(repo.html_url, '_blank')}>
+                        <ExternalLink className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

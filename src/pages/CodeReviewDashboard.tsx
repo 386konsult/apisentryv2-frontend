@@ -12,6 +12,7 @@ import { apiService } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { API_BASE_URL } from "@/services/api";
+import { usePlatform } from "@/contexts/PlatformContext";
 
 interface SecurityFinding {
   id: string;
@@ -33,6 +34,7 @@ interface SecurityFinding {
 const CodeReviewDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { selectedPlatformId } = usePlatform();
   const [selectedFinding, setSelectedFinding] = useState<SecurityFinding | null>(null);
   const [showFindingDetails, setShowFindingDetails] = useState(false);
 
@@ -49,8 +51,12 @@ const CodeReviewDashboard = () => {
         const token = localStorage.getItem("auth_token");
         const headers = token ? { Authorization: `Token ${token}` } : {};
 
+        if (!selectedPlatformId) {
+          throw new Error("No platform selected. Please select a platform first.");
+        }
+
         // Fetch repositories data
-        const reposResponse = await fetch(`${API_BASE_URL}/github/repos/`, { headers });
+        const reposResponse = await fetch(`${API_BASE_URL}/github/repos/?platform_id=${selectedPlatformId}`, { headers });
         if (reposResponse.ok) {
           const reposData = await reposResponse.json();
           setRepos(reposData || []);
@@ -153,10 +159,14 @@ const CodeReviewDashboard = () => {
       const token = localStorage.getItem("auth_token");
       const headers = token ? { Authorization: `Token ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
 
+      if (!selectedPlatformId) {
+        throw new Error("No platform selected. Please select a platform first.");
+      }
+
       const response = await fetch(`${API_BASE_URL}/github/scan-all/`, {
         method: "POST",
         headers,
-        body: JSON.stringify({}), // Empty body
+        body: JSON.stringify({ platform_id: selectedPlatformId }), // Include platform ID
       });
 
       if (!response.ok) {

@@ -6,6 +6,7 @@ import { GitBranch, Zap, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "@/services/api";
+import { usePlatform } from "@/contexts/PlatformContext";
 
 interface Repository {
   id: number;
@@ -29,11 +30,12 @@ const CodeReviewRepos = () => {
   const [scanningRepos, setScanningRepos] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
+  const { selectedPlatformId } = usePlatform();
 
   useEffect(() => {
     setLoading(true);
     const token = localStorage.getItem('auth_token');
-    fetch(`${API_BASE_URL}/github/repos/?page=${page}&page_size=${pageSize}`, {
+    fetch(`${API_BASE_URL}/github/repos/?page=${page}&page_size=${pageSize}&platform_id=${selectedPlatformId}`, {
       method: "GET",
       credentials: "include",
       headers: token ? { 'Authorization': `Token ${token}` } : {},
@@ -50,7 +52,7 @@ const CodeReviewRepos = () => {
         setError("Could not load repositories.");
         setLoading(false);
       });
-  }, [page, pageSize]);
+  }, [page, pageSize, selectedPlatformId]);
 
   const getRiskBadge = (risk?: string) => {
     switch (risk) {
@@ -71,7 +73,7 @@ const CodeReviewRepos = () => {
     setScanningRepos(prev => new Set(prev).add(repo.name));
     const token = localStorage.getItem('auth_token');
     try {
-      const response = await fetch(`${API_BASE_URL}/github/scan/`, {
+      const response = await fetch(`${API_BASE_URL}/github/scan/?platform_id=${selectedPlatformId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -105,12 +107,30 @@ const CodeReviewRepos = () => {
           <p className="text-muted-foreground mt-2">View and manage all connected repositories for code review</p>
         </div>
       </motion.div>
-      {error && <div className="text-xs text-red-500">{error}</div>}
+     
       <motion.div initial="hidden" animate="visible" variants={{hidden:{opacity:0},visible:{opacity:1,transition:{staggerChildren:0.1}}}} className="space-y-4">
         {loading ? (
-          <div className="text-muted-foreground">Loading repositories...</div>
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
+              <p className="text-lg font-medium text-muted-foreground">Loading repositories...</p>
+              <p className="text-sm text-muted-foreground">Please wait while we fetch your data</p>
+            </div>
+          </div>
         ) : repos.length === 0 ? (
-          <div className="text-muted-foreground">No repositories found.</div>
+          <Card className="p-12">
+            <div className="text-center max-w-md mx-auto">
+              {/* Beautiful illustration */}
+              <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/50 dark:to-purple-900/50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <GitBranch className="w-12 h-12 text-blue-600" />
+              </div>
+              
+              {/* Main message */}
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                No repositories found
+              </h3>
+            </div>
+          </Card>
         ) : (
           repos.map((repo) => (
             <motion.div key={repo.id || repo.name} variants={{hidden:{y:20,opacity:0},visible:{y:0,opacity:1,transition:{duration:0.5}}}}>
@@ -145,7 +165,7 @@ const CodeReviewRepos = () => {
                           </>
                         )}
                       </Button>
-                      <Button variant="outline" onClick={() => navigate(`/code-review-repos/${repo.name}`)}>
+                      <Button variant="outline" onClick={() => navigate(`/code-review-repos/${repo.name}?repo_url=${repo.html_url}`)}>
                         View Details
                       </Button>
                     </div>

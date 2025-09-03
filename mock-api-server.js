@@ -228,6 +228,158 @@ setInterval(() => {
   });
 }, 5000); // Update every 5 seconds
 
+// GitHub endpoints for CodeReviewDashboard
+app.get('/api/v1/github/repos/', (req, res) => {
+  // Check if GitHub is authenticated (you can add a query parameter to simulate this)
+  const isAuthenticated = req.query.authenticated === 'true';
+  
+  if (!isAuthenticated) {
+    return res.status(401).json({
+      error: "GitHub profile not found. Please authenticate with GitHub first."
+    });
+  }
+  
+  res.json([
+    {
+      id: 1,
+      name: "api-gateway",
+      score: 92,
+      openFindings: 2,
+      resolvedFindings: 1,
+      lastScan: "2024-01-15",
+      risk: "Low",
+      totalLines: 15420,
+      scannedLines: 15420,
+      languages: ["Python", "JavaScript", "HTML"],
+      contributors: 8
+    },
+    {
+      id: 2,
+      name: "frontend-app",
+      score: 78,
+      openFindings: 5,
+      resolvedFindings: 3,
+      lastScan: "2024-01-15",
+      risk: "Medium",
+      totalLines: 12340,
+      scannedLines: 12340,
+      languages: ["TypeScript", "React", "CSS"],
+      contributors: 6
+    },
+    {
+      id: 3,
+      name: "mobile-app",
+      score: 65,
+      openFindings: 8,
+      resolvedFindings: 2,
+      lastScan: "2024-01-14",
+      risk: "High",
+      totalLines: 8900,
+      scannedLines: 8900,
+      languages: ["Swift", "Kotlin"],
+      contributors: 4
+    }
+  ]);
+});
+
+app.get('/api/v1/github/security-findings/', (req, res) => {
+  // Check if GitHub is authenticated
+  const isAuthenticated = req.query.authenticated === 'true';
+  
+  if (!isAuthenticated) {
+    return res.status(401).json({
+      error: "GitHub profile not found. Please authenticate with GitHub first."
+    });
+  }
+  
+  res.json({
+    issues: [
+      {
+        id: "1",
+        file: "src/auth/service.py",
+        line: 45,
+        code: "query = f\"SELECT * FROM users WHERE id = {user_id}\"",
+        type: "SQL Injection",
+        risk: "High",
+        recommendation: "Use parameterized queries to prevent SQL injection",
+        suggestedFix: "query = \"SELECT * FROM users WHERE id = %s\"\ncursor.execute(query, (user_id,))",
+        cve: "CWE-89",
+        assignedTo: "john.doe@company.com",
+        status: "Open",
+        repository: "api-gateway",
+        createdAt: "2024-01-15T10:30:00Z",
+        resolvedAt: null
+      },
+      {
+        id: "2",
+        file: "src/components/Login.tsx",
+        line: 23,
+        code: "const password = document.getElementById('password').value;",
+        type: "XSS Vulnerability",
+        risk: "Medium",
+        recommendation: "Sanitize user input before rendering",
+        suggestedFix: "const password = sanitizeInput(document.getElementById('password').value);",
+        cve: "CWE-79",
+        assignedTo: "jane.smith@company.com",
+        status: "Open",
+        repository: "frontend-app",
+        createdAt: "2024-01-15T11:15:00Z",
+        resolvedAt: null
+      }
+    ]
+  });
+});
+
+app.get('/api/v1/github/review-stats/', (req, res) => {
+  // Check if GitHub is authenticated
+  const isAuthenticated = req.query.authenticated === 'true';
+  
+  if (!isAuthenticated) {
+    return res.status(401).json({
+      error: "GitHub profile not found. Please authenticate with GitHub first."
+    });
+  }
+  
+  res.json({
+    feedback_breakdown: [
+      { name: "Positive", value: 45, color: "#10B981" },
+      { name: "Neutral", value: 30, color: "#6B7280" },
+      { name: "Critical", value: 15, color: "#EF4444" },
+      { name: "Suggestions", value: 10, color: "#F59E0B" }
+    ],
+    tool_findings: [
+      { name: "SonarQube", value: 25, color: "#3B82F6" },
+      { name: "CodeQL", value: 20, color: "#8B5CF6" },
+      { name: "Semgrep", value: 15, color: "#06B6D4" },
+      { name: "Bandit", value: 10, color: "#84CC16" }
+    ]
+  });
+});
+
+app.post('/api/v1/github/scan-all/', (req, res) => {
+  // Check if GitHub is authenticated
+  const isAuthenticated = req.query.authenticated === 'true';
+  
+  if (!isAuthenticated) {
+    return res.status(401).json({
+      error: "GitHub profile not found. Please authenticate with GitHub first."
+    });
+  }
+  
+  const scanId = `SCAN-${Date.now()}`;
+  res.json({
+    scanId: scanId,
+    message: "GitHub scan started successfully"
+  });
+});
+
+// Test endpoint to toggle GitHub authentication state
+app.post('/api/v1/github/auth-toggle/', (req, res) => {
+  res.json({
+    message: "GitHub authentication state toggled. Add ?authenticated=true to any GitHub endpoint to simulate authenticated state."
+  });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Mock API server is running' });
@@ -241,4 +393,11 @@ app.listen(port, () => {
   console.log(`  GET  /api/v1/code-review/scan-reports/`);
   console.log(`  GET  /api/v1/code-review/scan-reports/:reportId`);
   console.log(`  GET  /api/v1/code-review/scan-status/:scanId`);
+  console.log(`GitHub endpoints:`);
+  console.log(`  GET  /api/v1/github/repos/`);
+  console.log(`  GET  /api/v1/github/security-findings/`);
+  console.log(`  GET  /api/v1/github/review-stats/`);
+  console.log(`  POST /api/v1/github/scan-all/`);
+  console.log(`  POST /api/v1/github/auth-toggle/`);
+  console.log(`  Note: Add ?authenticated=true to GitHub endpoints to simulate authenticated state`);
 }); 

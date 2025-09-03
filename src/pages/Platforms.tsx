@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import apiService from '@/services/api';
 import { API_BASE_URL } from '@/services/api';
+import { usePlatform } from '@/contexts/PlatformContext';
 
 interface Platform {
   id: string;
@@ -25,6 +26,7 @@ const Platforms = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { setSelectedPlatformId } = usePlatform();
 
   useEffect(() => {
     // Fetch platforms from backend API
@@ -61,8 +63,8 @@ const Platforms = () => {
   }, [toast]);
 
   const handleSelectPlatform = (platform: Platform) => {
-  localStorage.setItem('selected_platform_id', platform.id);
-  navigate(`/platforms/${platform.id}`);
+    setSelectedPlatformId(platform.id);
+    navigate(`/platforms/${platform.id}`);
   };
 
   const handleCreateNewPlatform = () => {

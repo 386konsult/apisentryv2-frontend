@@ -36,13 +36,15 @@ interface Repo {
 }
 
 interface GitHubProfile {
-  username: string;
-  avatar_url: string;
-  profile_url: string;
-  name: string;
-  installation_id: string | null;
+  account_login?: string;
+  account_type?: string;
+  avatar_url?: string;
+  profile_url?: string;
+  installation_id?: string | null;
   connected: boolean;
   platform_name?: string;
+  repositories_count?: number;
+  repository_selection?: string;
 }
 
 const CodeReviewConnect = () => {
@@ -57,14 +59,32 @@ const CodeReviewConnect = () => {
   const [pageSize] = useState(20);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
 
+  // Clear error and success messages after a delay
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(""), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(""), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
   // Fetch GitHub profile
   const fetchProfile = () => {
     if (!selectedPlatformId) {
+      setProfile(null);
       setProfileLoading(false);
       return;
     }
     
     setProfileLoading(true);
+    setError("");
+    
     const token = localStorage.getItem('auth_token');
     fetch(`${API_BASE_URL}/github/status/?platform_id=${selectedPlatformId}`, {
       method: "GET",
@@ -72,32 +92,24 @@ const CodeReviewConnect = () => {
       headers: token ? { 'Authorization': `Token ${token}` } : {},
     })
       .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch profile");
+        if (res.status === 400) {
+          throw new Error("Platform ID is required");
+        }
+        if (res.status === 404) {
+          throw new Error("Platform not found");
+        }
+        if (!res.ok) {
+          throw new Error(`Failed to fetch profile: ${res.status}`);
+        }
         return res.json();
       })
       .then((data) => {
-        // Handle the actual API response structure
-        if (data && typeof data === 'object') {
-          if (data.connected === true) {
-            // Profile is connected and has user data
-            setProfile(data);
-          
-          } else {
-            // Fallback case - treat as not connected
-            setProfile({
-              username: 'unknown',
-              avatar_url: '',
-              profile_url: '',
-              name: 'GitHub App User',
-              installation_id: null,
-              connected: false,
-              platform_name: 'Unknown Platform'
-            });
-          }
-        }
+        setProfile(data);
         setProfileLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Error fetching profile:", err);
+        setError(err.message || "Failed to fetch GitHub profile");
         setProfile(null);
         setProfileLoading(false);
       });
@@ -106,27 +118,27 @@ const CodeReviewConnect = () => {
   // Handle OAuth callback and GitHub App installation callback
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get("code");
     const installationId = urlParams.get("installation_id");
     const setupAction = urlParams.get("setup_action");
 
-    if (installationId ) {
+    if (installationId) {
       // Handle GitHub App installation callback
       setLoading(true);
+      setError("");
+      
       if (!selectedPlatformId) {
         setError("No platform selected. Please select a platform first.");
-        setSuccessMessage(""); // Clear success message
         setLoading(false);
         return;
       }
       
-      // Call backend API to handle GitHub App installation
+      const token = localStorage.getItem('auth_token');
       fetch(`${API_BASE_URL}/github/installation/`, {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(localStorage.getItem('auth_token') ? { 'Authorization': `Token ${localStorage.getItem('auth_token')}` } : {}),
+          ...(token ? { 'Authorization': `Token ${token}` } : {}),
         },
         body: JSON.stringify({
           installation_id: installationId,
@@ -136,50 +148,49 @@ const CodeReviewConnect = () => {
       })
         .then((res) => {
           if (res.status === 409) {
-            // 409 Conflict - GitHub App already installed, fetch updated profile
+            // 409 Conflict - GitHub App already installed
+            setSuccessMessage("GitHub App is already installed. Fetching updated status...");
             fetchProfile();
             fetchRepos(page);
-            setError(""); // Clear any previous errors
-            setSuccessMessage("GitHub App is already installed. Fetching updated status...");
-            setTimeout(() => setSuccessMessage(""), 3000);
-            return;
+            setLoading(false);
+            return null;
           }
-          if (!res.ok) throw new Error("GitHub App installation failed");
+          if (!res.ok) {
+            throw new Error(`GitHub App installation failed: ${res.status}`);
+          }
           return res.json();
         })
         .then((data) => {
-          if (data) { // Only proceed if we have data (not a 409 case)
-            // After successful installation, fetch repos and profile
+          if (data) {
+            setSuccessMessage("GitHub App installed successfully! Your repositories are now connected.");
             fetchRepos(page);
             fetchProfile();
-            setError(""); // Clear any previous errors
-            setSuccessMessage("GitHub App installed successfully! Your repositories are now connected.");
-            // Clear success message after 5 seconds
-            setTimeout(() => setSuccessMessage(""), 5000);
           }
+          setLoading(false);
         })
-        .catch(() => {
-          setError("GitHub App installation failed. Please try again.");
-          setSuccessMessage(""); // Clear success message
+        .catch((err) => {
+          console.error("Installation error:", err);
+          setError(err.message || "GitHub App installation failed. Please try again.");
           setLoading(false);
         });
-    } else {
-      // If already authenticated, fetch repos and profile
+    } else if (selectedPlatformId) {
+      // Only fetch if we have a platform selected
       fetchRepos(page);
       fetchProfile();
     }
     // eslint-disable-next-line
-  }, [page]);
+  }, [selectedPlatformId, page]);
 
   const fetchRepos = (pageNum: number) => {
     if (!selectedPlatformId) {
       setError("No platform selected. Please select a platform first.");
-      setSuccessMessage(""); // Clear success message
       setLoading(false);
       return;
     }
     
     setLoading(true);
+    setError("");
+    
     const token = localStorage.getItem('auth_token');
     fetch(`${API_BASE_URL}/github/repos/?page=${pageNum}&page_size=${pageSize}&platform_id=${selectedPlatformId}`, {
       method: "GET",
@@ -187,37 +198,37 @@ const CodeReviewConnect = () => {
       headers: token ? { 'Authorization': `Token ${token}` } : {},
     })
       .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch repos");
+        if (!res.ok) {
+          throw new Error(`Failed to fetch repositories: ${res.status}`);
+        }
         return res.json();
       })
       .then((data) => {
         setRepos(Array.isArray(data) ? data : []);
         setLoading(false);
       })
-      .catch(() => {
-        setError("Could not load repositories.");
-        setSuccessMessage(""); // Clear success message
+      .catch((err) => {
+        console.error("Error fetching repos:", err);
+        setError(err.message || "Could not load repositories.");
         setLoading(false);
       });
   };
 
   // Start GitHub App installation flow
   const handleConnectGitHub = () => {
-    // Redirect to GitHub App installation page
-    window.location.href = "https://github.com/apps/apisentry-ai/installations/select_target";
-  };
-
-  // Connect additional organizations via GitHub App installation
-  const handleConnectOrganization = () => {
-    // Always use GitHub App installation for consistency
     window.location.href = "https://github.com/apps/apisentry-ai/installations/select_target";
   };
 
   // Disconnect GitHub
   const handleDisconnectGitHub = async () => {
+    if (!selectedPlatformId) {
+      setError("No platform selected");
+      return;
+    }
+
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE_URL}/auth/github/disconnect/?platform_id=${selectedPlatformId}`, {
+      const response = await fetch(`${API_BASE_URL}/github/disconnect/?platform_id=${selectedPlatformId}`, {
         method: 'POST',
         credentials: 'include',
         headers: token ? { 'Authorization': `Token ${token}` } : {},
@@ -227,22 +238,41 @@ const CodeReviewConnect = () => {
         setProfile(null);
         setRepos([]);
         setError("");
-        setSuccessMessage(""); // Clear success message
+        setSuccessMessage("Successfully disconnected from GitHub");
       } else {
-        setError("Failed to disconnect GitHub");
-        setSuccessMessage(""); // Clear success message
+        throw new Error(`Failed to disconnect: ${response.status}`);
       }
     } catch (err) {
+      console.error("Disconnect error:", err);
       setError("Error disconnecting GitHub");
-      setSuccessMessage(""); // Clear success message
     }
   };
 
+  // Show platform selection message if no platform is selected
+  if (!selectedPlatformId) {
+    return (
+      <div className="space-y-6">
+        <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-950 dark:to-orange-950 border-yellow-200 dark:border-yellow-800">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Settings className="w-5 h-5 text-yellow-600" />
+              <span>Platform Required</span>
+            </CardTitle>
+            <CardDescription>
+              Please select a platform to manage GitHub connections.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Github Connect</h1>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">GitHub Connect</h1>
           <p className="text-muted-foreground mt-2">Manage your GitHub App installation and view connected repositories</p>
         </div>
         <div className="flex gap-2">
@@ -251,9 +281,9 @@ const CodeReviewConnect = () => {
             className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
           >
             <PlusCircle className="w-4 h-4 mr-2" />
-            {profile && profile.connected ? 'Update Installation' : 'Install GitHub App'}
+            {profile?.connected ? 'Update Installation' : 'Install GitHub App'}
           </Button>
-          {profile && profile.connected && (
+          {profile?.connected && (
             <Dialog open={showDisconnectConfirm} onOpenChange={setShowDisconnectConfirm}>
               <DialogTrigger asChild>
                 <Button 
@@ -301,6 +331,27 @@ const CodeReviewConnect = () => {
         </div>
       </motion.div>
 
+      {/* Success/Error Messages */}
+      {successMessage && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800">
+            <CardContent className="pt-4">
+              <p className="text-green-700 dark:text-green-300 text-sm">{successMessage}</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {error && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800">
+            <CardContent className="pt-4">
+              <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* GitHub Connection Status */}
       {profileLoading ? (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
@@ -322,7 +373,7 @@ const CodeReviewConnect = () => {
             </CardContent>
           </Card>
         </motion.div>
-      ) : profile && profile.connected ? (
+      ) : profile?.connected ? (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <Card className="bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-950 dark:to-blue-950 border-green-200 dark:border-green-800">
             <CardHeader>
@@ -330,13 +381,17 @@ const CodeReviewConnect = () => {
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span>GitHub Connected</span>
               </CardTitle>
-              <CardDescription>Your GitHub account is successfully connected via GitHub App</CardDescription>
+              <CardDescription>
+                GitHub App is installed and connected
+                {profile.account_login && ` as ${profile.account_login}`}
+                {profile.repositories_count && ` (${profile.repositories_count} repositories)`}
+              </CardDescription>
             </CardHeader>
           </Card>
         </motion.div>
-      ) :  (
+      ) : (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <Card className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-yellow-950 dark:to-orange-950 border-red-200 dark:border-red-800">
+          <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-950 dark:to-orange-950 border-yellow-200 dark:border-yellow-800">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
@@ -344,11 +399,11 @@ const CodeReviewConnect = () => {
               </CardTitle>
               <CardDescription>GitHub App is not installed for this platform</CardDescription>
             </CardHeader>
-           
           </Card>
         </motion.div>
-      ) }
+      )}
 
+      {/* Repositories Section */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
         <Card>
           <CardHeader>
@@ -366,7 +421,6 @@ const CodeReviewConnect = () => {
             <CardDescription>Repositories available for code review and security scanning</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-
             {loading ? (
               <div className="text-muted-foreground flex items-center space-x-2">
                 <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>

@@ -32,26 +32,32 @@ const CodeReviewRepos = () => {
   const [pageSize] = useState(20);
   const { selectedPlatformId } = usePlatform();
 
-  useEffect(() => {
+  const fetchRepos = async () => {
     setLoading(true);
     const token = localStorage.getItem('auth_token');
-    fetch(`${API_BASE_URL}/github/repos/?page=${page}&page_size=${pageSize}&platform_id=${selectedPlatformId}`, {
-      method: "GET",
-      credentials: "include",
-      headers: token ? { 'Authorization': `Token ${token}` } : {},
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch repos");
-        return res.json();
-      })
-      .then((data) => {
-        setRepos(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError("Could not load repositories.");
-        setLoading(false);
+    try {
+      const response = await fetch(`${API_BASE_URL}/github/repos/?page=${page}&page_size=${pageSize}&platform_id=${selectedPlatformId}`, {
+        method: "GET",
+        credentials: "include",
+        headers: token ? { 'Authorization': `Token ${token}` } : {},
       });
+      
+      if (!response.ok) throw new Error("Failed to fetch repos");
+      
+      const data = await response.json();
+      setRepos(Array.isArray(data) ? data : []);
+      setError("");
+    } catch (error) {
+      console.error("Error fetching repos:", error);
+      setError("Could not load repositories.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRepos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, selectedPlatformId]);
 
   const getRiskBadge = (risk?: string) => {
@@ -81,21 +87,23 @@ const CodeReviewRepos = () => {
         },
         body: JSON.stringify({ repo_url: repo.html_url })
       });
+      
       if (!response.ok) {
         throw new Error('Scan initiation failed');
       }
-      // Optionally show a success message
+      
+      // Immediately refresh the repos list after successful scan
+      await fetchRepos();
+      
     } catch (error) {
       console.error("Scan error:", error);
-      // Optionally show an error message
+      setError("Failed to initiate scan. Please try again.");
     } finally {
-      setTimeout(() => {
-        setScanningRepos(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(repo.name);
-          return newSet;
-        });
-      }, 3000); // Keep spinner for a few seconds for user feedback
+      setScanningRepos(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(repo.name);
+        return newSet;
+      });
     }
   };
 

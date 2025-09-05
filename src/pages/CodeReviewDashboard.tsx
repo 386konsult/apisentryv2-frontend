@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { LayoutDashboard, Shield, GitBranch, TrendingUp, Zap, Users, BookOpen, Info, AlertTriangle, CheckCircle } from "lucide-react";
+import { LayoutDashboard, Shield, GitBranch, TrendingUp, Zap, Users, BookOpen, Info, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { apiService } from "@/services/api";
@@ -43,118 +43,126 @@ const CodeReviewDashboard = () => {
   const [reviewFeedbackData, setReviewFeedbackData] = useState([]);
   const [toolFindingsData, setToolFindingsData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const token = localStorage.getItem("auth_token");
-        const headers = token ? { Authorization: `Token ${token}` } : {};
+  const fetchDashboardData = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      const headers = token ? { Authorization: `Token ${token}` } : {};
 
-        if (!selectedPlatformId) {
-          throw new Error("No platform selected. Please select a platform first.");
-        }
+      if (!selectedPlatformId) {
+        throw new Error("No platform selected. Please select a platform first.");
+      }
 
-        // Fetch repositories data
-        const reposResponse = await fetch(`${API_BASE_URL}/github/repos/?platform_id=${selectedPlatformId}`, { headers });
-        if (reposResponse.ok) {
-          const reposData = await reposResponse.json();
-          setRepos(reposData || []);
-        } else {
-          console.error('Repositories API error:', reposResponse.status, reposResponse.statusText);
-          setRepos([]);
-          // Try to parse error message from response
-          try {
-            const errorData = await reposResponse.json();
-            throw new Error(errorData.error || `Failed to fetch repositories: ${reposResponse.status} ${reposResponse.statusText}`);
-          } catch (parseError) {
-            throw new Error(`Failed to fetch repositories: ${reposResponse.status} ${reposResponse.statusText}`);
-          }
-        }
-
-        // Fetch security findings
-        const findingsResponse = await fetch(`${API_BASE_URL}/github/security-findings/`, { headers });
-        if (findingsResponse.ok) {
-          const findingsData = await findingsResponse.json();
-          const mappedFindings = (findingsData.issues || []).map((issue: {
-            id: string;
-            file: string;
-            line: number;
-            code: string;
-            type: string;
-            risk: string;
-            recommendation: string;
-            suggestedFix: string;
-            cve?: string;
-            assignedTo?: string;
-            status: string;
-            repository: string;
-            createdAt: string;
-            resolvedAt?: string;
-          }) => ({
-            id: issue.id,
-            file: issue.file,
-            line: issue.line,
-            code: issue.code,
-            type: issue.type,
-            risk: issue.risk,
-            recommendation: issue.recommendation,
-            suggestedFix: issue.suggestedFix,
-            cve: issue.cve,
-            assignedTo: issue.assignedTo,
-            status: issue.status,
-            repository: issue.repository,
-            createdAt: issue.createdAt,
-            resolvedAt: issue.resolvedAt,
-          }));
-          setSecurityFindings(mappedFindings);
-        } else {
-          console.error('Security findings API error:', findingsResponse.status, findingsResponse.statusText);
-          setSecurityFindings([]);
-          // Try to parse error message from response
-          try {
-            const errorData = await findingsResponse.json();
-            throw new Error(errorData.error || `Failed to fetch security findings: ${findingsResponse.status} ${findingsResponse.statusText}`);
-          } catch (parseError) {
-            throw new Error(`Failed to fetch security findings: ${findingsResponse.status} ${findingsResponse.statusText}`);
-          }
-        }
-
-        // Fetch review feedback statistics
-        const feedbackResponse = await fetch(`${API_BASE_URL}/github/review-stats/`, { headers });
-        if (feedbackResponse.ok) {
-          const feedbackData = await feedbackResponse.json();
-          setReviewFeedbackData(feedbackData.feedback_breakdown || []);
-          setToolFindingsData(feedbackData.tool_findings || []);
-        } else {
-          console.error('Review stats API error:', feedbackResponse.status, feedbackResponse.statusText);
-          setReviewFeedbackData([]);
-          setToolFindingsData([]);
-          // Try to parse error message from response
-          try {
-            const errorData = await feedbackResponse.json();
-            throw new Error(errorData.error || `Failed to fetch review stats: ${feedbackResponse.status} ${feedbackResponse.statusText}`);
-          } catch (parseError) {
-            throw new Error(`Failed to fetch review stats: ${feedbackResponse.status} ${feedbackResponse.statusText}`);
-          }
-        }
-      } catch (err) {
-        console.error('Dashboard data fetch error:', err);
-        setError(err.message || "An unexpected error occurred while loading the dashboard.");
-        // Set default empty states to prevent further errors
+      // Fetch repositories data
+      const reposResponse = await fetch(`${API_BASE_URL}/github/repos/?platform_id=${selectedPlatformId}`, { headers });
+      if (reposResponse.ok) {
+        const reposData = await reposResponse.json();
+        setRepos(reposData || []);
+      } else {
+        console.error('Repositories API error:', reposResponse.status, reposResponse.statusText);
         setRepos([]);
+        // Try to parse error message from response
+        try {
+          const errorData = await reposResponse.json();
+          throw new Error(errorData.error || `Failed to fetch repositories: ${reposResponse.status} ${reposResponse.statusText}`);
+        } catch (parseError) {
+          throw new Error(`Failed to fetch repositories: ${reposResponse.status} ${reposResponse.statusText}`);
+        }
+      }
+
+      // Fetch security findings
+      const findingsResponse = await fetch(`${API_BASE_URL}/github/security-findings/?platform_id=${selectedPlatformId}`, { headers });
+      if (findingsResponse.ok) {
+        const findingsData = await findingsResponse.json();
+        const mappedFindings = (findingsData.issues || []).map((issue: {
+          id: string;
+          file: string;
+          line: number;
+          code: string;
+          type: string;
+          risk: string;
+          recommendation: string;
+          suggestedFix: string;
+          cve?: string;
+          assignedTo?: string;
+          status: string;
+          repository: string;
+          createdAt: string;
+          resolvedAt?: string;
+        }) => ({
+          id: issue.id,
+          file: issue.file,
+          line: issue.line,
+          code: issue.code,
+          type: issue.type,
+          risk: issue.risk,
+          recommendation: issue.recommendation,
+          suggestedFix: issue.suggestedFix,
+          cve: issue.cve,
+          assignedTo: issue.assignedTo,
+          status: issue.status,
+          repository: issue.repository,
+          createdAt: issue.createdAt,
+          resolvedAt: issue.resolvedAt,
+        }));
+        setSecurityFindings(mappedFindings);
+      } else {
+        console.error('Security findings API error:', findingsResponse.status, findingsResponse.statusText);
         setSecurityFindings([]);
+        // Try to parse error message from response
+        try {
+          const errorData = await findingsResponse.json();
+          throw new Error(errorData.error || `Failed to fetch security findings: ${findingsResponse.status} ${findingsResponse.statusText}`);
+        } catch (parseError) {
+          throw new Error(`Failed to fetch security findings: ${findingsResponse.status} ${findingsResponse.statusText}`);
+        }
+      }
+
+      // Fetch review feedback statistics
+      const feedbackResponse = await fetch(`${API_BASE_URL}/github/review-stats/?platform_id=${selectedPlatformId}`, { headers });
+      if (feedbackResponse.ok) {
+        const feedbackData = await feedbackResponse.json();
+        setReviewFeedbackData(feedbackData.feedback_breakdown || []);
+        setToolFindingsData(feedbackData.tool_findings || []);
+        
+        // You can now also use feedbackData.summary_stats for additional metrics
+      } else {
+        console.error('Review stats API error:', feedbackResponse.status, feedbackResponse.statusText);
         setReviewFeedbackData([]);
         setToolFindingsData([]);
-      } finally {
-        setLoading(false);
+        // Try to parse error message from response
+        try {
+          const errorData = await feedbackResponse.json();
+          throw new Error(errorData.error || `Failed to fetch review stats: ${feedbackResponse.status} ${feedbackResponse.statusText}`);
+        } catch (parseError) {
+          throw new Error(`Failed to fetch review stats: ${feedbackResponse.status} ${feedbackResponse.statusText}`);
+        }
       }
+    } catch (err) {
+      console.error('Dashboard data fetch error:', err);
+      setError(err.message || "An unexpected error occurred while loading the dashboard.");
+      // Set default empty states to prevent further errors
+      setRepos([]);
+      setSecurityFindings([]);
+      setReviewFeedbackData([]);
+      setToolFindingsData([]);
+    }
+  };
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      setLoading(true);
+      await fetchDashboardData();
+      setLoading(false);
     };
 
-    fetchDashboardData();
-  }, []);
+    loadDashboard();
+  }, [selectedPlatformId]);
 
   const startScan = async () => {
+    setScanning(true);
     try {
       const token = localStorage.getItem("auth_token");
       const headers = token ? { Authorization: `Token ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
@@ -163,10 +171,10 @@ const CodeReviewDashboard = () => {
         throw new Error("No platform selected. Please select a platform first.");
       }
 
-      const response = await fetch(`${API_BASE_URL}/github/scan-all/`, {
+      const response = await fetch(`${API_BASE_URL}/github/scan-all/?platform_id=${selectedPlatformId}`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ platform_id: selectedPlatformId }), // Include platform ID
+        body: JSON.stringify({}), // Empty body since we get repos from GitHub App
       });
 
       if (!response.ok) {
@@ -178,6 +186,10 @@ const CodeReviewDashboard = () => {
         title: "Scan Started",
         description: `Code review scan started successfully. Scan ID: ${result.scanId || "N/A"}`,
       });
+      
+      // Refresh dashboard data after successful scan
+      await fetchDashboardData();
+      
       navigate('/code-review-scan-reports');
     } catch (error) {
       toast({
@@ -185,6 +197,8 @@ const CodeReviewDashboard = () => {
         description: error.message || "Failed to start code review scan.",
         variant: "destructive",
       });
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -286,9 +300,20 @@ const CodeReviewDashboard = () => {
         </div>
         <Button 
           onClick={startScan}
+          disabled={scanning}
           className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
         >
-          <Zap className="w-4 h-4 mr-2" />Run All Scans
+          {scanning ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Scanning...
+            </>
+          ) : (
+            <>
+              <Zap className="w-4 h-4 mr-2" />
+              Run All Scans
+            </>
+          )}
         </Button>
       </motion.div>
 

@@ -142,7 +142,10 @@ const CodeReviewDashboard = () => {
       }
     } catch (err) {
       console.error('Dashboard data fetch error:', err);
-      setError(err.message || "An unexpected error occurred while loading the dashboard.");
+      // Do not show error for 404 Not Found on repositories
+      if (!err.message?.includes('Failed to fetch repositories: 404')) {
+        setError(err.message || "An unexpected error occurred while loading the dashboard.");
+      }
       // Set default empty states to prevent further errors
       setRepos([]);
       setSecurityFindings([]);

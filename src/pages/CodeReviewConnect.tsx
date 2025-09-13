@@ -198,18 +198,27 @@ const CodeReviewConnect = () => {
       headers: token ? { 'Authorization': `Token ${token}` } : {},
     })
       .then((res) => {
+        if (res.status === 404) {
+          // Silently handle 404, do not show error
+          setRepos([]);
+          setLoading(false);
+          return null;
+        }
         if (!res.ok) {
           throw new Error(`Failed to fetch repositories: ${res.status}`);
         }
         return res.json();
       })
       .then((data) => {
-        setRepos(Array.isArray(data) ? data : []);
+        if (data) setRepos(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch((err) => {
         console.error("Error fetching repos:", err);
-        setError(err.message || "Could not load repositories.");
+        // Only show error if not 404
+        if (err.message !== "Failed to fetch repositories: 404") {
+          setError(err.message || "Could not load repositories.");
+        }
         setLoading(false);
       });
   };

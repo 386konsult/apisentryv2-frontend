@@ -435,12 +435,25 @@ const Onboarding = () => {
                       variant="outline"
                       size="sm"
                       className="ml-2"
-                      onClick={() => {
+                      onClick={async () => {
                         const cmd = getInstallCommand();
                         if (cmd && cmd !== '...') {
-                          navigator.clipboard.writeText(cmd);
-                          setCopied(true);
-                          setTimeout(() => setCopied(false), 2000);
+                          try {
+                            await navigator.clipboard.writeText(cmd);
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                          } catch (error) {
+                            console.error('Failed to copy command:', error);
+                            // Fallback: create a temporary textarea element
+                            const textarea = document.createElement('textarea');
+                            textarea.value = cmd;
+                            document.body.appendChild(textarea);
+                            textarea.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(textarea);
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                          }
                         }
                       }}
                       disabled={!getInstallCommand() || getInstallCommand() === '...'}

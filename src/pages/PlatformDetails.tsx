@@ -30,6 +30,8 @@ import {
 } from 'lucide-react';
 import apiService from '@/services/api';
 
+const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
+
 const PlatformDetails = () => {
   const { id } = useParams();
   const [platform, setPlatform] = useState(null);
@@ -64,30 +66,7 @@ const PlatformDetails = () => {
       .then(data => {
         if (data.success && data.analytics) {
           setAnalytics(data.analytics);
-          // Traffic chart data - properly distribute data across all methods
-          if (data.analytics.method_breakdown) {
-            const totalRequests = data.analytics.total_requests || 0;
-            const successfulRequests = data.analytics.successful_requests || 0;
-            const blockedRequests = data.analytics.blocked_requests || 0;
-            const notFoundRequests = (data.analytics.status_code_breakdown && data.analytics.status_code_breakdown['404']) || 0;
-            
-            const trafficArr = Object.entries(data.analytics.method_breakdown).map(([method, methodCount]) => {
-              const methodTotal = Number(methodCount);
-              const methodPercentage = totalRequests > 0 ? methodTotal / totalRequests : 0;
-              
-              return {
-                name: method,
-                requests: methodTotal,
-                allowed: Math.round(successfulRequests * methodPercentage),
-                blocked: Math.round(blockedRequests * methodPercentage),
-                notFound: Math.round(notFoundRequests * methodPercentage),
-              };
-            });
-            setTrafficData(trafficArr);
-          } else {
-            setTrafficData([]);
-          }
-          // Threat types pie chart
+          // Threat types pie chart (keep as is)
           if (data.analytics.status_code_breakdown) {
             const colors = {
               '200': '#22c55e', // green for 200
@@ -121,8 +100,42 @@ const PlatformDetails = () => {
       .catch(() => {});
     // Request logs using API service (auth, correct endpoint)
     apiService.getPlatformRequestLogs(id)
-      .then(logs => setThreatLogs(logs))
-      .catch(() => {});
+      .then(logs => {
+        setThreatLogs(logs);
+
+        // --- Build trafficData by method and status, always show all methods ---
+        const methodMap: Record<string, { allowed: number; blocked: number; notFound: number }> = {};
+        logs.forEach((log: any) => {
+          const method = (log.method || 'OTHER').toUpperCase();
+          if (!methodMap[method]) {
+            methodMap[method] = { allowed: 0, blocked: 0, notFound: 0 };
+          }
+          if (log.status_code === 404) {
+            methodMap[method].notFound += 1;
+          } else if (log.waf_blocked) {
+            methodMap[method].blocked += 1;
+          } else {
+            methodMap[method].allowed += 1;
+          }
+        });
+        // Ensure all HTTP_METHODS are present, even if zero
+        const trafficArr = HTTP_METHODS.map(method => ({
+          name: method,
+          ...(methodMap[method] || { allowed: 0, blocked: 0, notFound: 0 }),
+        }));
+        // Optionally, add "OTHER" if there are logs with unknown methods
+        if (Object.keys(methodMap).some(m => !HTTP_METHODS.includes(m))) {
+          trafficArr.push({
+            name: 'OTHER',
+            ...(methodMap['OTHER'] || { allowed: 0, blocked: 0, notFound: 0 }),
+          });
+        }
+        setTrafficData(trafficArr);
+      })
+      .catch(() => {
+        setThreatLogs([]);
+        setTrafficData([]);
+      });
   }, [id]);
 
   if (loading) return <div className="p-8 text-center">Loading...</div>;
@@ -253,17 +266,27 @@ const PlatformDetails = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-2">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={trafficData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="allowed" stackId="a" fill="hsl(142 71% 45%)" />
-                <Bar dataKey="blocked" stackId="a" fill="hsl(0 84% 60%)" />
-                <Bar dataKey="notFound" stackId="a" fill="#6366f1" />
-              </BarChart>
-            </ResponsiveContainer>
+            {trafficData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={trafficData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="allowed" stackId="a" fill="hsl(142 71% 45%)" />
+                  <Bar dataKey="blocked" stackId="a" fill="hsl(0 84% 60%)" />
+                  <Bar dataKey="notFound" stackId="a" fill="#6366f1" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                <div className="text-center">
+                  <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No traffic data available</p>
+                  <p className="text-sm">Analytics data will appear here once requests are received</p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

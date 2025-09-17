@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +7,7 @@ import { Shield, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { API_BASE_URL } from "@/services/api";
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -23,13 +23,45 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      await login(email, password);
-      toast({
-        title: "Login successful",
-        description: "Welcome to API Shield!",
+      // Prepare credentials
+      const response = await fetch(`${API_BASE_URL}/auth/login/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
-      navigate('/');
+      
+      // Parse the response only once
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || "Login failed");
+      }
+      
+      // Save token and user info
+      localStorage.setItem("auth_token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      
+      // Update auth context
+      if (login) {
+        login(data.token, data.user);
+      }
+      
+      // Check for first login
+      if (data.is_first_login === true) {
+        console.log("First login detected, redirecting to password reset");
+        navigate("/force-password-reset", { replace: true });
+      } else {
+        console.log("Normal login, redirecting to dashboard");
+        toast({
+          title: "Login successful",
+          description: "Welcome to API Shield!",
+        });
+        
+        // Force a page reload to ensure the auth state is properly updated
+        window.location.href = '/';
+      }
     } catch (error) {
+      console.error("Login error:", error);
       toast({
         title: "Login failed",
         description: error instanceof Error ? error.message : "Invalid credentials",

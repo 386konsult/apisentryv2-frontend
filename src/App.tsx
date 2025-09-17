@@ -42,6 +42,7 @@ import CodeReviewReport from "./pages/CodeReviewReport";
 import Platforms from "./pages/Platforms";
 import PlatformDetails from "./pages/PlatformDetails";
 import GitHubCallback from "./pages/GitHubCallback";
+import ForcePasswordReset from "./pages/ForcePasswordReset";
 
 const queryClient = new QueryClient();
 
@@ -83,7 +84,7 @@ const AppContent = () => {
         <Route path="/otp-verification" element={<OTPVerification />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/auth/github/callback" element={<GitHubCallback />} />
-
+        <Route path="/force-password-reset" element={<ForcePasswordReset />} />
         {/* Main App Routes */}
         <Route path="/*" element={
           <ProtectedRoute>

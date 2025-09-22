@@ -211,14 +211,14 @@ const CodeReviewRepos = () => {
         return (
           <Badge variant="secondary" className="flex items-center gap-1">
             <Loader2 className="w-3 h-3 animate-spin" />
-            Scanning...
+            Processing
           </Badge>
         );
       case 'completed':
         return (
           <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
             <CheckCircle className="w-3 h-3" />
-            Completed
+            Processed
           </Badge>
         );
       case 'failed':
@@ -233,6 +233,24 @@ const CodeReviewRepos = () => {
     }
   };
 
+  // Helper to persist and restore active scan jobs using analysis_run_id in localStorage
+  const SCAN_JOBS_STORAGE_KEY = "active_scan_jobs";
+
+  function saveActiveScanJobIds(ids: string[]) {
+    localStorage.setItem(SCAN_JOBS_STORAGE_KEY, JSON.stringify(ids));
+  }
+
+  function loadActiveScanJobIds(): string[] {
+    try {
+      const raw = localStorage.getItem(SCAN_JOBS_STORAGE_KEY);
+      if (!raw) return [];
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+
+  // On scan, persist analysis_run_id
   const handleScan = async (repo: Repository) => {
     setScanningRepos(prev => new Set(prev).add(repo.html_url));
     const token = localStorage.getItem('auth_token');
@@ -245,27 +263,28 @@ const CodeReviewRepos = () => {
         },
         body: JSON.stringify({ repo_url: repo.html_url })
       });
-      
+
       if (!response.ok) {
         throw new Error('Scan initiation failed');
       }
-      
+
       const result = await response.json();
-      
-      // Add to active scan jobs for polling
+
+      // Use the status returned by the backend (should be 'queued' or similar)
       const scanJob: ScanJob = {
         analysis_run_id: result.analysis_run_id,
-        status: result.status,
+        status: result.status || 'queued', // fallback to 'queued'
         repo_url: repo.html_url,
         created_at: new Date().toISOString()
       };
-      
+
       setActiveScanJobs(prev => {
         const updated = new Map(prev);
         updated.set(result.analysis_run_id, scanJob);
+        saveActiveScanJobIds(Array.from(updated.keys()));
         return updated;
       });
-      
+
     } catch (error) {
       console.error("Scan error:", error);
       setError("Failed to initiate scan. Please try again.");
@@ -321,6 +340,44 @@ const CodeReviewRepos = () => {
     }
     return undefined;
   };
+
+  // Add statusCounts for scan jobs
+  const statusCounts = { queued: 0, 'in progress': 0, completed: 0, failed: 0 };
+  activeScanJobs.forEach(job => {
+    statusCounts[job.status] = (statusCounts[job.status] || 0) + 1;
+  });
+
+  // Restore scan jobs on mount/page change using analysis_run_id from storage
+  useEffect(() => {
+    const restoreActiveScanJobs = async () => {
+      const ids = loadActiveScanJobIds();
+      if (!ids.length) return;
+      const token = localStorage.getItem('auth_token');
+      const scanJobsMap = new Map<string, ScanJob>();
+      const scanningReposSet = new Set<string>();
+      await Promise.all(
+        ids.map(async (analysisRunId) => {
+          try {
+            const resp = await fetch(`${API_BASE_URL}/github/scan-status/${analysisRunId}/`, {
+              method: "GET",
+              headers: token ? { 'Authorization': `Token ${token}` } : {},
+            });
+            if (!resp.ok) return;
+            const scanJob: ScanJob = await resp.json();
+            scanJobsMap.set(analysisRunId, scanJob);
+            if (scanJob.status === 'queued' || scanJob.status === 'in progress') {
+              scanningReposSet.add(scanJob.repo_url);
+            }
+          } catch {
+            // ignore errors
+          }
+        })
+      );
+      setActiveScanJobs(scanJobsMap);
+      setScanningRepos(scanningReposSet);
+    };
+    restoreActiveScanJobs();
+  }, [page, pageSize, selectedPlatformId]);
 
   return (
     <div className="space-y-6">

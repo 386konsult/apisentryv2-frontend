@@ -12,6 +12,22 @@ import { API_BASE_URL } from "@/services/api";
 
 const teammates = ["Alice", "Bob", "Charlie", "Dana"]; // Example teammates, replace with your actual data
 
+// Add this helper for risk badge rendering
+const getRiskBadge = (risk?: string) => {
+  switch (risk) {
+    case 'Low':
+      return <Badge className="bg-green-100 text-green-800">{risk} Risk</Badge>;
+    case 'Medium':
+      return <Badge className="bg-orange-100 text-orange-800">{risk} Risk</Badge>;
+    case 'High':
+      return <Badge className="bg-red-100 text-red-800">{risk} Risk</Badge>;
+    case 'Critical':
+      return <Badge className="bg-red-500 text-white">{risk} Risk</Badge>;
+    default:
+      return <Badge variant="secondary">{risk || "Unknown"} Risk</Badge>;
+  }
+};
+
 const CodeReviewRepoDetails = () => {
   const { repoName } = useParams<{ repoName: string }>();
   const [vulnerabilities, setVulnerabilities] = useState([]);
@@ -101,6 +117,14 @@ const CodeReviewRepoDetails = () => {
     setStatuses(prev => ({ ...prev, [id]: value }));
   };
 
+  // Count vulnerabilities by risk level
+  const riskCounts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+  vulnerabilities.forEach((vuln: any) => {
+    if (typeof vuln.risk === "string" && riskCounts.hasOwnProperty(vuln.risk)) {
+      riskCounts[vuln.risk]++;
+    }
+  });
+
   if (loading) return <div>Loading...</div>;
   if (error) return <div className="text-red-500">{error}</div>;
 
@@ -110,6 +134,27 @@ const CodeReviewRepoDetails = () => {
         <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">{repoName} - Full Scan Report</h1>
         <p className="text-muted-foreground mb-4">Detailed vulnerability and commit scan report for this repository</p>
       </motion.div>
+
+      {/* Risk summary counts */}
+      <div className="flex gap-4 mb-2">
+        <div className="flex items-center gap-2">
+          <Badge className="bg-red-500 text-white">Critical</Badge>
+          <span className="font-bold">{riskCounts.Critical}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge className="bg-red-100 text-red-800">High</Badge>
+          <span className="font-bold">{riskCounts.High}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge className="bg-orange-100 text-orange-800">Medium</Badge>
+          <span className="font-bold">{riskCounts.Medium}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge className="bg-green-100 text-green-800">Low</Badge>
+          <span className="font-bold">{riskCounts.Low}</span>
+        </div>
+      </div>
+
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <Card>
           <CardHeader>
@@ -141,7 +186,10 @@ const CodeReviewRepoDetails = () => {
                       <TableCell>{vuln.line}</TableCell>
                       <TableCell><code className="bg-muted px-2 py-1 rounded text-xs">{vuln.code}</code></TableCell>
                       <TableCell><Badge variant="secondary">{vuln.type}</Badge></TableCell>
-                      <TableCell><Badge className={vuln.risk === 'Critical' ? 'bg-red-500 text-white' : vuln.risk === 'High' ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-black'}>{vuln.risk}</Badge></TableCell>
+                      <TableCell>
+                        {/* Use the same risk badge logic as in repo list */}
+                        {getRiskBadge(vuln.risk)}
+                      </TableCell>
                       <TableCell className="text-xs">{vuln.recommendation}</TableCell>
                       <TableCell><code className="bg-muted px-2 py-1 rounded text-xs">{vuln.suggestedFix}</code></TableCell>
                       <TableCell>{vuln.cve}</TableCell>

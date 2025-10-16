@@ -333,60 +333,60 @@ const PlatformDetails = () => {
             Real-time API requests and security events
           </CardDescription>
         </CardHeader>
-  <CardContent className="max-w-3xl overflow-x-auto" style={{maxHeight: '350px', overflowY: 'auto'}}>
-          {threatLogs.length === 0 ? (
-            <div className="text-muted-foreground">No threat logs found.</div>
-          ) : (
-            <table className="min-w-[700px] text-sm border rounded-lg">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-3 py-2 text-left">Time</th>
-                  <th className="px-3 py-2 text-left">Method</th>
-                  <th className="px-3 py-2 text-left">Path</th>
-                  <th className="px-3 py-2 text-left">Status</th>
-                  <th className="px-3 py-2 text-left">Blocked</th>
-                  <th className="px-3 py-2 text-left">Threat</th>
-                  <th className="px-3 py-2 text-left">Rule</th>
-                  <th className="px-3 py-2 text-left">IP</th>
-                  <th className="px-3 py-2 text-left">User Agent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {threatLogs.slice(0, 10).map((log) => (
-                  <tr key={log.id} className="border-b hover:bg-muted/30 transition-colors">
-                    <td className="px-3 py-2 whitespace-nowrap">{log.timestamp}</td>
-                    <td className="px-3 py-2 font-mono">{log.method}</td>
-                    <td className="px-3 py-2 font-mono">{log.path}</td>
-                    <td className="px-3 py-2 font-mono">{log.status_code}</td>
-                    <td className="px-3 py-2">
-                      {log.waf_blocked ? (
-                        <Badge variant="destructive">Blocked</Badge>
-                      ) : (
-                        <Badge variant="default">Allowed</Badge>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {log.threat_level && log.threat_level !== 'none' ? (
-                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${log.threat_level === 'high' ? 'bg-red-100 text-red-700' : log.threat_level === 'medium' ? 'bg-yellow-100 text-yellow-700' : log.threat_level === 'low' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{log.threat_level}</span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {log.waf_rule_triggered ? (
-                        <span className="text-orange-600 text-xs">{log.waf_rule_triggered}</span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 font-mono">{log.client_ip}</td>
-                    <td className="px-3 py-2 truncate max-w-xs" title={log.user_agent}>{log.user_agent}</td>
+     <CardContent className="overflow-x-auto" style={{ maxHeight: '350px' }}>
+            {threatLogs.length === 0 ? (
+              <div className="text-muted-foreground">No threat logs found.</div>
+            ) : (
+              <table className="w-full text-sm border rounded-lg">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Time</th>
+                    <th className="px-3 py-2 text-left">Method</th>
+                    <th className="px-3 py-2 text-left">Path</th>
+                    <th className="px-3 py-2 text-left">Status</th>
+                    <th className="px-3 py-2 text-left">Blocked</th>
+                    <th className="px-3 py-2 text-left">Threat</th>
+                    <th className="px-3 py-2 text-left">Rule</th>
+                    <th className="px-3 py-2 text-left">IP</th>
+                    <th className="px-3 py-2 text-left">User Agent</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
+                </thead>
+                <tbody>
+                  {threatLogs.slice(0, 10).map((log) => (
+                    <tr key={log.id} className="border-b hover:bg-muted/30 transition-colors">
+                      <td className="px-3 py-2 whitespace-nowrap">{log.timestamp}</td>
+                      <td className="px-3 py-2 font-mono">{log.method}</td>
+                      <td className="px-3 py-2 font-mono">{log.path}</td>
+                      <td className="px-3 py-2 font-mono">{log.status_code}</td>
+                      <td className="px-3 py-2">
+                        {log.waf_blocked ? (
+                          <Badge variant="destructive">Blocked</Badge>
+                        ) : (
+                          <Badge variant="default">Allowed</Badge>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {log.threat_level && log.threat_level !== 'none' ? (
+                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${log.threat_level === 'high' ? 'bg-red-100 text-red-700' : log.threat_level === 'medium' ? 'bg-yellow-100 text-yellow-700' : log.threat_level === 'low' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{log.threat_level}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {log.waf_rule_triggered ? (
+                          <span className="text-orange-600 text-xs">{log.waf_rule_triggered}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 font-mono">{log.client_ip}</td>
+                      <td className="px-3 py-2 truncate max-w-xs" title={log.user_agent}>{log.user_agent}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </CardContent>
       </Card>
 
       {/* Quick Actions */}
@@ -395,7 +395,7 @@ const PlatformDetails = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Shield className="h-5 w-5 text-blue-500" />
-              WAF Rules
+              Security Calls
             </CardTitle>
           </CardHeader>
           <CardContent>

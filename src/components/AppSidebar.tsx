@@ -41,8 +41,6 @@ const securityPlatformItems = [
   { title: "Threat Logs", url: "/threat-logs", icon: AlertTriangle },
   { title: "API Endpoints", url: "/api-endpoints", icon: Globe },
   // { title: "Integrations", url: "/integrations", icon: Puzzle },
-  { title: "Users & Teams", url: "/users", icon: Users },
-  { title: "Settings", url: "/settings", icon: Settings },
   { title: "Playground", url: "/playground", icon: Code },
 ];
 
@@ -58,7 +56,12 @@ const sourceCodeReviewItems = [
   { title: "Connect Repository", url: "/code-review-connect", icon: Link2 },
   { title: "Repositories", url: "/code-review-repos", icon: BookOpen },
   { title: "Scan Reports", url: "/code-review-scan-reports", icon: FileText },
-  { title: "Team Security Habits", url: "/code-review-team", icon: Users },
+  // { title: "Team Security Habits", url: "/code-review-team", icon: Users },
+];
+
+const settingItems = [
+  { title: "Users & Teams", url: "/users", icon: Users },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 const AppSidebar = () => {
@@ -180,6 +183,35 @@ const AppSidebar = () => {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+            Settings
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {settingItems.map((item) => {
+                
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        end={item.url === "/"}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${getNavCls(item.url)}`}
+                      >
+                        <item.icon className="h-4 w-4 flex-shrink-0" />
+                        {!collapsed && (
+                          <span className="font-medium">{item.title}</span>
+                        )}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
         {/* User Info and Logout */}
         <SidebarGroup className="mt-auto">

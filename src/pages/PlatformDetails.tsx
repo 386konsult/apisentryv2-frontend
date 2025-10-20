@@ -244,11 +244,11 @@ const PlatformDetails = () => {
   if (!platform) return <div className="p-8 text-center">Platform not found.</div>;
 
   return (
-    <div className="space-y-6 p-4">
-      {/* Security Dashboard */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+    <div className="space-y-6 p-4 max-w-full overflow-hidden">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight truncate">
             Security Dashboard
             {platform && (
               <span className="text-lg font-normal text-muted-foreground ml-2">
@@ -260,10 +260,29 @@ const PlatformDetails = () => {
             Real-time API security monitoring and threat analysis
           </p>
         </div>
+        <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => navigate('/platforms')}
+            className="w-full sm:w-auto"
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            View Platforms
+          </Button>
+          <Button 
+            size="sm" 
+            className="gradient-primary w-full sm:w-auto"
+            onClick={() => navigate('/onboarding')}
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Create New Platform
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card className="tech-glow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
@@ -339,9 +358,9 @@ const PlatformDetails = () => {
       </div>
 
       {/* Charts Row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
         {/* Traffic Overview */}
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 min-w-0">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -409,7 +428,7 @@ const PlatformDetails = () => {
         </Card>
 
         {/* Threat Types */}
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -476,7 +495,7 @@ const PlatformDetails = () => {
       </div>
 
       {/* Live Threat Activity Table */}
-      <Card>
+      <Card className="min-w-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-orange-500" />
@@ -486,74 +505,76 @@ const PlatformDetails = () => {
             Real-time API requests and security events
           </CardDescription>
         </CardHeader>
-     <CardContent className="overflow-x-auto" style={{ maxHeight: '350px' }}>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto" style={{ maxHeight: '350px' }}>
             {threatLogs.length === 0 ? (
-              <div className="text-muted-foreground">No threat logs found.</div>
+              <div className="p-6 text-muted-foreground text-center">No threat logs found.</div>
             ) : (
-              <table className="w-full text-sm border rounded-lg">
-                <thead className="bg-muted/50">
+              <table className="w-full text-sm border-0">
+                <thead className="bg-muted/50 sticky top-0">
                   <tr>
-                    <th className="px-3 py-2 text-left">Time</th>
-                    <th className="px-3 py-2 text-left">Method</th>
-                    <th className="px-3 py-2 text-left">Path</th>
-                    <th className="px-3 py-2 text-left">Status</th>
-                    <th className="px-3 py-2 text-left">Blocked</th>
-                    <th className="px-3 py-2 text-left">Threat</th>
-                    <th className="px-3 py-2 text-left">Rule</th>
-                    <th className="px-3 py-2 text-left">IP</th>
-                    <th className="px-3 py-2 text-left">User Agent</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[120px]">Time</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[60px]">Method</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[200px]">Path</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[60px]">Status</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[80px]">Blocked</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[80px]">Threat</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[100px]">Rule</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[120px]">IP</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[200px]">User Agent</th>
                   </tr>
                 </thead>
                 <tbody>
                   {threatLogs.slice(0, 10).map((log) => (
                     <tr key={log.id} className="border-b hover:bg-muted/30 transition-colors">
-                      <td className="px-3 py-2 whitespace-nowrap">{log.timestamp}</td>
-                      <td className="px-3 py-2 font-mono">{log.method}</td>
-                      <td className="px-3 py-2 font-mono">{log.path}</td>
-                      <td className="px-3 py-2 font-mono">{log.status_code}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-xs">{log.timestamp}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{log.method}</td>
+                      <td className="px-3 py-2 font-mono text-xs truncate max-w-[200px]" title={log.path}>{log.path}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{log.status_code}</td>
                       <td className="px-3 py-2">
                         {log.waf_blocked ? (
-                          <Badge variant="destructive">Blocked</Badge>
+                          <Badge variant="destructive" className="text-xs">Blocked</Badge>
                         ) : (
-                          <Badge variant="default">Allowed</Badge>
+                          <Badge variant="default" className="text-xs">Allowed</Badge>
                         )}
                       </td>
                       <td className="px-3 py-2">
                         {log.threat_level && log.threat_level !== 'none' ? (
                           <span className={`px-2 py-0.5 rounded text-xs font-semibold ${log.threat_level === 'high' ? 'bg-red-100 text-red-700' : log.threat_level === 'medium' ? 'bg-yellow-100 text-yellow-700' : log.threat_level === 'low' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{log.threat_level}</span>
                         ) : (
-                          <span className="text-muted-foreground">-</span>
+                          <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </td>
                       <td className="px-3 py-2">
                         {log.waf_rule_triggered ? (
-                          <span className="text-orange-600 text-xs">{log.waf_rule_triggered}</span>
+                          <span className="text-orange-600 text-xs truncate max-w-[100px]" title={log.waf_rule_triggered}>{log.waf_rule_triggered}</span>
                         ) : (
-                          <span className="text-muted-foreground">-</span>
+                          <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 font-mono">{log.client_ip}</td>
-                      <td className="px-3 py-2 truncate max-w-xs" title={log.user_agent}>{log.user_agent}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{log.client_ip}</td>
+                      <td className="px-3 py-2 text-xs truncate max-w-[200px]" title={log.user_agent}>{log.user_agent}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
-          </CardContent>
+          </div>
+        </CardContent>
       </Card>
 
       {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="hover:shadow-lg transition-shadow cursor-pointer">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Shield className="h-5 w-5 text-blue-500" />
-              Security Calls
+              Security Hub
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-3">
-              Manage security rules and policies
+              Manage security logs and alerts
             </p>
             <Button variant="outline" size="sm" className="w-full">
               Configure Rules

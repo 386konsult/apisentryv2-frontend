@@ -122,7 +122,11 @@ const ThreatLogs = () => {
             <Download className="h-4 w-4 mr-2" />
             Export Logs
           </Button>
-          <Button size="sm" className="gradient-primary">
+          <Button 
+            size="sm" 
+            className="gradient-primary"
+            onClick={() => navigate('/create-alert')}
+          >
             <Shield className="h-4 w-4 mr-2" />
             Create Alert
           </Button>

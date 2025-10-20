@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   Link2,
   BookOpen,
+  Bell,
 } from "lucide-react";
 import {
   Sidebar,
@@ -39,6 +40,7 @@ const securityPlatformItems = [
   { title: "Dashboard", url: "/", icon: BarChart3 },
   // { title: "WAF Rules", url: "/waf-rules", icon: Shield },
   { title: "Threat Logs", url: "/threat-logs", icon: AlertTriangle },
+  { title: "Security Alerts", url: "/security-alerts", icon: Bell },
   { title: "API Endpoints", url: "/api-endpoints", icon: Globe },
   // { title: "Integrations", url: "/integrations", icon: Puzzle },
   { title: "Playground", url: "/playground", icon: Code },

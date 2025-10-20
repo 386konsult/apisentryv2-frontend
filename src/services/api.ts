@@ -166,9 +166,12 @@ class APIService {
   }
 
   // Get request logs for a platform
-  async getPlatformRequestLogs(platformId: string): Promise<any[]> {
+  async getPlatformRequestLogs(platformId: string, params?: { range?: string; start?: string; end?: string }): Promise<any[]> {
     const token = localStorage.getItem('auth_token');
-    const res = await fetch(`${this.baseURL}/platforms/${platformId}/request-logs/`, {
+    const query = params
+      ? '?' + new URLSearchParams(params as Record<string, string>).toString()
+      : '';
+    const res = await fetch(`${this.baseURL}/platforms/${platformId}/request-logs/${query}`, {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
@@ -211,9 +214,12 @@ class APIService {
   }
 
   // Get analytics for a platform
-  async getAnalytics(platformId: string): Promise<any> {
+  async getAnalytics(platformId: string, params?: { range?: string; start?: string; end?: string }): Promise<any> {
     const token = localStorage.getItem('auth_token');
-    const res = await fetch(`${this.baseURL}/platforms/${platformId}/analytics/`, {
+    const query = params
+      ? '?' + new URLSearchParams(params as Record<string, string>).toString()
+      : '';
+    const res = await fetch(`${this.baseURL}/platforms/${platformId}/analytics/${query}`, {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });

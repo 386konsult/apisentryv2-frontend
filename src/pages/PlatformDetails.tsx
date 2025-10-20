@@ -29,8 +29,14 @@ import {
   Plus,
 } from 'lucide-react';
 import apiService from '@/services/api';
-
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
+
+const TIME_RANGES = [
+  { label: 'Last 7 Days', value: '7d' },
+  { label: 'Last 30 Days', value: '30d' },
+  { label: 'Last Year', value: '1y' },
+  { label: 'Custom', value: 'custom' },
+];
 
 const PlatformDetails = () => {
   const { id } = useParams();
@@ -43,11 +49,20 @@ const PlatformDetails = () => {
   const [threatLogs, setThreatLogs] = useState([]);
   const [trafficData, setTrafficData] = useState([]);
   const [threatTypes, setThreatTypes] = useState([]);
+  const [timeRange, setTimeRange] = useState('7d');
+  const [customRange, setCustomRange] = useState({ start: null, end: null });
+  const [trafficTimeRange, setTrafficTimeRange] = useState('7d'); // Independent time range for Traffic Overview
+  const [threatTimeRange, setThreatTimeRange] = useState('7d'); // Independent time range for Threats by Type
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const fetchData = () => {
     if (!id) return;
     setLoading(true);
+
+    const params = timeRange === 'custom' && customRange.start && customRange.end
+      ? { start: customRange.start.toISOString(), end: customRange.end.toISOString() }
+      : { range: timeRange };
+
     apiService.getPlatformDetails(id)
       .then((data) => {
         setPlatform(data);
@@ -57,12 +72,9 @@ const PlatformDetails = () => {
         setError(err.message);
         setLoading(false);
       });
-  }, [id]);
 
-  useEffect(() => {
-    if (!id) return;
     // Fetch analytics using API service (auth, correct endpoint)
-    apiService.getAnalytics(id)
+    apiService.getAnalytics(id, params)
       .then(data => {
         if (data.success && data.analytics) {
           setAnalytics(data.analytics);
@@ -85,7 +97,9 @@ const PlatformDetails = () => {
             setThreatTypes([]);
           }
         }
-      });
+      })
+      .catch(() => setAnalytics(null));
+
     // Endpoints
     apiService.getPlatformEndpoints(id)
       .then(res => {
@@ -99,7 +113,7 @@ const PlatformDetails = () => {
       .then(setWafRules)
       .catch(() => {});
     // Request logs using API service (auth, correct endpoint)
-    apiService.getPlatformRequestLogs(id)
+    apiService.getPlatformRequestLogs(id, params)
       .then(logs => {
         setThreatLogs(logs);
 
@@ -136,7 +150,94 @@ const PlatformDetails = () => {
         setThreatLogs([]);
         setTrafficData([]);
       });
-  }, [id]);
+  };
+
+  const fetchTrafficData = () => {
+    const params = trafficTimeRange === 'custom' && customRange.start && customRange.end
+      ? { start: customRange.start.toISOString(), end: customRange.end.toISOString() }
+      : { range: trafficTimeRange };
+
+    apiService.getPlatformRequestLogs(id, params)
+      .then(logs => {
+        setThreatLogs(logs);
+
+        // --- Build trafficData by method and status, always show all methods ---
+        const methodMap: Record<string, { allowed: number; blocked: number; notFound: number }> = {};
+        logs.forEach((log: any) => {
+          const method = (log.method || 'OTHER').toUpperCase();
+          if (!methodMap[method]) {
+            methodMap[method] = { allowed: 0, blocked: 0, notFound: 0 };
+          }
+          if (log.status_code === 404) {
+            methodMap[method].notFound += 1;
+          } else if (log.waf_blocked) {
+            methodMap[method].blocked += 1;
+          } else {
+            methodMap[method].allowed += 1;
+          }
+        });
+        // Ensure all HTTP_METHODS are present, even if zero
+        const trafficArr = HTTP_METHODS.map(method => ({
+          name: method,
+          ...(methodMap[method] || { allowed: 0, blocked: 0, notFound: 0 }),
+        }));
+        // Optionally, add "OTHER" if there are logs with unknown methods
+        if (Object.keys(methodMap).some(m => !HTTP_METHODS.includes(m))) {
+          trafficArr.push({
+            name: 'OTHER',
+            ...(methodMap['OTHER'] || { allowed: 0, blocked: 0, notFound: 0 }),
+          });
+        }
+        setTrafficData(trafficArr);
+      })
+      .catch(() => {
+        setThreatLogs([]);
+        setTrafficData([]);
+      });
+  };
+
+  const fetchThreatData = () => {
+    const params = threatTimeRange === 'custom' && customRange.start && customRange.end
+      ? { start: customRange.start.toISOString(), end: customRange.end.toISOString() }
+      : { range: threatTimeRange };
+
+    apiService.getAnalytics(id, params)
+      .then(data => {
+        if (data.success && data.analytics) {
+          // Threat types pie chart (keep as is)
+          if (data.analytics.status_code_breakdown) {
+            const colors = {
+              '200': '#22c55e', // green for 200
+              '403': '#ef4444', // red for 403
+              '404': '#6366f1',
+              '500': '#eab308',
+              'other': '#06b6d4',
+            };
+            const threatArr = Object.entries(data.analytics.status_code_breakdown).map(([name, value], i) => ({
+              name,
+              value: Number(value),
+              color: colors[name] || colors['other'],
+            }));
+            setThreatTypes(threatArr);
+          } else {
+            setThreatTypes([]);
+          }
+        }
+      })
+      .catch(() => setThreatTypes([]));
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [id, timeRange, customRange]);
+
+  useEffect(() => {
+    fetchTrafficData();
+  }, [id, trafficTimeRange, customRange]);
+
+  useEffect(() => {
+    fetchThreatData();
+  }, [id, threatTimeRange, customRange]);
 
   if (loading) return <div className="p-8 text-center">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
@@ -144,7 +245,7 @@ const PlatformDetails = () => {
 
   return (
     <div className="space-y-6 p-4">
-      {/* Header */}
+      {/* Security Dashboard */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
@@ -159,24 +260,6 @@ const PlatformDetails = () => {
             Real-time API security monitoring and threat analysis
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => navigate('/platforms')}
-          >
-            <Eye className="h-4 w-4 mr-2" />
-            View Platforms
-          </Button>
-          <Button 
-            size="sm" 
-            className="gradient-primary"
-            onClick={() => navigate('/onboarding')}
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            Create New Platform
-          </Button>
-        </div>
       </div>
 
       {/* Stats Cards */}
@@ -190,7 +273,7 @@ const PlatformDetails = () => {
             <div className="text-2xl font-bold">{analytics ? (analytics.total_requests ?? 0).toLocaleString() : '--'}</div>
             <p className="text-xs text-muted-foreground flex items-center">
               <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-              +12.5% from last month
+              from last year
             </p>
           </CardContent>
         </Card>
@@ -204,7 +287,7 @@ const PlatformDetails = () => {
             <div className="text-2xl font-bold text-red-600">{analytics ? (analytics.blocked_requests ?? 0).toLocaleString() : '--'}</div>
             <p className="text-xs text-muted-foreground flex items-center">
               <TrendingDown className="h-3 w-3 mr-1 text-green-500" />
-              -8.3% from last month
+            from last year
             </p>
           </CardContent>
         </Card>
@@ -249,7 +332,7 @@ const PlatformDetails = () => {
             <p className="text-xs text-muted-foreground">
               {Array.isArray(endpoints)
                 ? endpoints.filter(e => e.status === 'active' || e.is_active).length
-                : '0'} new this week
+                : '0'} from last year
             </p>
           </CardContent>
         </Card>
@@ -260,10 +343,45 @@ const PlatformDetails = () => {
         {/* Traffic Overview */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Traffic Overview</CardTitle>
-            <CardDescription>
-              Request volume and threat blocking over the last 7 days
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Traffic Overview</CardTitle>
+                <CardDescription>
+                  Request volume and threat blocking over the selected time range
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  className="border rounded px-2 py-1"
+                  value={trafficTimeRange}
+                  onChange={(e) => setTrafficTimeRange(e.target.value)}
+                >
+                  {TIME_RANGES.map((range) => (
+                    <option key={range.value} value={range.value}>
+                      {range.label}
+                    </option>
+                  ))}
+                </select>
+                {trafficTimeRange === 'custom' && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      className="border rounded px-2 py-1"
+                      placeholder="Start Date"
+                      value={customRange.start ? customRange.start.toISOString().slice(0, 10) : ''}
+                      onChange={(e) => setCustomRange((prev) => ({ ...prev, start: e.target.value ? new Date(e.target.value) : null }))}
+                    />
+                    <input
+                      type="date"
+                      className="border rounded px-2 py-1"
+                      placeholder="End Date"
+                      value={customRange.end ? customRange.end.toISOString().slice(0, 10) : ''}
+                      onChange={(e) => setCustomRange((prev) => ({ ...prev, end: e.target.value ? new Date(e.target.value) : null }))}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="pt-2">
             {trafficData.length > 0 ? (
@@ -293,10 +411,45 @@ const PlatformDetails = () => {
         {/* Threat Types */}
         <Card>
           <CardHeader>
-            <CardTitle>Threats by Type</CardTitle>
-            <CardDescription>
-              Distribution of detected threat categories
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Threats by Type</CardTitle>
+                <CardDescription>
+                  Distribution of detected threat categories over the selected time range
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  className="border rounded px-2 py-1"
+                  value={threatTimeRange}
+                  onChange={(e) => setThreatTimeRange(e.target.value)}
+                >
+                  {TIME_RANGES.map((range) => (
+                    <option key={range.value} value={range.value}>
+                      {range.label}
+                    </option>
+                  ))}
+                </select>
+                {threatTimeRange === 'custom' && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      className="border rounded px-2 py-1"
+                      placeholder="Start Date"
+                      value={customRange.start ? customRange.start.toISOString().slice(0, 10) : ''}
+                      onChange={(e) => setCustomRange((prev) => ({ ...prev, start: e.target.value ? new Date(e.target.value) : null }))}
+                    />
+                    <input
+                      type="date"
+                      className="border rounded px-2 py-1"
+                      placeholder="End Date"
+                      value={customRange.end ? customRange.end.toISOString().slice(0, 10) : ''}
+                      onChange={(e) => setCustomRange((prev) => ({ ...prev, end: e.target.value ? new Date(e.target.value) : null }))}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="pt-2">
             <ResponsiveContainer width="100%" height={300}>

@@ -53,15 +53,13 @@ const PlatformDetails = () => {
   const [customRange, setCustomRange] = useState({ start: null, end: null });
   const [trafficTimeRange, setTrafficTimeRange] = useState('7d'); // Independent time range for Traffic Overview
   const [threatTimeRange, setThreatTimeRange] = useState('7d'); // Independent time range for Threats by Type
+  const [trafficCustomRange, setTrafficCustomRange] = useState({ start: null, end: null }); // Separate custom range for Traffic
+  const [threatCustomRange, setThreatCustomRange] = useState({ start: null, end: null }); // Separate custom range for Threats
   const navigate = useNavigate();
 
   const fetchData = () => {
     if (!id) return;
     setLoading(true);
-
-    const params = timeRange === 'custom' && customRange.start && customRange.end
-      ? { start: customRange.start.toISOString(), end: customRange.end.toISOString() }
-      : { range: timeRange };
 
     apiService.getPlatformDetails(id)
       .then((data) => {
@@ -73,29 +71,14 @@ const PlatformDetails = () => {
         setLoading(false);
       });
 
-    // Fetch analytics using API service (auth, correct endpoint)
-    apiService.getAnalytics(id, params)
+    // Stats cards always use last year data
+    const yearParams = { range: '1y' };
+    
+    // Fetch analytics for stats cards (always 1 year)
+    apiService.getAnalytics(id, yearParams)
       .then(data => {
         if (data.success && data.analytics) {
           setAnalytics(data.analytics);
-          // Threat types pie chart (keep as is)
-          if (data.analytics.status_code_breakdown) {
-            const colors = {
-              '200': '#22c55e', // green for 200
-              '403': '#ef4444', // red for 403
-              '404': '#6366f1',
-              '500': '#eab308',
-              'other': '#06b6d4',
-            };
-            const threatArr = Object.entries(data.analytics.status_code_breakdown).map(([name, value], i) => ({
-              name,
-              value: Number(value),
-              color: colors[name] || colors['other'],
-            }));
-            setThreatTypes(threatArr);
-          } else {
-            setThreatTypes([]);
-          }
         }
       })
       .catch(() => setAnalytics(null));
@@ -112,53 +95,25 @@ const PlatformDetails = () => {
     apiService.getPlatformWAFRules(id)
       .then(setWafRules)
       .catch(() => {});
-    // Request logs using API service (auth, correct endpoint)
-    apiService.getPlatformRequestLogs(id, params)
-      .then(logs => {
-        setThreatLogs(logs);
-
-        // --- Build trafficData by method and status, always show all methods ---
-        const methodMap: Record<string, { allowed: number; blocked: number; notFound: number }> = {};
-        logs.forEach((log: any) => {
-          const method = (log.method || 'OTHER').toUpperCase();
-          if (!methodMap[method]) {
-            methodMap[method] = { allowed: 0, blocked: 0, notFound: 0 };
-          }
-          if (log.status_code === 404) {
-            methodMap[method].notFound += 1;
-          } else if (log.waf_blocked) {
-            methodMap[method].blocked += 1;
-          } else {
-            methodMap[method].allowed += 1;
-          }
-        });
-        // Ensure all HTTP_METHODS are present, even if zero
-        const trafficArr = HTTP_METHODS.map(method => ({
-          name: method,
-          ...(methodMap[method] || { allowed: 0, blocked: 0, notFound: 0 }),
-        }));
-        // Optionally, add "OTHER" if there are logs with unknown methods
-        if (Object.keys(methodMap).some(m => !HTTP_METHODS.includes(m))) {
-          trafficArr.push({
-            name: 'OTHER',
-            ...(methodMap['OTHER'] || { allowed: 0, blocked: 0, notFound: 0 }),
-          });
-        }
-        setTrafficData(trafficArr);
-      })
-      .catch(() => {
-        setThreatLogs([]);
-        setTrafficData([]);
-      });
   };
 
   const fetchTrafficData = () => {
-    const params = trafficTimeRange === 'custom' && customRange.start && customRange.end
-      ? { start: customRange.start.toISOString(), end: customRange.end.toISOString() }
+    if (!id) return;
+    
+    const params = trafficTimeRange === 'custom' && trafficCustomRange.start && trafficCustomRange.end
+      ? { start: trafficCustomRange.start.toISOString(), end: trafficCustomRange.end.toISOString() }
       : { range: trafficTimeRange };
+
+    console.log('=== Traffic Data Fetch ===');
+    console.log('Traffic Time Range:', trafficTimeRange);
+    console.log('Fetching traffic data with params:', params);
+    console.log('URL will be: /platforms/' + id + '/request-logs/?' + new URLSearchParams(params as Record<string, string>).toString());
 
     apiService.getPlatformRequestLogs(id, params)
       .then(logs => {
+        console.log('Received logs:', logs.length, 'logs');
+        console.log('First log timestamp:', logs[0]?.timestamp);
+        console.log('Last log timestamp:', logs[logs.length - 1]?.timestamp);
         setThreatLogs(logs);
 
         // --- Build trafficData by method and status, always show all methods ---
@@ -176,6 +131,9 @@ const PlatformDetails = () => {
             methodMap[method].allowed += 1;
           }
         });
+        
+        console.log('Method map:', methodMap);
+        
         // Ensure all HTTP_METHODS are present, even if zero
         const trafficArr = HTTP_METHODS.map(method => ({
           name: method,
@@ -188,17 +146,22 @@ const PlatformDetails = () => {
             ...(methodMap['OTHER'] || { allowed: 0, blocked: 0, notFound: 0 }),
           });
         }
+        
+        console.log('Traffic data array:', trafficArr);
         setTrafficData(trafficArr);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('Error fetching traffic data:', err);
         setThreatLogs([]);
         setTrafficData([]);
       });
   };
 
   const fetchThreatData = () => {
-    const params = threatTimeRange === 'custom' && customRange.start && customRange.end
-      ? { start: customRange.start.toISOString(), end: customRange.end.toISOString() }
+    if (!id) return;
+    
+    const params = threatTimeRange === 'custom' && threatCustomRange.start && threatCustomRange.end
+      ? { start: threatCustomRange.start.toISOString(), end: threatCustomRange.end.toISOString() }
       : { range: threatTimeRange };
 
     apiService.getAnalytics(id, params)
@@ -229,15 +192,15 @@ const PlatformDetails = () => {
 
   useEffect(() => {
     fetchData();
-  }, [id, timeRange, customRange]);
+  }, [id]);
 
   useEffect(() => {
     fetchTrafficData();
-  }, [id, trafficTimeRange, customRange]);
+  }, [id, trafficTimeRange, trafficCustomRange]);
 
   useEffect(() => {
     fetchThreatData();
-  }, [id, threatTimeRange, customRange]);
+  }, [id, threatTimeRange, threatCustomRange]);
 
   if (loading) return <div className="p-8 text-center">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
@@ -387,15 +350,15 @@ const PlatformDetails = () => {
                       type="date"
                       className="border rounded px-2 py-1"
                       placeholder="Start Date"
-                      value={customRange.start ? customRange.start.toISOString().slice(0, 10) : ''}
-                      onChange={(e) => setCustomRange((prev) => ({ ...prev, start: e.target.value ? new Date(e.target.value) : null }))}
+                      value={trafficCustomRange.start ? trafficCustomRange.start.toISOString().slice(0, 10) : ''}
+                      onChange={(e) => setTrafficCustomRange((prev) => ({ ...prev, start: e.target.value ? new Date(e.target.value) : null }))}
                     />
                     <input
                       type="date"
                       className="border rounded px-2 py-1"
                       placeholder="End Date"
-                      value={customRange.end ? customRange.end.toISOString().slice(0, 10) : ''}
-                      onChange={(e) => setCustomRange((prev) => ({ ...prev, end: e.target.value ? new Date(e.target.value) : null }))}
+                      value={trafficCustomRange.end ? trafficCustomRange.end.toISOString().slice(0, 10) : ''}
+                      onChange={(e) => setTrafficCustomRange((prev) => ({ ...prev, end: e.target.value ? new Date(e.target.value) : null }))}
                     />
                   </div>
                 )}
@@ -455,15 +418,15 @@ const PlatformDetails = () => {
                       type="date"
                       className="border rounded px-2 py-1"
                       placeholder="Start Date"
-                      value={customRange.start ? customRange.start.toISOString().slice(0, 10) : ''}
-                      onChange={(e) => setCustomRange((prev) => ({ ...prev, start: e.target.value ? new Date(e.target.value) : null }))}
+                      value={threatCustomRange.start ? threatCustomRange.start.toISOString().slice(0, 10) : ''}
+                      onChange={(e) => setThreatCustomRange((prev) => ({ ...prev, start: e.target.value ? new Date(e.target.value) : null }))}
                     />
                     <input
                       type="date"
                       className="border rounded px-2 py-1"
                       placeholder="End Date"
-                      value={customRange.end ? customRange.end.toISOString().slice(0, 10) : ''}
-                      onChange={(e) => setCustomRange((prev) => ({ ...prev, end: e.target.value ? new Date(e.target.value) : null }))}
+                      value={threatCustomRange.end ? threatCustomRange.end.toISOString().slice(0, 10) : ''}
+                      onChange={(e) => setThreatCustomRange((prev) => ({ ...prev, end: e.target.value ? new Date(e.target.value) : null }))}
                     />
                   </div>
                 )}

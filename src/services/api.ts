@@ -171,15 +171,25 @@ class APIService {
     const query = params
       ? '?' + new URLSearchParams(params as Record<string, string>).toString()
       : '';
-    const res = await fetch(`${this.baseURL}/platforms/${platformId}/request-logs/${query}`, {
+    
+    const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;
+    console.log('Fetching request logs from URL:', fullUrl);
+    
+    const res = await fetch(fullUrl, {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
     const data = await res.json();
+    
+    console.log('Raw response from request logs API:', data);
+    
     if (Array.isArray(data)) {
       return data;
     } else if (Array.isArray(data.logs)) {
       return data.logs;
+    } else if (data.results && Array.isArray(data.results)) {
+      // Handle paginated response
+      return data.results;
     } else {
       return [];
     }

@@ -41,6 +41,8 @@ import CodeReviewScanReports from "./pages/CodeReviewScanReports";
 import CodeReviewReport from "./pages/CodeReviewReport";
 import Platforms from "./pages/Platforms";
 import PlatformDetails from "./pages/PlatformDetails";
+import CreateAlert from "./pages/CreateAlert";
+import SecurityAlerts from "./pages/SecurityAlerts";
 import GitHubCallback from "./pages/GitHubCallback";
 import ForcePasswordReset from "./pages/ForcePasswordReset";
 
@@ -169,6 +171,8 @@ const AppContent = () => {
                       } />
                       <Route path="/platforms" element={<Platforms />} />
                       <Route path="/platforms/:id" element={<PlatformDetails />} />
+                      <Route path="/create-alert" element={<CreateAlert />} />
+                      <Route path="/security-alerts" element={<SecurityAlerts />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>

@@ -1,6 +1,6 @@
-export const API_BASE_URL = 'http://16.16.182.74/api/v1';
+// export const API_BASE_URL = 'http://16.16.182.74/api/v1';
 
-// export const API_BASE_URL = 'http://127.0.0.1:5000/api/v1';
+export const API_BASE_URL = 'http://127.0.0.1:5000/api/v1';
 
 
 // Types for API responses
@@ -78,6 +78,28 @@ export interface ThreatLog {
   details: Record<string, unknown>;
   notes?: string;
   timestamp: string;
+}
+
+export interface PlaygroundTestRequest {
+  platform_id: string;
+  endpoint_path: string;
+  method: string;
+  headers?: Record<string, string>;
+  body?: string;
+  query_params?: Record<string, string>;
+}
+
+export interface PlaygroundTestResult {
+  success: boolean;
+  detected: boolean;
+  threat_type?: string;
+  severity?: string;
+  waf_rule_triggered?: string;
+  action?: string;
+  confidence?: number;
+  explanation?: string;
+  details?: Record<string, unknown>;
+  message?: string;
 }
 
 export interface DashboardStats {
@@ -487,6 +509,14 @@ class APIService {
   async disconnectGitHub(): Promise<void> {
     await this.request('/github/disconnect/', {
       method: 'DELETE',
+    });
+  }
+
+  // Playground test method
+  async testPlaygroundRequest(testData: PlaygroundTestRequest): Promise<PlaygroundTestResult> {
+    return await this.request<PlaygroundTestResult>('/playground/', {
+      method: 'POST',
+      body: JSON.stringify(testData),
     });
   }
 

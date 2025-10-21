@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +25,7 @@ import {
   Zap,
 } from "lucide-react";
 import { apiService } from "@/services/api";
+import type { PlaygroundTestRequest } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface TestResult {
@@ -50,6 +50,10 @@ interface ExampleRequest {
 const Playground = () => {
   const [method, setMethod] = useState("POST");
   const [endpoint, setEndpoint] = useState("/api/v1/users");
+  const [headers, setHeaders] = useState(`{
+  "Content-Type": "application/json",
+  "Authorization": "Bearer token"
+}`);
   const [requestBody, setRequestBody] = useState(`{
   "username": "admin",
   "password": "' OR 1=1 --",
@@ -57,48 +61,135 @@ const Playground = () => {
 }`);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [platform, setPlatform] = useState<any | null>(null);
+  const [overrideBaseUrl, setOverrideBaseUrl] = useState<string>("");
+  const [overridePort, setOverridePort] = useState<string>("");
   const { toast } = useToast();
+
+  useEffect(() => {
+    const platformId = localStorage.getItem('selected_platform_id');
+    if (!platformId) return;
+    apiService.getPlatformDetails(platformId)
+      .then((p) => {
+        setPlatform(p);
+        // Pre-fill overrides from platform details if present
+        if (p?.application_url) setOverrideBaseUrl(p.application_url);
+        if (p?.forwarded_port) setOverridePort(String(p.forwarded_port));
+      })
+      .catch(() => {
+        // no-op
+      });
+  }, []);
+
+  const buildTargetUrl = (baseUrl?: string, port?: string, path?: string) => {
+    if (!baseUrl) return '';
+    let url = baseUrl.trim();
+    // If port provided and not already in base, append
+    try {
+      const u = new URL(url);
+      const hasPort = u.port && u.port.length > 0;
+      if (port && !hasPort) {
+        u.port = port;
+      }
+      // Append endpoint path safely
+      const final = new URL(path || '/', u.origin + u.pathname.replace(/\/$/, '') + '/');
+      // Ensure we keep port set
+      if (port && !hasPort) final.port = port;
+      return final.toString();
+    } catch {
+      // Fallback simple concat
+      const cleanBase = url.replace(/\/$/, '');
+      const cleanPath = (path || '/').startsWith('/') ? path : `/${path}`;
+      return port ? `${cleanBase}:${port}${cleanPath}` : `${cleanBase}${cleanPath}`;
+    }
+  };
+
+  const effectiveBaseUrl = useMemo(() => {
+    return (overrideBaseUrl || platform?.application_url || platform?.base_url || '').trim();
+  }, [overrideBaseUrl, platform]);
+
+  const effectivePort = useMemo(() => {
+    return (overridePort || String(platform?.forwarded_port || '')).trim();
+  }, [overridePort, platform]);
+
+  const fullTargetUrl = useMemo(() => {
+    return buildTargetUrl(effectiveBaseUrl, effectivePort || undefined, endpoint);
+  }, [effectiveBaseUrl, effectivePort, endpoint]);
 
   const runTest = async () => {
     setIsLoading(true);
     
     try {
-      // Create a test threat log entry
-      const testData = {
-        threat_type: "test",
-        status: "test",
-        severity: "medium",
-        source_ip: "127.0.0.1",
-        request_path: endpoint,
-        request_method: method,
-        details: {
-          body: requestBody,
-          test: true
+      const platformId = localStorage.getItem('selected_platform_id');
+      if (!platformId) {
+        toast({
+          title: "No platform selected",
+          description: "Please select a platform first",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Parse headers
+      let parsedHeaders = {};
+      try {
+        if (headers.trim()) {
+          parsedHeaders = JSON.parse(headers);
         }
+      } catch (e) {
+        toast({
+          title: "Invalid headers",
+          description: "Headers must be valid JSON",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      const testData: PlaygroundTestRequest = {
+        platform_id: platformId,
+        endpoint_path: endpoint,
+        method: method.toUpperCase(),
+        headers: parsedHeaders,
+        body: requestBody.trim() || undefined,
+        query_params: {}
       };
       
-      const result = await apiService.createThreatLog(testData);
+      const result = await apiService.testPlaygroundRequest(testData);
       
-      const testResult = {
-        detected: true,
-        threatType: result.threat_type,
-        severity: result.severity,
-        ruleTriggered: result.waf_rule_name || "Test Rule",
-        action: result.status.toUpperCase(),
-        confidence: 95,
-        explanation: `Test request processed. Status: ${result.status}`,
-        details: result.details
-      };
-      
-      setTestResult(testResult);
-      toast({
-        title: "Test completed",
-        description: "Request processed successfully",
-      });
-    } catch (error) {
+      if (result.success) {
+        const testResult: TestResult = {
+          detected: result.detected,
+          threatType: result.threat_type || "None",
+          severity: result.severity || "none",
+          ruleTriggered: result.waf_rule_triggered || "N/A",
+          action: result.action || "ALLOW",
+          confidence: result.confidence || 0,
+          explanation: result.explanation || "Request processed successfully",
+          details: result.details || {}
+        };
+        
+        setTestResult(testResult);
+        toast({
+          title: result.detected ? "Threat detected!" : "Test completed",
+          description: result.detected 
+            ? `${result.threat_type} detected with ${result.severity} severity`
+            : "Request passed all security checks",
+          variant: result.detected ? "destructive" : "default",
+        });
+      } else {
+        toast({
+          title: "Test failed",
+          description: result.message || "Failed to process test request",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Test error:', error);
       toast({
         title: "Test failed",
-        description: "Failed to process test request",
+        description: error.message || "Failed to process test request",
         variant: "destructive",
       });
     } finally {
@@ -220,6 +311,8 @@ const Playground = () => {
                 <Label htmlFor="headers">Headers (JSON)</Label>
                 <Textarea
                   id="headers"
+                  value={headers}
+                  onChange={(e) => setHeaders(e.target.value)}
                   placeholder='{"Content-Type": "application/json", "Authorization": "Bearer token"}'
                   className="font-mono"
                   rows={3}
@@ -346,8 +439,64 @@ const Playground = () => {
           )}
         </div>
 
-        {/* Example Requests */}
-        <div>
+        {/* Sidebar: Testing Scope + Example Requests */}
+        <div className="space-y-6">
+          {/* Testing Scope */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Testing Scope
+              </CardTitle>
+              <CardDescription>Context for the current test execution</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Platform</Label>
+                <div className="text-sm text-muted-foreground">
+                  {platform?.name || '—'}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Application URL</Label>
+                <Input
+                  placeholder="https://api.example.com"
+                  value={effectiveBaseUrl}
+                  onChange={(e) => setOverrideBaseUrl(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Prefilled from platform details if available
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Forwarded Port</Label>
+                <Input
+                  placeholder="443"
+                  value={effectivePort}
+                  onChange={(e) => setOverridePort(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional. If set and missing in base URL, it will be applied
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Endpoint Path</Label>
+                <Input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Full Target URL</Label>
+                <div className="bg-muted p-3 rounded font-mono text-xs break-all">
+                  {fullTargetUrl || '—'}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Example Requests */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

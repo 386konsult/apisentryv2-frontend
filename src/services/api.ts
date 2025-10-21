@@ -210,15 +210,12 @@ class APIService {
       : '';
     
     const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;
-    console.log('Fetching request logs from URL:', fullUrl);
     
     const res = await fetch(fullUrl, {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
     const data = await res.json();
-    
-    console.log('Raw response from request logs API:', data);
     
     if (Array.isArray(data)) {
       return data;

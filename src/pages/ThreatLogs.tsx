@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,9 +38,11 @@ import { useToast } from "@/hooks/use-toast";
 const ThreatLogs = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [threatType, setThreatType] = useState("all");
-  const [timeRange, setTimeRange] = useState("24h");
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [timeRange, setTimeRange] = useState("all");
+  const [ipFilter, setIpFilter] = useState("all");
+  const [endpointFilter, setEndpointFilter] = useState("all");
   const [allLogs, setAllLogs] = useState<any[]>([]);
-  const threats = allLogs.filter(t => t.waf_blocked);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -62,7 +64,14 @@ const ThreatLogs = () => {
     }
     const fetchThreats = async () => {
       try {
-        const logs = await apiService.getPlatformRequestLogs(platformId);
+        // Send range parameter to backend for server-side filtering
+        const params: any = {};
+        if (timeRange && timeRange !== 'all') {
+          params.range = timeRange;
+        }
+        
+        const logs = await apiService.getPlatformRequestLogs(platformId, params);
+        
         if (Array.isArray(logs)) {
           setAllLogs(logs);
         } else {
@@ -85,7 +94,84 @@ const ThreatLogs = () => {
       }
     };
     fetchThreats();
-  }, [toast, navigate]);
+  }, [toast, navigate, timeRange]); // Re-added timeRange dependency
+
+  // Get all blocked threats (unfiltered for stats - from current time range)
+  const allBlockedThreats = allLogs.filter(t => t.waf_blocked);
+
+  // Extract unique values for dropdowns
+  const uniqueThreatTypes = useMemo(() => {
+    const types = new Set<string>();
+    allBlockedThreats.forEach(log => {
+      if (log.waf_rule_triggered) {
+        // Extract threat type from rule name (e.g., "SQL Injection", "XSS", etc.)
+        const ruleName = log.waf_rule_triggered.toLowerCase();
+        if (ruleName.includes('sql')) types.add('SQL Injection');
+        else if (ruleName.includes('xss')) types.add('XSS');
+        else if (ruleName.includes('path') || ruleName.includes('traversal')) types.add('Path Traversal');
+        else if (ruleName.includes('brute')) types.add('Brute Force');
+        else if (ruleName.includes('malware')) types.add('Malware');
+        else types.add(log.waf_rule_triggered);
+      }
+    });
+    return Array.from(types).sort();
+  }, [allBlockedThreats]);
+
+  const uniqueIPs = useMemo(() => {
+    return Array.from(new Set(allBlockedThreats.map(t => t.client_ip))).sort();
+  }, [allBlockedThreats]);
+
+  const uniqueEndpoints = useMemo(() => {
+    return Array.from(new Set(allBlockedThreats.map(t => `${t.method} ${t.path}`))).sort();
+  }, [allBlockedThreats]);
+
+  const uniqueSeverities = useMemo(() => {
+    return Array.from(new Set(allBlockedThreats.map(t => t.threat_level).filter(Boolean))).sort();
+  }, [allBlockedThreats]);
+
+  // Filter threats based on filters EXCEPT time range (already handled by backend)
+  const filteredThreats = allBlockedThreats.filter(log => {
+    // Search filter
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm || 
+      log.client_ip?.toLowerCase().includes(searchLower) ||
+      log.path?.toLowerCase().includes(searchLower) ||
+      log.waf_rule_triggered?.toLowerCase().includes(searchLower) ||
+      log.user_agent?.toLowerCase().includes(searchLower);
+
+    // Severity filter
+    const matchesSeverity = severityFilter === 'all' || 
+      log.threat_level === severityFilter;
+
+    // IP filter
+    const matchesIP = ipFilter === 'all' || 
+      log.client_ip === ipFilter;
+
+    // Endpoint filter
+    const matchesEndpoint = endpointFilter === 'all' || 
+      `${log.method} ${log.path}` === endpointFilter;
+
+    // Threat type filter
+    let matchesThreatType = true;
+    if (threatType !== 'all') {
+      const ruleName = (log.waf_rule_triggered || '').toLowerCase();
+      if (threatType === 'SQL Injection') {
+        matchesThreatType = ruleName.includes('sql');
+      } else if (threatType === 'XSS') {
+        matchesThreatType = ruleName.includes('xss');
+      } else if (threatType === 'Path Traversal') {
+        matchesThreatType = ruleName.includes('path') || ruleName.includes('traversal');
+      } else if (threatType === 'Brute Force') {
+        matchesThreatType = ruleName.includes('brute');
+      } else if (threatType === 'Malware') {
+        matchesThreatType = ruleName.includes('malware');
+      } else {
+        matchesThreatType = log.waf_rule_triggered === threatType;
+      }
+    }
+
+    return matchesSearch && matchesSeverity && matchesIP && matchesEndpoint && matchesThreatType;
+  });
 
   const getSeverityColor = (threat_level: string) => {
     const colors = {
@@ -141,26 +227,8 @@ const ThreatLogs = () => {
             <AlertTriangle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{threats.length}</div>
-            <p className="text-xs text-muted-foreground">Blocked requests in last 24h</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Blocked</CardTitle>
-            <Shield className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {threats.length}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {allLogs.length > 0 ? 
-                `${((threats.length / allLogs.length) * 100).toFixed(1)}% blocked` : 
-                '0% blocked'
-              }
-            </p>
+            <div className="text-2xl font-bold">{allBlockedThreats.length}</div>
+            <p className="text-xs text-muted-foreground">Blocked requests</p>
           </CardContent>
         </Card>
 
@@ -171,9 +239,22 @@ const ThreatLogs = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {threats.filter(t => t.threat_level === 'high').length}
+              {allBlockedThreats.filter(t => t.threat_level === 'high').length}
             </div>
             <p className="text-xs text-muted-foreground">Requires attention</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Medium Severity</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {allBlockedThreats.filter(t => t.threat_level === 'medium').length}
+            </div>
+            <p className="text-xs text-muted-foreground">Monitor closely</p>
           </CardContent>
         </Card>
 
@@ -184,7 +265,7 @@ const ThreatLogs = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {new Set(threats.map(t => t.client_ip)).size}
+              {new Set(allBlockedThreats.map(t => t.client_ip)).size}
             </div>
             <p className="text-xs text-muted-foreground">Unique source IPs</p>
           </CardContent>
@@ -194,18 +275,50 @@ const ThreatLogs = () => {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1 w-full">
+          <div className="space-y-4">
+            {/* First Row: Search and Time Range */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="relative flex-1 max-w-sm w-full">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search logs..."
+                  placeholder="Search by IP, path, rule..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-8"
                 />
               </div>
               
+              <Select value={timeRange} onValueChange={setTimeRange}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <Clock className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Time Range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7d">Last 7 Days</SelectItem>
+                  <SelectItem value="30d">Last 30 Days</SelectItem>
+                  <SelectItem value="1y">Last Year</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Second Row: Type Filters */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <Select value={severityFilter} onValueChange={setSeverityFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Severity" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Severities</SelectItem>
+                  {uniqueSeverities.map(severity => (
+                    <SelectItem key={severity} value={severity}>
+                      {severity.charAt(0).toUpperCase() + severity.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <Select value={threatType} onValueChange={setThreatType}>
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <Filter className="h-4 w-4 mr-2" />
@@ -213,26 +326,95 @@ const ThreatLogs = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Threats</SelectItem>
-                  <SelectItem value="sql">SQL Injection</SelectItem>
-                  <SelectItem value="xss">Cross-Site Scripting</SelectItem>
-                  <SelectItem value="brute">Brute Force</SelectItem>
-                  <SelectItem value="malware">Malware</SelectItem>
+                  {uniqueThreatTypes.map(type => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
-              <Select value={timeRange} onValueChange={setTimeRange}>
-                <SelectTrigger className="w-full sm:w-[120px]">
-                  <Clock className="h-4 w-4 mr-2" />
-                  <SelectValue />
+              <Select value={ipFilter} onValueChange={setIpFilter}>
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <MapPin className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="IP Address" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1h">Last Hour</SelectItem>
-                  <SelectItem value="24h">Last 24h</SelectItem>
-                  <SelectItem value="7d">Last 7 days</SelectItem>
-                  <SelectItem value="30d">Last 30 days</SelectItem>
+                  <SelectItem value="all">All IPs</SelectItem>
+                  {uniqueIPs.map(ip => (
+                    <SelectItem key={ip} value={ip}>
+                      {ip}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={endpointFilter} onValueChange={setEndpointFilter}>
+                <SelectTrigger className="w-full sm:w-[250px]">
+                  <Code className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Endpoint" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Endpoints</SelectItem>
+                  {uniqueEndpoints.map(endpoint => (
+                    <SelectItem key={endpoint} value={endpoint}>
+                      {endpoint}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Filter Summary */}
+            {(searchTerm || severityFilter !== 'all' || threatType !== 'all' || ipFilter !== 'all' || endpointFilter !== 'all' || timeRange !== 'all') && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-muted-foreground">Active filters:</span>
+                {searchTerm && (
+                  <Badge variant="secondary" className="gap-1">
+                    Search: {searchTerm}
+                  </Badge>
+                )}
+                {timeRange !== 'all' && (
+                  <Badge variant="secondary" className="gap-1">
+                    Time: {TIME_RANGES.find(r => r.value === timeRange)?.label || timeRange}
+                  </Badge>
+                )}
+                {severityFilter !== 'all' && (
+                  <Badge variant="secondary" className="gap-1">
+                    Severity: {severityFilter}
+                  </Badge>
+                )}
+                {threatType !== 'all' && (
+                  <Badge variant="secondary" className="gap-1">
+                    Type: {threatType}
+                  </Badge>
+                )}
+                {ipFilter !== 'all' && (
+                  <Badge variant="secondary" className="gap-1">
+                    IP: {ipFilter}
+                  </Badge>
+                )}
+                {endpointFilter !== 'all' && (
+                  <Badge variant="secondary" className="gap-1">
+                    Endpoint: {endpointFilter}
+                  </Badge>
+                )}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSeverityFilter('all');
+                    setThreatType('all');
+                    setIpFilter('all');
+                    setEndpointFilter('all');
+                    setTimeRange('all');
+                  }}
+                >
+                  Clear all
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -240,7 +422,7 @@ const ThreatLogs = () => {
       {/* Threat Logs Table */}
       <Card className="w-full overflow-hidden">
         <CardHeader>
-          <CardTitle>Security Events</CardTitle>
+          <CardTitle>Security Events ({filteredThreats.length})</CardTitle>
           <CardDescription>
             Detailed view of detected threats and security incidents
           </CardDescription>
@@ -252,12 +434,12 @@ const ThreatLogs = () => {
                 <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
                 <p>Loading threat logs...</p>
               </div>
-            ) : threats.length === 0 ? (
+            ) : filteredThreats.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-muted-foreground">No blocked threat logs found</p>
+                <p className="text-muted-foreground">No threat logs match your filters</p>
               </div>
             ) : (
-              threats.map((threat) => (
+              filteredThreats.map((threat) => (
                 <div
                   key={threat.id}
                   className="border border-border/50 rounded-lg p-4 hover:bg-muted/50 transition-colors w-full overflow-hidden"
@@ -266,23 +448,25 @@ const ThreatLogs = () => {
                     <div className="flex items-center gap-3">
                       <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
                       <div className="min-w-0">
-                        <h3 className="font-medium truncate">{threat.waf_rule_triggered ? threat.waf_rule_triggered : (threat.threat_level && threat.threat_level !== 'none' ? threat.threat_level.toUpperCase() : 'Request')}</h3>
+                        <h3 className="font-medium truncate">
+                          {threat.waf_rule_triggered || 'Security Event'}
+                        </h3>
                         <p className="text-sm text-muted-foreground">{threat.timestamp}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <Badge className={getSeverityColor(threat.threat_level)}>
-                        {threat.threat_level}
+                      <Badge className={getSeverityColor(threat.threat_level || 'low')}>
+                        {threat.threat_level || 'low'}
                       </Badge>
-                      <Badge variant={getStatusColor(threat.waf_blocked)}>
-                        {threat.waf_blocked ? 'Blocked' : 'Allowed'}
+                      <Badge variant="destructive">
+                        Blocked
                       </Badge>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-3">
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Source</Label>
+                      <Label className="text-xs text-muted-foreground">Source IP</Label>
                       <div className="flex items-center gap-2">
                         <MapPin className="h-3 w-3 flex-shrink-0" />
                         <span className="text-sm truncate">{threat.client_ip}</span>
@@ -290,75 +474,22 @@ const ThreatLogs = () => {
                     </div>
                     
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Endpoint</Label>
+                      <Label className="text-xs text-muted-foreground">Request</Label>
                       <div className="flex items-center gap-2">
                         <Code className="h-3 w-3 flex-shrink-0" />
                         <span className="text-sm font-mono truncate">{threat.method} {threat.path}</span>
                       </div>
                     </div>
                     
-                    <div className="space-y-1 sm:col-span-2 lg:col-span-1">
-                      <Label className="text-xs text-muted-foreground">Rule</Label>
-                      <span className="text-sm truncate">{threat.waf_rule_triggered || 'None'}</span>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Status Code</Label>
+                      <span className="text-sm">{threat.status_code || 'N/A'}</span>
                     </div>
                   </div>
 
-                  {(threat.query_params && Object.keys(threat.query_params).length > 0) && (
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Query Params</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
-                        <pre className="whitespace-pre-wrap break-all overflow-hidden">{JSON.stringify(threat.query_params, null, 2)}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {(threat.headers && Object.keys(threat.headers).length > 0) && (
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Headers</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
-                        <pre className="whitespace-pre-wrap break-all overflow-hidden">{JSON.stringify(threat.headers, null, 2)}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {threat.request_body && (
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Request Body</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
-                        <pre className="whitespace-pre-wrap break-all overflow-hidden">
-                          {typeof threat.request_body === 'object' ? JSON.stringify(threat.request_body, null, 2) : threat.request_body}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-                  {(threat.response_headers && Object.keys(threat.response_headers).length > 0) && (
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Response Headers</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
-                        <pre className="whitespace-pre-wrap break-all overflow-hidden">{JSON.stringify(threat.response_headers, null, 2)}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {threat.response_body && (
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Response Body</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
-                        <pre className="whitespace-pre-wrap break-all overflow-hidden">
-                          {typeof threat.response_body === 'object' ? JSON.stringify(threat.response_body, null, 2) : threat.response_body}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-                  {typeof threat.response_time_ms === 'number' && (
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Response Time (ms)</Label>
-                      <div className="bg-muted/50 p-3 rounded font-mono text-xs overflow-x-auto w-full">
-                        <pre className="whitespace-pre-wrap break-all overflow-hidden">{threat.response_time_ms}</pre>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
-                    <span className="text-xs text-muted-foreground">
-                      User Agent: {threat.user_agent ? threat.user_agent.substring(0, 50) + '...' : 'Unknown'}
+                  <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                    <span className="text-xs text-muted-foreground truncate max-w-md">
+                      {threat.user_agent ? threat.user_agent.substring(0, 60) + '...' : 'Unknown User Agent'}
                     </span>
                     <Dialog>
                       <DialogTrigger asChild>
@@ -369,7 +500,7 @@ const ThreatLogs = () => {
                       </DialogTrigger>
                       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
                         <DialogHeader>
-                          <DialogTitle>Threat Details - {threat.waf_rule_triggered ? threat.waf_rule_triggered : (threat.threat_level && threat.threat_level !== 'none' ? threat.threat_level.toUpperCase() : 'Request')}</DialogTitle>
+                          <DialogTitle>Threat Details - {threat.waf_rule_triggered || 'Security Event'}</DialogTitle>
                           <DialogDescription>
                             Complete information about this security event
                           </DialogDescription>
@@ -382,30 +513,48 @@ const ThreatLogs = () => {
                             </div>
                             <div>
                               <Label>Status</Label>
-                              <Badge variant={getStatusColor(threat.waf_blocked)}>
-                                {threat.waf_blocked ? 'Blocked' : 'Allowed'}
+                              <Badge variant="destructive">Blocked</Badge>
+                            </div>
+                            <div>
+                              <Label>Severity</Label>
+                              <Badge className={getSeverityColor(threat.threat_level || 'low')}>
+                                {threat.threat_level || 'low'}
                               </Badge>
+                            </div>
+                            <div>
+                              <Label>Status Code</Label>
+                              <p className="text-sm">{threat.status_code || 'N/A'}</p>
                             </div>
                           </div>
                           <div>
                             <Label>Source IP</Label>
-                            <p className="text-sm">{threat.client_ip}</p>
+                            <p className="text-sm font-mono">{threat.client_ip}</p>
                           </div>
                           <div>
-                            <Label>Request Path</Label>
+                            <Label>Request</Label>
                             <p className="text-sm font-mono">{threat.method} {threat.path}</p>
                           </div>
-                          {(threat.query_params && Object.keys(threat.query_params).length > 0) && (
+                          <div>
+                            <Label>WAF Rule Triggered</Label>
+                            <p className="text-sm">{threat.waf_rule_triggered || 'None'}</p>
+                          </div>
+                          {threat.user_agent && (
                             <div>
-                              <Label>Query Params</Label>
+                              <Label>User Agent</Label>
+                              <p className="text-sm bg-muted p-2 rounded break-all">{threat.user_agent}</p>
+                            </div>
+                          )}
+                          {threat.query_params && Object.keys(threat.query_params).length > 0 && (
+                            <div>
+                              <Label>Query Parameters</Label>
                               <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto max-w-full">
                                 <pre className="whitespace-pre-wrap break-words">{JSON.stringify(threat.query_params, null, 2)}</pre>
                               </div>
                             </div>
                           )}
-                          {(threat.headers && Object.keys(threat.headers).length > 0) && (
+                          {threat.headers && Object.keys(threat.headers).length > 0 && (
                             <div>
-                              <Label>Headers</Label>
+                              <Label>Request Headers</Label>
                               <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto max-w-full">
                                 <pre className="whitespace-pre-wrap break-words">{JSON.stringify(threat.headers, null, 2)}</pre>
                               </div>
@@ -415,14 +564,38 @@ const ThreatLogs = () => {
                             <div>
                               <Label>Request Body</Label>
                               <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto max-w-full">
-                                <pre className="whitespace-pre-wrap break-words">{threat.request_body}</pre>
+                                <pre className="whitespace-pre-wrap break-words">
+                                  {typeof threat.request_body === 'object' 
+                                    ? JSON.stringify(threat.request_body, null, 2) 
+                                    : threat.request_body}
+                                </pre>
                               </div>
                             </div>
                           )}
-                          {threat.user_agent && (
+                          {threat.response_headers && Object.keys(threat.response_headers).length > 0 && (
                             <div>
-                              <Label>User Agent</Label>
-                              <p className="text-sm bg-muted p-2 rounded">{threat.user_agent}</p>
+                              <Label>Response Headers</Label>
+                              <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto max-w-full">
+                                <pre className="whitespace-pre-wrap break-words">{JSON.stringify(threat.response_headers, null, 2)}</pre>
+                              </div>
+                            </div>
+                          )}
+                          {threat.response_body && (
+                            <div>
+                              <Label>Response Body</Label>
+                              <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto max-w-full">
+                                <pre className="whitespace-pre-wrap break-words">
+                                  {typeof threat.response_body === 'object' 
+                                    ? JSON.stringify(threat.response_body, null, 2) 
+                                    : threat.response_body}
+                                </pre>
+                              </div>
+                            </div>
+                          )}
+                          {typeof threat.response_time_ms === 'number' && (
+                            <div>
+                              <Label>Response Time</Label>
+                              <p className="text-sm">{threat.response_time_ms} ms</p>
                             </div>
                           )}
                         </div>
@@ -438,5 +611,12 @@ const ThreatLogs = () => {
     </div>
   );
 };
+
+const TIME_RANGES = [
+  { label: 'Last 7 Days', value: '7d' },
+  { label: 'Last 30 Days', value: '30d' },
+  { label: 'Last Year', value: '1y' },
+  { label: 'All Time', value: 'all' },
+];
 
 export default ThreatLogs;

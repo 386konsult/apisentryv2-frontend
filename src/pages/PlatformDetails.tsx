@@ -104,16 +104,8 @@ const PlatformDetails = () => {
       ? { start: trafficCustomRange.start.toISOString(), end: trafficCustomRange.end.toISOString() }
       : { range: trafficTimeRange };
 
-    console.log('=== Traffic Data Fetch ===');
-    console.log('Traffic Time Range:', trafficTimeRange);
-    console.log('Fetching traffic data with params:', params);
-    console.log('URL will be: /platforms/' + id + '/request-logs/?' + new URLSearchParams(params as Record<string, string>).toString());
-
     apiService.getPlatformRequestLogs(id, params)
       .then(logs => {
-        console.log('Received logs:', logs.length, 'logs');
-        console.log('First log timestamp:', logs[0]?.timestamp);
-        console.log('Last log timestamp:', logs[logs.length - 1]?.timestamp);
         setThreatLogs(logs);
 
         // --- Build trafficData by method and status, always show all methods ---
@@ -132,8 +124,6 @@ const PlatformDetails = () => {
           }
         });
         
-        console.log('Method map:', methodMap);
-        
         // Ensure all HTTP_METHODS are present, even if zero
         const trafficArr = HTTP_METHODS.map(method => ({
           name: method,
@@ -147,7 +137,6 @@ const PlatformDetails = () => {
           });
         }
         
-        console.log('Traffic data array:', trafficArr);
         setTrafficData(trafficArr);
       })
       .catch((err) => {

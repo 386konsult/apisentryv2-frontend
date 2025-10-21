@@ -91,14 +91,29 @@ export interface PlaygroundTestRequest {
 
 export interface PlaygroundTestResult {
   success: boolean;
-  detected: boolean;
-  threat_type?: string;
-  severity?: string;
+  blocked?: boolean;
+  blocked_by?: 'waf' | 'envoy' | 'wasm' | null;
+  block_reason?: string;
+  request?: {
+    method: string;
+    url: string;
+    headers?: Record<string, unknown>;
+    body?: unknown;
+    query_params?: Record<string, unknown>;
+  };
+  response?: {
+    status_code: number;
+    headers?: Record<string, unknown>;
+    body?: unknown;
+    response_time_ms?: number;
+  };
+  platform?: {
+    id: string;
+    name: string;
+    forwarded_port?: number;
+  };
   waf_rule_triggered?: string;
-  action?: string;
-  confidence?: number;
-  explanation?: string;
-  details?: Record<string, unknown>;
+  threat_detected?: string;
   message?: string;
 }
 

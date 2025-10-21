@@ -29,14 +29,20 @@ import type { PlaygroundTestRequest } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface TestResult {
-  detected: boolean;
-  threatType: string;
-  severity: string;
-  ruleTriggered: string;
-  action: string;
-  confidence: number;
-  explanation: string;
-  details: Record<string, unknown>;
+  success: boolean;
+  outcome: 'ALLOWED' | 'BLOCKED' | 'REJECTED';
+  blockedBy?: 'waf' | 'envoy' | 'wasm' | null;
+  blockReason?: string;
+  wafRuleTriggered?: string;
+  threatDetected?: string;
+  statusCode: number;
+  responseTimeMs?: number;
+  url: string;
+  method: string;
+  platformName?: string;
+  forwardedPort?: number | string;
+  responseHeaders?: Record<string, unknown>;
+  responseBody?: unknown;
 }
 
 interface ExampleRequest {
@@ -84,17 +90,16 @@ const Playground = () => {
   const buildTargetUrl = (baseUrl?: string, port?: string, path?: string) => {
     if (!baseUrl) return '';
     let url = baseUrl.trim();
-    // If port provided and not already in base, append
     try {
       const u = new URL(url);
-      const hasPort = u.port && u.port.length > 0;
-      if (port && !hasPort) {
+      // Always force forwarded port if provided (override any port found in base URL)
+      if (port) {
         u.port = port;
       }
       // Append endpoint path safely
       const final = new URL(path || '/', u.origin + u.pathname.replace(/\/$/, '') + '/');
-      // Ensure we keep port set
-      if (port && !hasPort) final.port = port;
+      // Ensure forced port persists
+      if (port) final.port = port;
       return final.toString();
     } catch {
       // Fallback simple concat
@@ -118,7 +123,6 @@ const Playground = () => {
 
   const runTest = async () => {
     setIsLoading(true);
-    
     try {
       const platformId = localStorage.getItem('selected_platform_id');
       if (!platformId) {
@@ -155,38 +159,70 @@ const Playground = () => {
         body: requestBody.trim() || undefined,
         query_params: {}
       };
-      
+
       const result = await apiService.testPlaygroundRequest(testData);
-      
-      if (result.success) {
-        const testResult: TestResult = {
-          detected: result.detected,
-          threatType: result.threat_type || "None",
-          severity: result.severity || "none",
-          ruleTriggered: result.waf_rule_triggered || "N/A",
-          action: result.action || "ALLOW",
-          confidence: result.confidence || 0,
-          explanation: result.explanation || "Request processed successfully",
-          details: result.details || {}
-        };
+
+      if (result?.success) {
+        const status = Number(result.response?.status_code ?? 0);
         
-        setTestResult(testResult);
+        // Determine outcome based on blocking status
+        let outcome: 'ALLOWED' | 'BLOCKED' | 'REJECTED';
+        if (result.blocked) {
+          outcome = 'BLOCKED';
+        } else if (status > 0 && status < 400) {
+          outcome = 'ALLOWED';
+        } else {
+          outcome = 'REJECTED';
+        }
+
+        const normalized: TestResult = {
+          success: true,
+          outcome,
+          blockedBy: result.blocked_by,
+          blockReason: result.block_reason,
+          wafRuleTriggered: result.waf_rule_triggered,
+          threatDetected: result.threat_detected,
+          statusCode: status,
+          responseTimeMs: result.response?.response_time_ms,
+          url: result.request?.url || fullTargetUrl || '',
+          method: result.request?.method || method,
+          platformName: result.platform?.name,
+          forwardedPort: result.platform?.forwarded_port,
+          responseHeaders: result.response?.headers || {},
+          responseBody: result.response?.body
+        };
+
+        setTestResult(normalized);
+        
+        // Update toast based on outcome
+        let title = 'Request allowed';
+        let variant: 'default' | 'destructive' = 'default';
+        
+        if (outcome === 'BLOCKED') {
+          title = `Request blocked by ${result.blocked_by?.toUpperCase() || 'security layer'}`;
+          variant = 'destructive';
+        } else if (outcome === 'REJECTED') {
+          title = 'Request rejected';
+          variant = 'destructive';
+        }
+
         toast({
-          title: result.detected ? "Threat detected!" : "Test completed",
-          description: result.detected 
-            ? `${result.threat_type} detected with ${result.severity} severity`
-            : "Request passed all security checks",
-          variant: result.detected ? "destructive" : "default",
+          title,
+          description: `Status: ${status}${normalized.responseTimeMs ? ` • ${normalized.responseTimeMs.toFixed(2)} ms` : ''}`,
+          variant,
         });
       } else {
+        // Backend returned success: false or unexpected
+        setTestResult(null);
         toast({
           title: "Test failed",
-          description: result.message || "Failed to process test request",
+          description: result?.message || "Failed to process test request",
           variant: "destructive",
         });
       }
     } catch (error: any) {
       console.error('Test error:', error);
+      setTestResult(null);
       toast({
         title: "Test failed",
         description: error.message || "Failed to process test request",
@@ -356,7 +392,7 @@ const Playground = () => {
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  {testResult.detected ? (
+                  {testResult.outcome === 'BLOCKED' || testResult.outcome === 'REJECTED' ? (
                     <AlertTriangle className="h-5 w-5 text-red-500" />
                   ) : (
                     <CheckCircle className="h-5 w-5 text-green-500" />
@@ -364,76 +400,115 @@ const Playground = () => {
                   Test Results
                 </CardTitle>
                 <CardDescription>
-                  WAF engine analysis and detection results
+                  Backend execution summary and response details
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Status</Label>
-                    <Badge 
-                      variant={testResult.detected ? "destructive" : "default"}
+                    <Label className="text-xs text-muted-foreground">Outcome</Label>
+                    <Badge
+                      variant={testResult.outcome === 'ALLOWED' ? 'default' : 'destructive'}
                       className="w-fit"
                     >
-                      {testResult.detected ? "THREAT DETECTED" : "CLEAN"}
+                      {testResult.outcome}
                     </Badge>
                   </div>
-                  
-                  {testResult.detected && (
-                    <>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Threat Type</Label>
-                        <div className="text-sm font-medium">{testResult.threatType}</div>
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Severity</Label>
-                        <Badge variant="destructive">{testResult.severity.toUpperCase()}</Badge>
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Action</Label>
-                        <Badge variant="secondary">{testResult.action}</Badge>
-                      </div>
-                    </>
+
+                  {testResult.outcome === 'BLOCKED' && testResult.blockedBy && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Blocked By</Label>
+                      <Badge variant="destructive" className="w-fit">
+                        {testResult.blockedBy.toUpperCase()}
+                      </Badge>
+                    </div>
                   )}
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Status Code</Label>
+                    <div className="text-sm font-medium">{testResult.statusCode}</div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Response Time</Label>
+                    <div className="text-sm font-medium">
+                      {typeof testResult.responseTimeMs === 'number' ? `${testResult.responseTimeMs} ms` : '—'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Method</Label>
+                    <div className="text-sm font-medium">{testResult.method}</div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Platform</Label>
+                    <div className="text-sm text-muted-foreground">
+                      {testResult.platformName || platform?.name || '—'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Forwarded Port</Label>
+                    <div className="text-sm text-muted-foreground">
+                      {(testResult.forwardedPort ?? effectivePort) ?? '—'}
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Request URL</Label>
+                    <div className="bg-muted p-2 rounded font-mono text-xs break-all">
+                      {testResult.url || fullTargetUrl || '—'}
+                    </div>
+                  </div>
                 </div>
 
-                {testResult.detected && (
-                  <>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Detection Details</Label>
-                      <div className="bg-muted p-4 rounded-lg space-y-2">
+                {/* Block Details */}
+                {testResult.outcome === 'BLOCKED' && (
+                  <div className="space-y-2 border-t pt-4">
+                    <Label className="text-sm font-medium text-red-600">Block Details</Label>
+                    <div className="bg-red-50 dark:bg-red-950 p-4 rounded-lg space-y-2">
+                      {testResult.blockReason && (
                         <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Rule Triggered:</span>
-                          <span className="text-sm font-mono">{testResult.ruleTriggered}</span>
+                          <span className="text-sm text-muted-foreground">Reason:</span>
+                          <span className="text-sm font-medium">{testResult.blockReason}</span>
                         </div>
+                      )}
+                      {testResult.wafRuleTriggered && (
                         <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Confidence:</span>
-                          <span className="text-sm font-medium">{testResult.confidence}%</span>
+                          <span className="text-sm text-muted-foreground">WAF Rule:</span>
+                          <span className="text-sm font-mono">{testResult.wafRuleTriggered}</span>
                         </div>
+                      )}
+                      {testResult.threatDetected && (
                         <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Affected Field:</span>
-                          <span className="text-sm font-mono">{String(testResult.details.field || 'N/A')}</span>
+                          <span className="text-sm text-muted-foreground">Threat Type:</span>
+                          <span className="text-sm font-medium">{testResult.threatDetected}</span>
                         </div>
-                      </div>
+                      )}
                     </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Explanation</Label>
-                      <p className="text-sm text-muted-foreground bg-muted p-3 rounded">
-                        {testResult.explanation}
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Matched Pattern</Label>
-                      <div className="bg-muted p-3 rounded font-mono text-sm overflow-x-auto">
-                        {String(testResult.details.pattern || 'N/A')}
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Response Headers</Label>
+                  <div className="bg-muted p-3 rounded font-mono text-xs overflow-x-auto">
+                    {testResult.responseHeaders && Object.keys(testResult.responseHeaders).length > 0
+                      ? JSON.stringify(testResult.responseHeaders, null, 2)
+                      : '—'}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Response Body</Label>
+                  <div className="bg-muted p-3 rounded font-mono text-xs overflow-x-auto">
+                    {typeof testResult.responseBody !== 'undefined'
+                      ? (typeof testResult.responseBody === 'string'
+                          ? testResult.responseBody
+                          : JSON.stringify(testResult.responseBody, null, 2))
+                      : '—'}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}

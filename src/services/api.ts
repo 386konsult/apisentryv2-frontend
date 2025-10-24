@@ -1,6 +1,6 @@
-export const API_BASE_URL = 'http://16.16.182.74/api/v1';
+// export const API_BASE_URL = 'http://16.16.182.74/api/v1';
 
-// export const API_BASE_URL = 'http://127.0.0.1:5000/api/v1';
+export const API_BASE_URL = 'http://127.0.0.1:5000/api/v1';
 
 
 // Types for API responses
@@ -124,6 +124,8 @@ export interface DashboardStats {
   active_endpoints: number;
   avg_response_time: number;
   error_rate: number;
+  success_rate?: number;
+  status_code_breakdown?: Record<string, number>;
   threat_types: Record<string, number>;
   recent_threats: ThreatLog[];
 }
@@ -347,7 +349,7 @@ class APIService {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(JSON.stringify(errorData) || `HTTP error! status: ${response.status}`);
       }
 
       return await response.json();
@@ -532,6 +534,46 @@ class APIService {
     });
   }
 
+  // Blacklist methods
+  // Get blacklist for a platform
+  async getBlacklist(platformId: string): Promise<any[]> {
+    const res = await fetch(`${this.baseURL}/blacklist/?platform_uuid=${platformId}`, {
+      credentials: 'include',
+      headers: this.getHeaders(),
+    });
+    return res.json();
+  }
+
+  // Add IP to blacklist
+  async addToBlacklist(data: { platform_uuid: string; ip: string }): Promise<any> {
+    const payload = {
+      platform: data.platform_uuid,
+      ip: data.ip
+    };
+    const res = await fetch(`${this.baseURL}/blacklist/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to add IP to blacklist');
+    }
+    return res.json();
+  }
+
+  // Remove IP from blacklist
+  async removeFromBlacklist(id: string): Promise<void> {
+    const res = await fetch(`${this.baseURL}/blacklist/${id}/`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to remove IP from blacklist');
+    }
+  }
+
   // Utility methods
   isAuthenticated(): boolean {
     return !!this.token;
@@ -539,6 +581,38 @@ class APIService {
 
   getToken(): string | null {
     return this.token;
+  }
+
+  // Get alerts for a platform
+  async getAlerts(platformId?: string): Promise<any[]> {
+    const query = platformId ? `?platform_uuid=${platformId}` : '';
+    return await this.request<any[]>(`/alerts/${query}`);
+  }
+
+  // Create a new alert
+  async createAlert(alertData: {
+    platform_uuid: string;
+    alert_type: string;
+    name: string;
+    description?: string;
+    severity: string;
+    status?: string;
+    configuration: Record<string, any>;
+    notification_channels: string[];
+    notification_settings: Record<string, string>;
+  }): Promise<any> {
+    return await this.request<any>('/alerts/', {
+      method: 'POST',
+      body: JSON.stringify(alertData),
+    });
+  }
+
+  // Update alert status
+  async updateAlertStatus(alertId: string, status: string): Promise<any> {
+    return await this.request<any>(`/alerts/${alertId}/`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
   }
 }
 

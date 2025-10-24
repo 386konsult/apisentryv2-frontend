@@ -25,6 +25,7 @@ import {
   MessageSquare,
   Webhook,
 } from 'lucide-react';
+import apiService from '@/services/api';
 
 const ALERT_TYPES = [
   {
@@ -192,19 +193,41 @@ const CreateAlert = () => {
     }
   };
 
-  const handleSubmit = () => {
-    // TODO: Implement alert creation logic
-    console.log('Creating alert:', {
-      alertType: selectedAlertType,
-      formData,
-      notificationChannels,
-      selectedAttacks,
-      allowedIPs: allowedIPs.filter(ip => ip.trim()),
-      disallowedIPs: disallowedIPs.filter(ip => ip.trim()),
-    });
-    
-    // Navigate back to threat logs
-    navigate('/threat-logs');
+  const handleSubmit = async () => {
+    try {
+      const platformId = localStorage.getItem('selected_platform_id');
+      if (!platformId) throw new Error('No platform selected');
+
+      const alertData = {
+        platform_uuid: platformId,
+        alert_type: selectedAlertType,
+        name: `${ALERT_TYPES.find(t => t.id === selectedAlertType)?.name} Alert`,
+        description: `Alert for ${ALERT_TYPES.find(t => t.id === selectedAlertType)?.description}`,
+        severity: 'medium', // Default, could be configurable
+        configuration: {
+          // Map formData to configuration based on alert type
+          ...formData,
+          attack_signatures: selectedAttacks,
+          allowed_ips: allowedIPs.filter(ip => ip.trim()),
+          disallowed_ips: disallowedIPs.filter(ip => ip.trim()),
+        },
+        notification_channels: notificationChannels,
+        notification_settings: {
+          slack_webhook: formData.slackWebhook,
+          teams_webhook: formData.teamsWebhook,
+          email: formData.emailAddress,
+          webhook_url: formData.webhookURL,
+        },
+      };
+
+      await apiService.createAlert(alertData);
+      
+      // Navigate back to security alerts
+      navigate('/security-alerts');
+    } catch (error) {
+      console.error('Error creating alert:', error);
+      // Handle error (show toast, etc.)
+    }
   };
 
   const renderAlertTypeConfig = () => {

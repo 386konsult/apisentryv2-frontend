@@ -1,4 +1,3 @@
-
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Shield,
@@ -38,11 +37,10 @@ import { Button } from "@/components/ui/button";
 
 const securityPlatformItems = [
   { title: "Dashboard", url: "/", icon: BarChart3 },
-  // { title: "WAF Rules", url: "/waf-rules", icon: Shield },
   { title: "Threat Logs", url: "/threat-logs", icon: AlertTriangle },
   { title: "Security Alerts", url: "/security-alerts", icon: Bell },
   { title: "API Endpoints", url: "/api-endpoints", icon: Globe },
-  // { title: "Integrations", url: "/integrations", icon: Puzzle },
+  { title: "IP Blacklist", url: "/ip-blacklist", icon: Shield }, // Added IP Blacklist
   { title: "Playground", url: "/playground", icon: Code },
 ];
 

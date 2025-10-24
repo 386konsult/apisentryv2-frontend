@@ -45,6 +45,7 @@ import CreateAlert from "./pages/CreateAlert";
 import SecurityAlerts from "./pages/SecurityAlerts";
 import GitHubCallback from "./pages/GitHubCallback";
 import ForcePasswordReset from "./pages/ForcePasswordReset";
+import IPBlacklist from "./pages/IPBlacklist";
 
 const queryClient = new QueryClient();
 
@@ -173,6 +174,7 @@ const AppContent = () => {
                       <Route path="/platforms/:id" element={<PlatformDetails />} />
                       <Route path="/create-alert" element={<CreateAlert />} />
                       <Route path="/security-alerts" element={<SecurityAlerts />} />
+                      <Route path="/ip-blacklist" element={<IPBlacklist />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>

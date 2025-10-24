@@ -281,14 +281,14 @@ const Playground = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Developer Playground</h1>
-          <p className="text-muted-foreground">
-            Test your WAF rules and security policies in real-time
-          </p>
-        </div>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight">Developer Playground{platform && <span className="text-lg font-normal text-muted-foreground ml-2"> • {platform.name}</span>}</h1>
+                <p className="text-muted-foreground">
+                  Test your WAF rules and security policies in real-time
+                </p>
+              </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />

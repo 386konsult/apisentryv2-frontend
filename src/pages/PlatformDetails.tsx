@@ -179,6 +179,25 @@ const PlatformDetails = () => {
       .catch(() => setThreatTypes([]));
   };
 
+  // --- Add helper to compute "other" requests (failed / non-200) ---
+  const getOtherRequests = (a: any) => {
+    if (!a) return null;
+    // prefer explicit failed_requests if available
+    if (typeof a.failed_requests === 'number') return Number(a.failed_requests);
+    // else sum all non-200 codes from breakdown
+    if (a.status_code_breakdown && typeof a.status_code_breakdown === 'object') {
+      return Object.entries(a.status_code_breakdown).reduce((sum: number, [code, val]) => {
+        return code === '200' ? sum : sum + Number(val || 0);
+      }, 0);
+    }
+    // fallback: total - successful (if both present)
+    if (typeof a.total_requests === 'number' && typeof a.successful_requests === 'number') {
+      const inferred = Number(a.total_requests) - Number(a.successful_requests);
+      return inferred >= 0 ? inferred : 0;
+    }
+    return null;
+  };
+
   useEffect(() => {
     fetchData();
   }, [id]);
@@ -282,7 +301,13 @@ const PlatformDetails = () => {
             <Activity className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{analytics && analytics.status_code_breakdown && analytics.status_code_breakdown['404'] ? analytics.status_code_breakdown['404'] : '--'}</div>
+            {/* replaced single-404 display with aggregated other requests */}
+            <div className="text-2xl font-bold text-purple-600">
+              {(() => {
+                const other = getOtherRequests(analytics);
+                return other !== null && typeof other === 'number' ? other.toLocaleString() : '--';
+              })()}
+            </div>
             <p className="text-xs text-muted-foreground">
               Includes 404 and other non-success requests
             </p>

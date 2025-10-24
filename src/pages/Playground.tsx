@@ -98,14 +98,18 @@ const Playground = () => {
       }
       // Append endpoint path safely
       const final = new URL(path || '/', u.origin + u.pathname.replace(/\/$/, '') + '/');
-      // Ensure forced port persists
+      // Ensure forced port persists during construction
       if (port) final.port = port;
-      return final.toString();
+      // REMOVE port from returned string (display-only)
+      final.port = '';
+      return final.toString().replace(/\/$/, '');
     } catch {
       // Fallback simple concat
       const cleanBase = url.replace(/\/$/, '');
       const cleanPath = (path || '/').startsWith('/') ? path : `/${path}`;
-      return port ? `${cleanBase}:${port}${cleanPath}` : `${cleanBase}${cleanPath}`;
+      // Build string (may include :port) then strip any ":<digits>" after host for display
+      const raw = port ? `${cleanBase}:${port}${cleanPath}` : `${cleanBase}${cleanPath}`;
+      return raw.replace(/:\d+(?=\/|$)/, '');
     }
   };
 

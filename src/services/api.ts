@@ -614,6 +614,12 @@ class APIService {
       body: JSON.stringify({ status }),
     });
   }
+
+  // Get incidents for a platform
+  async getIncidents(platformId?: string): Promise<any[]> {
+    const query = platformId ? `?platform_uuid=${platformId}` : '';
+    return await this.request<any[]>(`/incidents/${query}`);
+  }
 }
 
 // Create and export a singleton instance

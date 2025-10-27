@@ -118,8 +118,10 @@ const SecurityAlerts = () => {
         }));
         
         setAlerts(mappedAlerts);
-        // Set incidents to active alerts
-        setIncidents(mappedAlerts.filter(alert => alert.status === 'active'));
+        
+        // Fetch incidents separately
+        const apiIncidents = await apiService.getIncidents(platformId || undefined);
+        setIncidents(apiIncidents);
       } catch (error) {
         console.error('Error fetching alerts:', error);
         setAlerts([]);
@@ -192,12 +194,7 @@ const SecurityAlerts = () => {
       setAlerts(prev => prev.map(alert => 
         alert.id === alertId ? { ...alert, status: newStatus } : alert
       ));
-      // Update incidents if status changed
-      setIncidents(prev => prev.filter(incident => incident.id !== alertId));
-      if (newStatus === 'active') {
-        const alert = alerts.find(a => a.id === alertId);
-        if (alert) setIncidents(prev => [...prev, { ...alert, status: newStatus }]);
-      }
+      // Removed incident update logic to keep incidents separate
     } catch (error) {
       console.error('Error updating alert status:', error);
     }
@@ -582,7 +579,7 @@ const SecurityAlerts = () => {
               Active Incidents
             </CardTitle>
             <CardDescription>
-              Active alerts requiring attention
+              Active incidents requiring attention
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -593,7 +590,7 @@ const SecurityAlerts = () => {
                     <div className="flex items-center space-x-3">
                       <AlertTriangle className="h-5 w-5 text-orange-500" />
                       <div>
-                        <h3 className="font-medium">{incident.name}</h3>
+                        <h3 className="font-medium">{incident.title || incident.name}</h3>
                         <p className="text-sm text-muted-foreground">{incident.description}</p>
                       </div>
                     </div>
@@ -601,7 +598,7 @@ const SecurityAlerts = () => {
                       <Badge className={getSeverityColor(incident.severity)}>
                         {incident.severity}
                       </Badge>
-                      <Badge variant="outline">{incident.status}</Badge>
+                      <Badge variant="outline">{incident.resolved ? 'Resolved' : 'Open'}</Badge>
                     </div>
                   </div>
                   
@@ -611,12 +608,12 @@ const SecurityAlerts = () => {
                       <p>{incident.created_at ? formatDate(incident.created_at) : '-'}</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">Last Triggered</Label>
-                      <p>{incident.lastTriggered ? formatDate(incident.lastTriggered) : '-'}</p>
+                      <Label className="text-xs text-muted-foreground">Client IP</Label>
+                      <p>{incident.client_ip || '-'}</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">Triggers</Label>
-                      <p>{incident.triggerCount}</p>
+                      <Label className="text-xs text-muted-foreground">Endpoint</Label>
+                      <p>{incident.endpoint || '-'}</p>
                     </div>
                   </div>
                 </div>

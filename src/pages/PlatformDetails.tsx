@@ -71,14 +71,19 @@ const PlatformDetails = () => {
         setLoading(false);
       });
 
-    // Stats cards always use last year data
-    const yearParams = { range: '1y' };
-    
-    // Fetch analytics for stats cards (always 1 year)
-    apiService.getAnalytics(id, yearParams)
+    // Fetch analytics for stats cards (1 year, or '1y' if nested)
+    apiService.getAnalytics(id)
       .then(data => {
         if (data.success && data.analytics) {
-          setAnalytics(data.analytics);
+          // Handle nested analytics (e.g., {'1y': {...}, '7d': {...}}) or flat
+          let analyticsData;
+          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && '1y' in data.analytics) {
+            analyticsData = data.analytics['1y'];
+          } else {
+            analyticsData = data.analytics;
+          }
+          console.log('Analytics data for 1y:', analyticsData); // Detailed log
+          setAnalytics(analyticsData);
         }
       })
       .catch(() => setAnalytics(null));
@@ -99,56 +104,64 @@ const PlatformDetails = () => {
 
   const fetchTrafficData = () => {
     if (!id) return;
-    
+
+    // Fetch analytics for traffic overview chart
     const params = trafficTimeRange === 'custom' && trafficCustomRange.start && trafficCustomRange.end
       ? { start: trafficCustomRange.start.toISOString(), end: trafficCustomRange.end.toISOString() }
       : { range: trafficTimeRange };
 
-    apiService.getPlatformRequestLogs(id, params)
+    apiService.getAnalytics(id, params)
+      .then(data => {
+        if (data.success && data.analytics) {
+          // Handle nested analytics or flat
+          let analyticsData;
+          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && trafficTimeRange in data.analytics) {
+            analyticsData = data.analytics[trafficTimeRange];
+          } else {
+            analyticsData = data.analytics;
+          }
+          console.log('Traffic analytics data for', trafficTimeRange, ':', analyticsData); // Detailed log
+
+          // Build trafficData from method_status_breakdown for stacked bars
+          if (analyticsData.method_status_breakdown) {
+            const statusColors = {
+              '200': '#22c55e', // green
+              '403': '#ef4444', // red
+              '404': '#6366f1', // purple
+              '500': '#eab308', // yellow
+              '504': '#06b6d4', // cyan
+              '400': '#dc2626', // dark red
+              'other': '#9ca3af', // gray (default for other)
+            };
+            const trafficArr = HTTP_METHODS.map(method => {
+              const methodData = analyticsData.method_status_breakdown[method] || {};
+              return {
+                method,
+                ...methodData, // e.g., 200: 41, 404: 20, etc.
+              };
+            });
+            setTrafficData(trafficArr);
+          } else {
+            setTrafficData([]);
+          }
+        }
+      })
+      .catch(() => setTrafficData([]));
+
+    // Fetch latest logs for the table (always top 10, no range)
+    apiService.getPlatformRequestLogs(id, {})
       .then(logs => {
         setThreatLogs(logs);
-
-        // --- Build trafficData by method and status, always show all methods ---
-        const methodMap: Record<string, { allowed: number; blocked: number; notFound: number }> = {};
-        logs.forEach((log: any) => {
-          const method = (log.method || 'OTHER').toUpperCase();
-          if (!methodMap[method]) {
-            methodMap[method] = { allowed: 0, blocked: 0, notFound: 0 };
-          }
-          if (log.status_code === 404) {
-            methodMap[method].notFound += 1;
-          } else if (log.waf_blocked) {
-            methodMap[method].blocked += 1;
-          } else {
-            methodMap[method].allowed += 1;
-          }
-        });
-        
-        // Ensure all HTTP_METHODS are present, even if zero
-        const trafficArr = HTTP_METHODS.map(method => ({
-          name: method,
-          ...(methodMap[method] || { allowed: 0, blocked: 0, notFound: 0 }),
-        }));
-        // Optionally, add "OTHER" if there are logs with unknown methods
-        if (Object.keys(methodMap).some(m => !HTTP_METHODS.includes(m))) {
-          trafficArr.push({
-            name: 'OTHER',
-            ...(methodMap['OTHER'] || { allowed: 0, blocked: 0, notFound: 0 }),
-          });
-        }
-        
-        setTrafficData(trafficArr);
       })
       .catch((err) => {
-        console.error('Error fetching traffic data:', err);
+        console.error('Error fetching threat logs:', err);
         setThreatLogs([]);
-        setTrafficData([]);
       });
   };
 
   const fetchThreatData = () => {
     if (!id) return;
-    
+
     const params = threatTimeRange === 'custom' && threatCustomRange.start && threatCustomRange.end
       ? { start: threatCustomRange.start.toISOString(), end: threatCustomRange.end.toISOString() }
       : { range: threatTimeRange };
@@ -156,16 +169,27 @@ const PlatformDetails = () => {
     apiService.getAnalytics(id, params)
       .then(data => {
         if (data.success && data.analytics) {
-          // Threat types pie chart (keep as is)
-          if (data.analytics.status_code_breakdown) {
+          // Handle nested analytics or flat
+          let analyticsData;
+          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && threatTimeRange in data.analytics) {
+            analyticsData = data.analytics[threatTimeRange];
+          } else {
+            analyticsData = data.analytics;
+          }
+          console.log('Threat analytics data for', threatTimeRange, ':', analyticsData); // Detailed log
+
+          // Threat types pie chart
+          if (analyticsData.status_code_breakdown) {
             const colors = {
-              '200': '#22c55e', // green for 200
-              '403': '#ef4444', // red for 403
-              '404': '#6366f1',
-              '500': '#eab308',
-              'other': '#06b6d4',
+              '200': '#22c55e', // green
+              '403': '#ef4444', // red
+              '404': '#6366f1', // purple
+              '500': '#eab308', // yellow
+              '504': '#06b6d4', // cyan
+              '400': '#dc2626', // dark red
+              'other': '#9ca3af', // gray (default for other)
             };
-            const threatArr = Object.entries(data.analytics.status_code_breakdown).map(([name, value], i) => ({
+            const threatArr = Object.entries(analyticsData.status_code_breakdown).map(([name, value]) => ({
               name,
               value: Number(value),
               color: colors[name] || colors['other'],
@@ -179,21 +203,42 @@ const PlatformDetails = () => {
       .catch(() => setThreatTypes([]));
   };
 
-  // --- Add helper to compute "other" requests (failed / non-200) ---
+  // --- Add helper to compute "other" requests (failed / non-200 excluding blocked) ---
   const getOtherRequests = (a: any) => {
     if (!a) return null;
-    // prefer explicit failed_requests if available
-    if (typeof a.failed_requests === 'number') return Number(a.failed_requests);
-    // else sum all non-200 codes from breakdown
+    // prefer failed_requests - blocked_requests
+    if (typeof a.failed_requests === 'number' && typeof a.blocked_requests === 'number') {
+      return Number(a.failed_requests) - Number(a.blocked_requests);
+    }
+    // else sum non-200 codes excluding blocked codes (e.g., 403)
     if (a.status_code_breakdown && typeof a.status_code_breakdown === 'object') {
+      const blockedCodes = ['403']; // assume 403 is blocked
       return Object.entries(a.status_code_breakdown).reduce((sum: number, [code, val]) => {
-        return code === '200' ? sum : sum + Number(val || 0);
+        if (code === '200' || blockedCodes.includes(code)) return sum;
+        return sum + Number(val || 0);
       }, 0);
     }
-    // fallback: total - successful (if both present)
-    if (typeof a.total_requests === 'number' && typeof a.successful_requests === 'number') {
-      const inferred = Number(a.total_requests) - Number(a.successful_requests);
+    // fallback: total - successful - blocked (if all present)
+    if (typeof a.total_requests === 'number' && typeof a.successful_requests === 'number' && typeof a.blocked_requests === 'number') {
+      const inferred = Number(a.total_requests) - Number(a.successful_requests) - Number(a.blocked_requests);
       return inferred >= 0 ? inferred : 0;
+    }
+    return null;
+  };
+
+  const getCleanRequests = (a: any) => {
+    if (!a) return null;
+    // compute as total - blocked - other
+    const total = typeof a.total_requests === 'number' ? Number(a.total_requests) : null;
+    const blocked = typeof a.blocked_requests === 'number' ? Number(a.blocked_requests) : 0;
+    const other = getOtherRequests(a);
+    if (total !== null && other !== null) {
+      const clean = total - blocked - other;
+      return clean >= 0 ? clean : 0;
+    }
+    // fallback to successful_requests
+    if (typeof a.successful_requests === 'number') {
+      return Number(a.successful_requests);
     }
     return null;
   };
@@ -203,10 +248,12 @@ const PlatformDetails = () => {
   }, [id]);
 
   useEffect(() => {
+    console.log('Traffic time range changed:', trafficTimeRange); // Log when timeRange changes
     fetchTrafficData();
   }, [id, trafficTimeRange, trafficCustomRange]);
 
   useEffect(() => {
+    console.log('Threat time range changed:', threatTimeRange); // Log when timeRange changes
     fetchThreatData();
   }, [id, threatTimeRange, threatCustomRange]);
 
@@ -288,7 +335,12 @@ const PlatformDetails = () => {
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{analytics ? (analytics.successful_requests ?? 0).toLocaleString() : '--'}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {(() => {
+                const clean = getCleanRequests(analytics);
+                return clean !== null && typeof clean === 'number' ? clean.toLocaleString() : '--';
+              })()}
+            </div>
             <p className="text-xs text-muted-foreground">
               {analytics ? (analytics.success_rate ? analytics.success_rate.toFixed(2) : '0.00') : '--'}% success rate
             </p>
@@ -384,12 +436,15 @@ const PlatformDetails = () => {
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={trafficData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
+                  <XAxis dataKey="method" />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="allowed" stackId="a" fill="hsl(142 71% 45%)" />
-                  <Bar dataKey="blocked" stackId="a" fill="hsl(0 84% 60%)" />
-                  <Bar dataKey="notFound" stackId="a" fill="#6366f1" />
+                  <Bar dataKey="200" stackId="a" fill="#22c55e" /> {/* Green */}
+                  <Bar dataKey="403" stackId="a" fill="#ef4444" /> {/* Red */}
+                  <Bar dataKey="404" stackId="a" fill="#6366f1" /> {/* Purple */}
+                  <Bar dataKey="500" stackId="a" fill="#eab308" /> {/* Yellow */}
+                  <Bar dataKey="504" stackId="a" fill="#06b6d4" /> {/* Cyan */}
+                  <Bar dataKey="400" stackId="a" fill="#dc2626" /> {/* Dark Red */}
                 </BarChart>
               </ResponsiveContainer>
             ) : (

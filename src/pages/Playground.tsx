@@ -23,6 +23,7 @@ import {
   Download,
   Upload,
   Zap,
+  XCircle,
 } from "lucide-react";
 import { apiService } from "@/services/api";
 import type { PlaygroundTestRequest } from "@/services/api";
@@ -30,7 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface TestResult {
   success: boolean;
-  outcome: 'ALLOWED' | 'BLOCKED' | 'REJECTED';
+  outcome: 'ALLOWED' | 'BLOCKED' | 'REJECTED' | 'ERROR';
   blockedBy?: 'waf' | 'envoy' | 'wasm' | null;
   blockReason?: string;
   wafRuleTriggered?: string;
@@ -67,9 +68,11 @@ const Playground = () => {
 }`);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [testAttempted, setTestAttempted] = useState(false);
   const [platform, setPlatform] = useState<any | null>(null);
   const [overrideBaseUrl, setOverrideBaseUrl] = useState<string>("");
   const [overridePort, setOverridePort] = useState<string>("");
+  const [portFieldTouched, setPortFieldTouched] = useState<boolean>(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -114,8 +117,13 @@ const Playground = () => {
   }, [overrideBaseUrl, platform]);
 
   const effectivePort = useMemo(() => {
-    return (overridePort || String(platform?.forwarded_port || '')).trim();
-  }, [overridePort, platform]);
+    // If user has touched the port field, use their value (including empty)
+    // Otherwise, use the platform's forwarded_port
+    if (portFieldTouched) {
+      return overridePort.trim();
+    }
+    return String(platform?.forwarded_port || '').trim();
+  }, [overridePort, platform, portFieldTouched]);
 
   const fullTargetUrl = useMemo(() => {
     return buildTargetUrl(effectiveBaseUrl, effectivePort || undefined, endpoint);
@@ -123,6 +131,7 @@ const Playground = () => {
 
   const runTest = async () => {
     setIsLoading(true);
+    setTestAttempted(true);
     try {
       const platformId = localStorage.getItem('selected_platform_id');
       if (!platformId) {
@@ -193,41 +202,44 @@ const Playground = () => {
         };
 
         setTestResult(normalized);
-        
-        // Update toast based on outcome
-        let title = 'Request allowed';
-        let variant: 'default' | 'destructive' = 'default';
-        
-        if (outcome === 'BLOCKED') {
-          title = `Request blocked by ${result.blocked_by?.toUpperCase() || 'security layer'}`;
-          variant = 'destructive';
-        } else if (outcome === 'REJECTED') {
-          title = 'Request rejected';
-          variant = 'destructive';
-        }
-
-        toast({
-          title,
-          description: `Status: ${status}${normalized.responseTimeMs ? ` • ${normalized.responseTimeMs.toFixed(2)} ms` : ''}`,
-          variant,
-        });
       } else {
-        // Backend returned success: false or unexpected
-        setTestResult(null);
-        toast({
-          title: "Test failed",
-          description: result?.message || "Failed to process test request",
-          variant: "destructive",
-        });
+        // Backend returned success: false or unexpected - create error result
+        const errorResult: TestResult = {
+          success: false,
+          outcome: 'ERROR',
+          statusCode: 500, // Default error status
+          method: method.toUpperCase(),
+          platformName: platform?.name || 'Unknown',
+          blockedBy: null,
+          blockReason: result.message || 'Unknown error',
+          wafRuleTriggered: null,
+          threatDetected: null,
+          forwardedPort: result.platform?.forwarded_port,
+          responseHeaders: result.response?.headers || {},
+          responseBody: result.response?.body || result.message || 'No response body',
+          url: fullTargetUrl
+        };
+        setTestResult(errorResult);
       }
     } catch (error: any) {
       console.error('Test error:', error);
-      setTestResult(null);
-      toast({
-        title: "Test failed",
-        description: error.message || "Failed to process test request",
-        variant: "destructive",
-      });
+      // Create error result for network/parsing errors
+      const errorResult: TestResult = {
+        success: false,
+        outcome: 'ERROR',
+        statusCode: 500,
+        method: method.toUpperCase(),
+        platformName: platform?.name || 'Unknown',
+        blockedBy: null,
+        blockReason: error.message || 'Network or parsing error occurred',
+        wafRuleTriggered: null,
+        threatDetected: null,
+        forwardedPort: platform?.forwarded_port,
+        responseHeaders: {},
+        responseBody: error.message || 'No response body',
+        url: fullTargetUrl
+      };
+      setTestResult(errorResult);
     } finally {
       setIsLoading(false);
     }
@@ -387,32 +399,53 @@ const Playground = () => {
             </CardContent>
           </Card>
 
-          {/* Test Results */}
-          {testResult && (
+          {/* Loading State */}
+          {isLoading && (
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  {testResult.outcome === 'BLOCKED' || testResult.outcome === 'REJECTED' ? (
-                    <AlertTriangle className="h-5 w-5 text-red-500" />
-                  ) : (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  )}
-                  Test Results
+                  <Shield className="h-5 w-5 text-blue-500" />
+                  Security Scan Response
                 </CardTitle>
                 <CardDescription>
-                  Backend execution summary and response details
+                  Running security test...
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-center py-8">
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                    <span className="text-muted-foreground">Processing security test request...</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Test Results */}
+          {testAttempted && !isLoading && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-blue-500" />
+                  Security Scan Response
+                </CardTitle>
+                <CardDescription>
+                  Response analysis and security assessment
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {testResult ? (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Outcome</Label>
-                    <Badge
-                      variant={testResult.outcome === 'ALLOWED' ? 'default' : 'destructive'}
-                      className="w-fit"
-                    >
-                      {testResult.outcome}
-                    </Badge>
+                        <Badge
+                          variant={testResult.outcome === 'ALLOWED' ? 'default' : 'destructive'}
+                          className="w-fit"
+                        >
+                          {testResult.outcome === 'ERROR' ? 'ERROR' : testResult.outcome}
+                        </Badge>
                   </div>
 
                   {testResult.outcome === 'BLOCKED' && testResult.blockedBy && (
@@ -509,6 +542,109 @@ const Playground = () => {
                       : '—'}
                   </div>
                 </div>
+
+                {/* Security Analysis */}
+                <div className="space-y-4 border-t pt-6">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-orange-500" />
+                    <Label className="text-lg font-semibold">Security Analysis</Label>
+                  </div>
+                  
+                  {testResult.outcome === 'ERROR' ? (
+                    <div className="space-y-4">
+                      <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <XCircle className="h-5 w-5 text-red-500" />
+                          <span className="font-semibold text-red-700 dark:text-red-300">Request Failed</span>
+                        </div>
+                        <p className="text-sm text-red-600 dark:text-red-400 mb-2">
+                          {testResult.blockReason || 'The request failed to complete successfully.'}
+                        </p>
+                        <div className="text-xs text-red-500 dark:text-red-400">
+                          Status Code: {testResult.statusCode}
+                        </div>
+                      </div>
+                    </div>
+                  ) : testResult.statusCode !== 403 ? (
+                    <div className="space-y-4">
+                      <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <XCircle className="h-5 w-5 text-red-500" />
+                          <span className="font-semibold text-red-700 dark:text-red-300">Attack Successful - Test Failed</span>
+                        </div>
+                        <p className="text-sm text-red-600 dark:text-red-400">
+                          The request was not blocked by the security system, indicating a potential vulnerability.
+                        </p>
+                      </div>
+                      
+                      <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 p-4 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                          <div className="text-sm">
+                            <p className="font-medium text-yellow-800 dark:text-yellow-200 mb-2">Important Disclaimer:</p>
+                            <ul className="space-y-1 text-yellow-700 dark:text-yellow-300">
+                              <li>• If the request payload is not malicious, the request would be allowed and you shouldn't consider it a failed test</li>
+                              <li>• If it is a malicious attack, it means the application is vulnerable to this attack</li>
+                              <li>• Review the payload carefully to determine if this represents a real security risk</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          className="gradient-primary"
+                          onClick={() => {
+                            // TODO: Implement submit to admin functionality
+                            toast({
+                              title: "Request Submitted",
+                              description: "Your request has been submitted to the admin for WAF rule inclusion",
+                              variant: "default",
+                            });
+                          }}
+                        >
+                          <Shield className="h-4 w-4 mr-2" />
+                          Submit Request to Admin
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          onClick={() => {
+                            // TODO: Implement mark as false positive functionality
+                            toast({
+                              title: "Marked as False Positive",
+                              description: "This test has been marked as a false positive",
+                              variant: "default",
+                            });
+                          }}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Mark as False Positive
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 p-4 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                        <span className="font-semibold text-green-700 dark:text-green-300">Attack Blocked - Test Passed</span>
+                      </div>
+                      <p className="text-sm text-green-600 dark:text-green-400">
+                        The request was successfully blocked by the security system, indicating proper protection.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-red-600 mb-2">Test Failed</h3>
+                    <p className="text-muted-foreground">
+                      Unable to process the security test request. Please check your configuration and try again.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -549,8 +685,11 @@ const Playground = () => {
                 <Label>Forwarded Port</Label>
                 <Input
                   placeholder="443"
-                  value={effectivePort}
-                  onChange={(e) => setOverridePort(e.target.value)}
+                  value={portFieldTouched ? overridePort : effectivePort}
+                  onChange={(e) => {
+                    setPortFieldTouched(true);
+                    setOverridePort(e.target.value);
+                  }}
                 />
                 <p className="text-xs text-muted-foreground">
                   Optional. If set and missing in base URL, it will be applied

@@ -46,6 +46,8 @@ import SecurityAlerts from "./pages/SecurityAlerts";
 import GitHubCallback from "./pages/GitHubCallback";
 import ForcePasswordReset from "./pages/ForcePasswordReset";
 import IPBlacklist from "./pages/IPBlacklist";
+import SecurityHub from "./pages/SecurityHub";
+import Incidents from "./pages/Incidents";
 
 const queryClient = new QueryClient();
 
@@ -92,16 +94,16 @@ const AppContent = () => {
         <Route path="/*" element={
           <ProtectedRoute>
             <SidebarProvider>
-              <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
+              <div className="min-h-screen flex w-full overflow-hidden bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
                 <AppSidebar />
-                <div className="flex-1">
-                  <header className="h-16 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-6">
-                    <div className="flex items-center space-x-4">
+                <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
+                  <header className="h-16 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-6 flex-shrink-0">
+                    <div className="flex items-center space-x-4 min-w-0">
                       <h1 className="text-2xl font-bold gradient-primary bg-clip-text text-transparent">
                         {/* APISentry */}
                       </h1>
                     </div>
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-4 flex-shrink-0">
                       <PlatformIndicator />
                       <Button
                         variant="ghost"
@@ -113,7 +115,7 @@ const AppContent = () => {
                       </Button>
                     </div>
                   </header>
-                  <main className="p-6">
+                  <main className="p-6 overflow-x-hidden overflow-y-auto flex-1 min-w-0">
                     <Routes>
                       <Route path="/" element={<Platforms />} />
                       <Route path="/waf-rules" element={<WAFRules />} />
@@ -174,7 +176,17 @@ const AppContent = () => {
                       <Route path="/platforms/:id" element={<PlatformDetails />} />
                       <Route path="/create-alert" element={<CreateAlert />} />
                       <Route path="/security-alerts" element={<SecurityAlerts />} />
+                      <Route path="/security-hub" element={
+                        <ProtectedPlatformRoute>
+                          <SecurityHub />
+                        </ProtectedPlatformRoute>
+                      } />
                       <Route path="/ip-blacklist" element={<IPBlacklist />} />
+                      <Route path="/incidents" element={
+                        <ProtectedPlatformRoute>
+                          <Incidents />
+                        </ProtectedPlatformRoute>
+                      } />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>

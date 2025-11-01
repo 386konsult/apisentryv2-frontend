@@ -620,6 +620,16 @@ class APIService {
     const query = platformId ? `?platform_uuid=${platformId}` : '';
     return await this.request<any[]>(`/incidents/${query}`);
   }
+
+  // Get triggers for alerts
+  async getTriggers(alertId?: string, platformId?: string): Promise<any[]> {
+    let query = '';
+    const params: string[] = [];
+    if (alertId) params.push(`alert_id=${alertId}`);
+    if (platformId) params.push(`platform_uuid=${platformId}`);
+    if (params.length > 0) query = '?' + params.join('&');
+    return await this.request<any[]>(`/triggers/${query}`);
+  }
 }
 
 // Create and export a singleton instance

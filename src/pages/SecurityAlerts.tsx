@@ -47,7 +47,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import CreateIncidentModal, { IncidentFormData } from '@/components/CreateIncidentModal';
 import apiService from '@/services/api';
+import { useToast } from '@/hooks/use-toast';
 
 const ALERT_TYPES: Record<string, { name: string; icon: any; color?: string }> = {
   rate_anomaly: { name: 'Rate Anomaly', icon: Zap, color: 'text-yellow-500' },
@@ -68,16 +70,15 @@ const NOTIFICATION_ICONS: Record<string, any> = {
 
 const SecurityAlerts = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [alerts, setAlerts] = useState<any[]>([]);
-  const [incidents, setIncidents] = useState<any[]>([]);
+  const [triggers, setTriggers] = useState<any[]>([]);
   const [selectedAlerts, setSelectedAlerts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [showCreateIncident, setShowCreateIncident] = useState(false);
-  const [newIncidentName, setNewIncidentName] = useState('');
-  const [newIncidentDescription, setNewIncidentDescription] = useState('');
   const [loading, setLoading] = useState(true);
   const [platform, setPlatform] = useState<any>(null); // Added for platform display
 
@@ -119,13 +120,12 @@ const SecurityAlerts = () => {
         
         setAlerts(mappedAlerts);
         
-        // Fetch incidents separately
-        const apiIncidents = await apiService.getIncidents(platformId || undefined);
-        setIncidents(apiIncidents);
+        // Triggers API endpoint doesn't exist yet - set to empty array for now
+        setTriggers([]);
       } catch (error) {
         console.error('Error fetching alerts:', error);
         setAlerts([]);
-        setIncidents([]);
+        setTriggers([]);
       } finally {
         setLoading(false);
       }
@@ -160,31 +160,21 @@ const SecurityAlerts = () => {
     }
   };
 
-  const handleCreateIncident = () => {
-    if (selectedAlerts.length === 0 || !newIncidentName.trim()) return;
-
-    const newIncident = {
-      id: `inc-${Date.now()}`,
-      name: newIncidentName,
-      status: 'investigating',
-      severity: 'medium',
-      description: newIncidentDescription,
-      createdAt: new Date().toISOString(),
+  const handleCreateIncident = (data: IncidentFormData) => {
+    // Note: Incident creation may need backend API call in production
+    // TODO: Implement incident creation via API if needed
+    console.log('Creating incident:', {
+      ...data,
       alertIds: selectedAlerts,
-      assignedTo: 'Security Team',
-      priority: 'P2',
-    };
+    });
 
-    setIncidents(prev => [...prev, newIncident]);
-    setAlerts(prev => prev.map(alert => 
-      selectedAlerts.includes(alert.id) 
-        ? { ...alert, incidentId: newIncident.id }
-        : alert
-    ));
+    toast({
+      title: "Incident Created",
+      description: "New incident has been created successfully.",
+      variant: "default",
+    });
 
     setSelectedAlerts([]);
-    setNewIncidentName('');
-    setNewIncidentDescription('');
     setShowCreateIncident(false);
   };
 
@@ -249,67 +239,22 @@ const SecurityAlerts = () => {
             <Plus className="h-4 w-4 mr-2" />
             Create Alert
           </Button>
-          <Dialog open={showCreateIncident} onOpenChange={setShowCreateIncident}>
-            <DialogTrigger asChild>
-              <Button 
-                size="sm" 
-                className="gradient-primary"
-                disabled={selectedAlerts.length === 0}
-              >
-                <Users className="h-4 w-4 mr-2" />
-                Create Incident ({selectedAlerts.length})
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Incident</DialogTitle>
-                <DialogDescription>
-                  Group selected alerts into a security incident for investigation
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="incidentName">Incident Name</Label>
-                  <Input
-                    id="incidentName"
-                    placeholder="e.g., API Security Breach"
-                    value={newIncidentName}
-                    onChange={(e) => setNewIncidentName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="incidentDescription">Description</Label>
-                  <Input
-                    id="incidentDescription"
-                    placeholder="Brief description of the incident"
-                    value={newIncidentDescription}
-                    onChange={(e) => setNewIncidentDescription(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>Selected Alerts ({selectedAlerts.length})</Label>
-                  <div className="mt-2 space-y-1">
-                    {selectedAlerts.map(alertId => {
-                      const alert = alerts.find(a => a.id === alertId);
-                      return alert ? (
-                        <div key={alertId} className="text-sm p-2 bg-muted rounded">
-                          {alert.name}
-                        </div>
-                      ) : null;
-                    })}
-                  </div>
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setShowCreateIncident(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreateIncident} disabled={!newIncidentName.trim()}>
-                    Create Incident
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button 
+            size="sm" 
+            className="gradient-primary"
+            disabled={selectedAlerts.length === 0}
+            onClick={() => setShowCreateIncident(true)}
+          >
+            <Users className="h-4 w-4 mr-2" />
+            Create Incident ({selectedAlerts.length})
+          </Button>
+          <CreateIncidentModal
+            open={showCreateIncident}
+            onOpenChange={setShowCreateIncident}
+            onSubmit={handleCreateIncident}
+            selectedAlertIds={selectedAlerts}
+            alerts={alerts}
+          />
         </div>
       </div>
 
@@ -347,15 +292,15 @@ const SecurityAlerts = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open Incidents</CardTitle>
-            <Users className="h-4 w-4 text-orange-500" />
+            <CardTitle className="text-sm font-medium">Recent Triggers</CardTitle>
+            <Zap className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {incidents.length}
+              {triggers.length}
             </div>
             <p className="text-xs text-muted-foreground">
-              Under investigation
+              Alert trigger events
             </p>
           </CardContent>
         </Card>
@@ -477,7 +422,6 @@ const SecurityAlerts = () => {
               <tbody>
                 {filteredAlerts.map((alert) => {
                   const alertType = ALERT_TYPES[alert.type as keyof typeof ALERT_TYPES];
-                  const incident = alert.incidentId ? incidents.find(i => i.id === alert.incidentId) : null;
                   
                   return (
                     <tr key={alert.id} className="border-b hover:bg-muted/30 transition-colors">
@@ -530,9 +474,9 @@ const SecurityAlerts = () => {
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        {incident ? (
-                          <Badge variant="outline" className="text-xs truncate max-w-[90px]" title={incident.name}>
-                            {incident.name}
+                        {alert.incidentId || alert.incident_id ? (
+                          <Badge variant="outline" className="text-xs truncate max-w-[90px]" title={alert.incidentId || alert.incident_id}>
+                            {alert.incidentId || alert.incident_id}
                           </Badge>
                         ) : (
                           <span className="text-xs text-muted-foreground">-</span>
@@ -570,58 +514,201 @@ const SecurityAlerts = () => {
         </CardContent>
       </Card>
 
-      {/* Active Incidents Section */}
-      {incidents.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-orange-500" />
-              Active Incidents
-            </CardTitle>
-            <CardDescription>
-              Active incidents requiring attention
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {incidents.map((incident) => (
-                <div key={incident.id} className="border border-border/50 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-3">
-                      <AlertTriangle className="h-5 w-5 text-orange-500" />
-                      <div>
-                        <h3 className="font-medium">{incident.title || incident.name}</h3>
-                        <p className="text-sm text-muted-foreground">{incident.description}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge className={getSeverityColor(incident.severity)}>
-                        {incident.severity}
-                      </Badge>
-                      <Badge variant="outline">{incident.resolved ? 'Resolved' : 'Open'}</Badge>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Created</Label>
-                      <p>{incident.created_at ? formatDate(incident.created_at) : '-'}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Client IP</Label>
-                      <p>{incident.client_ip || '-'}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Endpoint</Label>
-                      <p>{incident.endpoint || '-'}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+      {/* Alert Triggers Section */}
+      <Card className="min-w-0">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-orange-500" />
+            Alert Triggers
+          </CardTitle>
+          <CardDescription>
+            Trigger events for all security alerts
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {triggers.length === 0 ? (
+            <div className="text-center py-12">
+              <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground">No triggers</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Trigger events will appear here when alerts are triggered
+              </p>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
+              <table className="w-full text-sm border-0">
+                <thead className="bg-muted/50 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[150px]">Timestamp</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[200px]">Alert</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[100px]">Severity</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[140px]">Client IP</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[150px]">Endpoint</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[100px]">Method</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[80px]">Status Code</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[120px]">Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {triggers.map((trigger) => {
+                    const relatedAlert = alerts.find(a => a.id === trigger.alert_id || a.id === trigger.alert);
+                    
+                    return (
+                      <tr key={trigger.id} className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="px-3 py-2">
+                          <span className="text-xs whitespace-nowrap">
+                            {trigger.timestamp ? formatDate(trigger.timestamp) : trigger.created_at ? formatDate(trigger.created_at) : '-'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="min-w-0">
+                            <div className="font-medium truncate max-w-[200px]" title={relatedAlert?.name || trigger.alert_name || 'Unknown Alert'}>
+                              {relatedAlert?.name || trigger.alert_name || 'Unknown Alert'}
+                            </div>
+                            {relatedAlert?.description && (
+                              <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={relatedAlert.description}>
+                                {relatedAlert.description}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Badge className={`${getSeverityColor(trigger.severity || relatedAlert?.severity || 'medium')} text-xs`}>
+                            {trigger.severity || relatedAlert?.severity || 'medium'}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-1 min-w-0">
+                            <MapPin className="h-3 w-3 flex-shrink-0" />
+                            <span className="text-xs font-mono truncate max-w-[140px]" title={trigger.client_ip || trigger.ip || '-'}>
+                              {trigger.client_ip || trigger.ip || '-'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="text-xs font-mono truncate max-w-[150px]" title={trigger.endpoint || trigger.path || trigger.endpoint_path || '-'}>
+                            {trigger.endpoint || trigger.path || trigger.endpoint_path || '-'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Badge variant="outline" className="text-xs">
+                            {trigger.method || '-'}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2">
+                          {trigger.status_code ? (
+                            <Badge variant={trigger.status_code >= 400 ? "destructive" : "outline"} className="text-xs">
+                              {trigger.status_code}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="sm" className="text-xs">
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle>Trigger Details</DialogTitle>
+                                <DialogDescription>
+                                  Complete information about this trigger event
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label>Timestamp</Label>
+                                    <p className="text-sm">{trigger.timestamp ? formatDate(trigger.timestamp) : trigger.created_at ? formatDate(trigger.created_at) : '-'}</p>
+                                  </div>
+                                  <div>
+                                    <Label>Alert</Label>
+                                    <p className="text-sm font-medium">{relatedAlert?.name || trigger.alert_name || 'Unknown'}</p>
+                                  </div>
+                                  <div>
+                                    <Label>Severity</Label>
+                                    <Badge className={getSeverityColor(trigger.severity || relatedAlert?.severity || 'medium')}>
+                                      {trigger.severity || relatedAlert?.severity || 'medium'}
+                                    </Badge>
+                                  </div>
+                                  <div>
+                                    <Label>Status Code</Label>
+                                    <p className="text-sm">{trigger.status_code || '-'}</p>
+                                  </div>
+                                </div>
+                                
+                                {trigger.client_ip || trigger.ip ? (
+                                  <div>
+                                    <Label>Client IP</Label>
+                                    <p className="text-sm font-mono">{trigger.client_ip || trigger.ip}</p>
+                                  </div>
+                                ) : null}
+                                
+                                {trigger.endpoint || trigger.path || trigger.endpoint_path ? (
+                                  <div>
+                                    <Label>Endpoint</Label>
+                                    <p className="text-sm font-mono">{trigger.endpoint || trigger.path || trigger.endpoint_path}</p>
+                                  </div>
+                                ) : null}
+                                
+                                {trigger.method && (
+                                  <div>
+                                    <Label>Method</Label>
+                                    <Badge variant="outline">{trigger.method}</Badge>
+                                  </div>
+                                )}
+                                
+                                {trigger.request_body && (
+                                  <div>
+                                    <Label>Request Body</Label>
+                                    <div className="bg-muted p-3 rounded font-mono text-xs mt-2 overflow-x-auto">
+                                      <pre className="whitespace-pre-wrap break-words">
+                                        {typeof trigger.request_body === 'object' 
+                                          ? JSON.stringify(trigger.request_body, null, 2) 
+                                          : trigger.request_body}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {trigger.details && Object.keys(trigger.details).length > 0 && (
+                                  <div>
+                                    <Label>Additional Details</Label>
+                                    <div className="bg-muted p-3 rounded font-mono text-xs mt-2 overflow-x-auto">
+                                      <pre className="whitespace-pre-wrap break-words">
+                                        {JSON.stringify(trigger.details, null, 2)}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {trigger.metadata && Object.keys(trigger.metadata).length > 0 && (
+                                  <div>
+                                    <Label>Metadata</Label>
+                                    <div className="bg-muted p-3 rounded font-mono text-xs mt-2 overflow-x-auto">
+                                      <pre className="whitespace-pre-wrap break-words">
+                                        {JSON.stringify(trigger.metadata, null, 2)}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

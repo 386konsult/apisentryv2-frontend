@@ -101,14 +101,18 @@ const Playground = () => {
       }
       // Append endpoint path safely
       const final = new URL(path || '/', u.origin + u.pathname.replace(/\/$/, '') + '/');
-      // Ensure forced port persists
+      // Ensure forced port persists during construction
       if (port) final.port = port;
-      return final.toString();
+      // REMOVE port from returned string (display-only)
+      final.port = '';
+      return final.toString().replace(/\/$/, '');
     } catch {
       // Fallback simple concat
       const cleanBase = url.replace(/\/$/, '');
       const cleanPath = (path || '/').startsWith('/') ? path : `/${path}`;
-      return port ? `${cleanBase}:${port}${cleanPath}` : `${cleanBase}${cleanPath}`;
+      // Build string (may include :port) then strip any ":<digits>" after host for display
+      const raw = port ? `${cleanBase}:${port}${cleanPath}` : `${cleanBase}${cleanPath}`;
+      return raw.replace(/:\d+(?=\/|$)/, '');
     }
   };
 
@@ -293,14 +297,14 @@ const Playground = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Developer Playground</h1>
-          <p className="text-muted-foreground">
-            Test your WAF rules and security policies in real-time
-          </p>
-        </div>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight">Developer Playground{platform && <span className="text-lg font-normal text-muted-foreground ml-2"> • {platform.name}</span>}</h1>
+                <p className="text-muted-foreground">
+                  Test your WAF rules and security policies in real-time
+                </p>
+              </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />

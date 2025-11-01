@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,142 +47,29 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import apiService from '@/services/api';
 
-// Sample alert data
-const SAMPLE_ALERTS = [
-  {
-    id: '1',
-    name: 'High Volume SQL Injection Attempts',
-    type: 'signature_attack',
-    status: 'active',
-    severity: 'high',
-    description: 'Multiple SQL injection attempts detected from suspicious IPs',
-    createdAt: '2024-01-15T10:30:00Z',
-    lastTriggered: '2024-01-15T14:22:00Z',
-    triggerCount: 47,
-    sourceIPs: ['192.168.1.100', '10.0.0.45', '203.0.113.12'],
-    endpoints: ['/api/users', '/api/login', '/api/search'],
-    notifications: ['slack', 'email'],
-    rules: ['SQL Injection Detection', 'XSS Prevention'],
-    incidentId: null,
-  },
-  {
-    id: '2',
-    name: 'Brute Force Login Attempts',
-    type: 'brute_force',
-    status: 'active',
-    severity: 'high',
-    description: 'Multiple failed login attempts detected from single IP',
-    createdAt: '2024-01-15T09:15:00Z',
-    lastTriggered: '2024-01-15T14:18:00Z',
-    triggerCount: 23,
-    sourceIPs: ['198.51.100.42'],
-    endpoints: ['/api/auth/login'],
-    notifications: ['slack', 'teams'],
-    rules: ['Brute Force Protection'],
-    incidentId: null,
-  },
-  {
-    id: '3',
-    name: 'Response Time Anomaly',
-    type: 'response_anomaly',
-    status: 'active',
-    severity: 'medium',
-    description: 'API response times exceeding threshold on user endpoints',
-    createdAt: '2024-01-15T08:45:00Z',
-    lastTriggered: '2024-01-15T13:55:00Z',
-    triggerCount: 12,
-    sourceIPs: ['all'],
-    endpoints: ['/api/users', '/api/profile'],
-    notifications: ['email'],
-    rules: ['Response Time Monitoring'],
-    incidentId: 'inc-001',
-  },
-  {
-    id: '4',
-    name: 'Unauthorized Access Attempts',
-    type: 'invalid_authorization',
-    status: 'paused',
-    severity: 'medium',
-    description: '401 errors detected on admin endpoints',
-    createdAt: '2024-01-14T16:20:00Z',
-    lastTriggered: '2024-01-15T11:30:00Z',
-    triggerCount: 8,
-    sourceIPs: ['172.16.0.25', '192.168.2.100'],
-    endpoints: ['/api/admin', '/api/settings'],
-    notifications: ['webhook'],
-    rules: ['Authorization Monitoring'],
-    incidentId: null,
-  },
-  {
-    id: '5',
-    name: 'Server Error Spike',
-    type: 'response_failure',
-    status: 'active',
-    severity: 'high',
-    description: 'Increased 500 errors on payment processing endpoint',
-    createdAt: '2024-01-15T12:00:00Z',
-    lastTriggered: '2024-01-15T14:25:00Z',
-    triggerCount: 15,
-    sourceIPs: ['all'],
-    endpoints: ['/api/payments'],
-    notifications: ['slack', 'email', 'teams'],
-    rules: ['Error Rate Monitoring'],
-    incidentId: 'inc-001',
-  },
-  {
-    id: '6',
-    name: 'Rate Limit Exceeded',
-    type: 'rate_anomaly',
-    status: 'resolved',
-    severity: 'low',
-    description: 'Request rate exceeded normal patterns',
-    createdAt: '2024-01-14T14:30:00Z',
-    lastTriggered: '2024-01-14T18:45:00Z',
-    triggerCount: 3,
-    sourceIPs: ['203.0.113.50'],
-    endpoints: ['/api/data'],
-    notifications: ['email'],
-    rules: ['Rate Limiting'],
-    incidentId: null,
-  },
-];
-
-const SAMPLE_INCIDENTS = [
-  {
-    id: 'inc-001',
-    name: 'API Performance Degradation',
-    status: 'investigating',
-    severity: 'high',
-    description: 'Multiple alerts indicating API performance issues',
-    createdAt: '2024-01-15T13:00:00Z',
-    alertIds: ['3', '5'],
-    assignedTo: 'Security Team',
-    priority: 'P1',
-  },
-];
-
-const ALERT_TYPES = {
-  rate_anomaly: { name: 'Rate Anomaly', icon: Zap, color: 'text-orange-500' },
-  response_anomaly: { name: 'Response Anomaly', icon: Clock, color: 'text-blue-500' },
+const ALERT_TYPES: Record<string, { name: string; icon: any; color?: string }> = {
+  rate_anomaly: { name: 'Rate Anomaly', icon: Zap, color: 'text-yellow-500' },
+  response_anomaly: { name: 'Response Anomaly', icon: Activity, color: 'text-indigo-500' },
   response_failure: { name: 'Response Failure', icon: AlertTriangle, color: 'text-red-500' },
-  invalid_authorization: { name: 'Invalid Authorization', icon: Shield, color: 'text-purple-500' },
-  brute_force: { name: 'Brute Force', icon: User, color: 'text-red-600' },
-  signature_attack: { name: 'Signature Attack', icon: Shield, color: 'text-yellow-500' },
-  custom_rules: { name: 'Custom Rules', icon: Settings, color: 'text-green-500' },
+  invalid_authorization: { name: 'Invalid Auth', icon: Shield, color: 'text-rose-500' },
+  brute_force: { name: 'Brute Force', icon: User, color: 'text-pink-500' },
+  signature_attack: { name: 'Signature Attack', icon: AlertCircle, color: 'text-purple-500' },
+  custom_rules: { name: 'Custom Rules', icon: Settings, color: 'text-gray-500' },
 };
 
-const NOTIFICATION_ICONS = {
-  slack: MessageSquare,
-  teams: MessageSquare,
+const NOTIFICATION_ICONS: Record<string, any> = {
   email: Mail,
+  slack: MessageSquare,
   webhook: Webhook,
+  sms: MessageSquare,
 };
 
 const SecurityAlerts = () => {
   const navigate = useNavigate();
-  const [alerts, setAlerts] = useState(SAMPLE_ALERTS);
-  const [incidents, setIncidents] = useState(SAMPLE_INCIDENTS);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [incidents, setIncidents] = useState<any[]>([]);
   const [selectedAlerts, setSelectedAlerts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -191,6 +78,61 @@ const SecurityAlerts = () => {
   const [showCreateIncident, setShowCreateIncident] = useState(false);
   const [newIncidentName, setNewIncidentName] = useState('');
   const [newIncidentDescription, setNewIncidentDescription] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [platform, setPlatform] = useState<any>(null); // Added for platform display
+
+  useEffect(() => {
+    const fetchAlerts = async () => {
+      setLoading(true);
+      try {
+        const platformId = localStorage.getItem('selected_platform_id');
+        const apiAlerts = await apiService.getAlerts(platformId || undefined);
+        
+        // Fetch platform details
+        if (platformId) {
+          apiService.getPlatformDetails(platformId).then(setPlatform).catch(() => {});
+        }
+        
+        // Map API fields to component expected structure
+        const mappedAlerts = apiAlerts.map(alert => ({
+          id: alert.id,
+          platform: alert.platform,
+          alert_type: alert.alert_type,
+          severity: alert.severity,
+          name: alert.name,
+          description: alert.description,
+          status: alert.status,
+          created_at: alert.created_at,
+          last_triggered: alert.last_triggered,
+          trigger_count: alert.trigger_count,
+          configuration: alert.configuration,
+          notification_channels: alert.notification_channels,
+          acknowledged: alert.acknowledged,
+          incident_id: alert.incident_id,
+          // Additional derived fields for component
+          type: alert.alert_type,
+          lastTriggered: alert.last_triggered,
+          triggerCount: alert.trigger_count,
+          notifications: alert.notification_channels,
+          incidentId: alert.incident_id,
+        }));
+        
+        setAlerts(mappedAlerts);
+        
+        // Fetch incidents separately
+        const apiIncidents = await apiService.getIncidents(platformId || undefined);
+        setIncidents(apiIncidents);
+      } catch (error) {
+        console.error('Error fetching alerts:', error);
+        setAlerts([]);
+        setIncidents([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAlerts();
+  }, []);
 
   const filteredAlerts = alerts.filter(alert => {
     const matchesSearch = alert.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -246,10 +188,16 @@ const SecurityAlerts = () => {
     setShowCreateIncident(false);
   };
 
-  const handleAlertStatusChange = (alertId: string, newStatus: string) => {
-    setAlerts(prev => prev.map(alert => 
-      alert.id === alertId ? { ...alert, status: newStatus } : alert
-    ));
+  const handleAlertStatusChange = async (alertId: string, newStatus: string) => {
+    try {
+      await apiService.updateAlertStatus(alertId, newStatus);
+      setAlerts(prev => prev.map(alert => 
+        alert.id === alertId ? { ...alert, status: newStatus } : alert
+      ));
+      // Removed incident update logic to keep incidents separate
+    } catch (error) {
+      console.error('Error updating alert status:', error);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -271,7 +219,15 @@ const SecurityAlerts = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
+    if (!dateString) return '-';
+    dateString = dateString.replace(/\+00:00Z$/, 'Z');
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '-';
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '-';
+    }
   };
 
   return (
@@ -279,7 +235,7 @@ const SecurityAlerts = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Security Alerts</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Security Alerts{platform && <span className="text-lg font-normal text-muted-foreground ml-2"> • {platform.name}</span>}</h1>
           <p className="text-muted-foreground">
             Monitor and manage security alerts and incidents
           </p>
@@ -396,7 +352,7 @@ const SecurityAlerts = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {incidents.filter(i => i.status === 'investigating').length}
+              {incidents.length}
             </div>
             <p className="text-xs text-muted-foreground">
               Under investigation
@@ -558,15 +514,15 @@ const SecurityAlerts = () => {
                         <span className="text-xs font-mono">{alert.triggerCount}</span>
                       </td>
                       <td className="px-3 py-2">
-                        <span className="text-xs truncate max-w-[100px]" title={formatDate(alert.lastTriggered)}>
-                          {new Date(alert.lastTriggered).toLocaleDateString()}
+                        <span className="text-xs truncate max-w-[100px]" title={alert.lastTriggered ? formatDate(alert.lastTriggered) : '-'}>
+                          {alert.lastTriggered ? new Date(alert.lastTriggered).toLocaleDateString() : '-'}
                         </span>
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex space-x-1">
                           {alert.notifications.slice(0, 3).map(notif => {
                             const Icon = NOTIFICATION_ICONS[notif as keyof typeof NOTIFICATION_ICONS];
-                            return Icon ? <Icon key={notif} className="h-3 w-3 flex-shrink-0" title={notif} /> : null;
+                            return Icon ? <Icon key={notif} className="h-3 w-3 flex-shrink-0" aria-label={notif} role="img" /> : null;
                           })}
                           {alert.notifications.length > 3 && (
                             <span className="text-xs text-muted-foreground">+{alert.notifications.length - 3}</span>
@@ -614,7 +570,7 @@ const SecurityAlerts = () => {
         </CardContent>
       </Card>
 
-      {/* Incidents Section */}
+      {/* Active Incidents Section */}
       {incidents.length > 0 && (
         <Card>
           <CardHeader>
@@ -623,7 +579,7 @@ const SecurityAlerts = () => {
               Active Incidents
             </CardTitle>
             <CardDescription>
-              Security incidents created from grouped alerts
+              Active incidents requiring attention
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -634,7 +590,7 @@ const SecurityAlerts = () => {
                     <div className="flex items-center space-x-3">
                       <AlertTriangle className="h-5 w-5 text-orange-500" />
                       <div>
-                        <h3 className="font-medium">{incident.name}</h3>
+                        <h3 className="font-medium">{incident.title || incident.name}</h3>
                         <p className="text-sm text-muted-foreground">{incident.description}</p>
                       </div>
                     </div>
@@ -642,23 +598,22 @@ const SecurityAlerts = () => {
                       <Badge className={getSeverityColor(incident.severity)}>
                         {incident.severity}
                       </Badge>
-                      <Badge variant="outline">{incident.priority}</Badge>
-                      <Badge variant="secondary">{incident.status}</Badge>
+                      <Badge variant="outline">{incident.resolved ? 'Resolved' : 'Open'}</Badge>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                     <div>
                       <Label className="text-xs text-muted-foreground">Created</Label>
-                      <p>{formatDate(incident.createdAt)}</p>
+                      <p>{incident.created_at ? formatDate(incident.created_at) : '-'}</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">Assigned To</Label>
-                      <p>{incident.assignedTo}</p>
+                      <Label className="text-xs text-muted-foreground">Client IP</Label>
+                      <p>{incident.client_ip || '-'}</p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">Related Alerts</Label>
-                      <p>{incident.alertIds.length} alerts</p>
+                      <Label className="text-xs text-muted-foreground">Endpoint</Label>
+                      <p>{incident.endpoint || '-'}</p>
                     </div>
                   </div>
                 </div>

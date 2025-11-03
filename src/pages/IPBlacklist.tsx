@@ -2,7 +2,13 @@ import React, { useEffect, useState } from "react";
 import { apiService } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardDescription,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -36,7 +42,8 @@ import {
 import { usePlatform } from "@/contexts/PlatformContext";
 
 const IPBlacklist = () => {
-  const { platform } = usePlatform();
+  const platform = (usePlatform() as any).platform;
+  const [platformName, setPlatformName] = useState<string | null>(null);
   const [blacklist, setBlacklist] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newIP, setNewIP] = useState("");
@@ -54,7 +61,8 @@ const IPBlacklist = () => {
       if (!platformId) throw new Error("No platform selected");
       const response = await apiService.getBlacklist(platformId);
       // Handle both array and object with results property
-      const blacklistArray = Array.isArray(response) ? response : (response.results || response.data || []);
+      const respAny = response as any;
+      const blacklistArray = Array.isArray(respAny) ? respAny : (respAny.results || respAny.data || []);
       setBlacklist(blacklistArray);
     } catch (error) {
       toast({
@@ -130,6 +138,21 @@ const IPBlacklist = () => {
     fetchBlacklist();
   }, []);
 
+  useEffect(() => {
+    const fetchPlatformName = async () => {
+      try {
+        const platformId = localStorage.getItem("selected_platform_id");
+        if (!platformId) throw new Error("No platform selected");
+        const platformDetails = await apiService.getPlatformDetails(platformId);
+        setPlatformName(platformDetails.name || "Unknown Platform");
+      } catch {
+        setPlatformName("Unknown Platform");
+      }
+    };
+
+    fetchPlatformName();
+  }, []);
+
   const filteredBlacklist = blacklist.filter((item) =>
     item.ip?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -141,9 +164,9 @@ const IPBlacklist = () => {
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words">
             IP Blacklist
-            {platform && (
+            {platformName && (
               <span className="text-base sm:text-lg font-normal text-muted-foreground ml-2 break-words">
-                • {platform.name}
+                • {platformName}
               </span>
             )}
           </h1>
@@ -183,7 +206,7 @@ const IPBlacklist = () => {
             <Activity className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{platform?.name || "N/A"}</div>
+            <div className="text-2xl font-bold">{platformName || "Unknown Platform"}</div>
             <p className="text-xs text-muted-foreground">Current platform</p>
           </CardContent>
         </Card>

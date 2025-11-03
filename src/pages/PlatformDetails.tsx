@@ -82,7 +82,6 @@ const PlatformDetails = () => {
           } else {
             analyticsData = data.analytics;
           }
-          console.log('Analytics data for 1y:', analyticsData); // Detailed log
           setAnalytics(analyticsData);
         }
       })
@@ -120,7 +119,6 @@ const PlatformDetails = () => {
           } else {
             analyticsData = data.analytics;
           }
-          console.log('Traffic analytics data for', trafficTimeRange, ':', analyticsData); // Detailed log
 
           // Build trafficData from method_status_breakdown for stacked bars
           if (analyticsData.method_status_breakdown) {
@@ -176,7 +174,6 @@ const PlatformDetails = () => {
           } else {
             analyticsData = data.analytics;
           }
-          console.log('Threat analytics data for', threatTimeRange, ':', analyticsData); // Detailed log
 
           // Threat types pie chart
           if (analyticsData.status_code_breakdown) {
@@ -248,12 +245,10 @@ const PlatformDetails = () => {
   }, [id]);
 
   useEffect(() => {
-    console.log('Traffic time range changed:', trafficTimeRange); // Log when timeRange changes
     fetchTrafficData();
   }, [id, trafficTimeRange, trafficCustomRange]);
 
   useEffect(() => {
-    console.log('Threat time range changed:', threatTimeRange); // Log when timeRange changes
     fetchThreatData();
   }, [id, threatTimeRange, threatCustomRange]);
 

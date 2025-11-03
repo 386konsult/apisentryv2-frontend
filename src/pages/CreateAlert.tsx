@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   Plus,
   X,
+  Activity,
   Bell,
   Shield,
   Clock,
@@ -26,6 +27,7 @@ import {
   Webhook,
 } from 'lucide-react';
 import apiService from '@/services/api';
+import { useToast } from '@/hooks/use-toast';
 
 const ALERT_TYPES = [
   {
@@ -103,6 +105,8 @@ const ATTACK_SIGNATURES = [
 
 const CreateAlert = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedAlertType, setSelectedAlertType] = useState<string>('');
   const [notificationChannels, setNotificationChannels] = useState<string[]>([]);
   const [selectedAttacks, setSelectedAttacks] = useState<string[]>([]);
@@ -194,6 +198,7 @@ const CreateAlert = () => {
   };
 
   const handleSubmit = async () => {
+    setIsSubmitting(true);
     try {
       const platformId = localStorage.getItem('selected_platform_id');
       if (!platformId) throw new Error('No platform selected');
@@ -221,12 +226,55 @@ const CreateAlert = () => {
       };
 
       await apiService.createAlert(alertData);
-      
-      // Navigate back to security alerts
+
+      toast({
+        title: 'Alert created',
+        description: 'The alert was created successfully.',
+        variant: 'default',
+      });
+
       navigate('/security-alerts');
-    } catch (error) {
-      console.error('Error creating alert:', error);
-      // Handle error (show toast, etc.)
+    } catch (error: any) {
+      if (error?.body) {
+        const body = error.body;
+        let message = '';
+
+        if (typeof body === 'string') {
+          message = body;
+        } else if (body.detail) {
+          message = String(body.detail);
+        } else if (body.non_field_errors && Array.isArray(body.non_field_errors)) {
+          message = String(body.non_field_errors[0]);
+        } else {
+          const keys = Object.keys(body || {});
+          if (keys.length > 0) {
+            const first = body[keys[0]];
+            if (Array.isArray(first) && first.length > 0) {
+              message = `${keys[0]}: ${first[0]}`;
+            } else if (typeof first === 'string') {
+              message = `${keys[0]}: ${first}`;
+            } else {
+              message = JSON.stringify(body);
+            }
+          } else {
+            message = error.message || 'Failed to create alert.';
+          }
+        }
+
+        toast({
+          title: 'Error creating alert',
+          description: message.length > 200 ? message.slice(0,200) + '…' : message,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error creating alert',
+          description: error?.message || 'Failed to create alert.',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -638,13 +686,25 @@ const CreateAlert = () => {
 
   return (
     <div className="space-y-6 p-4 max-w-full overflow-hidden">
+      {/* Loading overlay while submitting */}
+      {isSubmitting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="p-4 rounded-md bg-white dark:bg-slate-800 shadow flex items-center space-x-3">
+            <Activity className="h-5 w-5 animate-spin" />
+            <span className="font-medium">Creating alert…</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={() => navigate('/threat-logs')}
+            disabled={isSubmitting}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Threat Logs
@@ -741,18 +801,30 @@ const CreateAlert = () => {
       {/* Action Buttons */}
       <div className="flex justify-end space-x-4">
         <Button
+          type="button"
           variant="outline"
           onClick={() => navigate('/threat-logs')}
+          disabled={isSubmitting}
         >
           Cancel
         </Button>
         <Button
+          type="button"
           onClick={handleSubmit}
-          disabled={!selectedAlertType || notificationChannels.length === 0}
+          disabled={!selectedAlertType || notificationChannels.length === 0 || isSubmitting}
           className="gradient-primary"
         >
-          <Bell className="h-4 w-4 mr-2" />
-          Create Alert
+          {isSubmitting ? (
+            <>
+              <Activity className="h-4 w-4 mr-2 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            <>
+              <Bell className="h-4 w-4 mr-2" />
+              Create Alert
+            </>
+          )}
         </Button>
       </div>
     </div>

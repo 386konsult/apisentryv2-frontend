@@ -123,7 +123,6 @@ const SecurityAlerts = () => {
         // Triggers API endpoint doesn't exist yet - set to empty array for now
         setTriggers([]);
       } catch (error) {
-        console.error('Error fetching alerts:', error);
         setAlerts([]);
         setTriggers([]);
       } finally {
@@ -163,10 +162,6 @@ const SecurityAlerts = () => {
   const handleCreateIncident = (data: IncidentFormData) => {
     // Note: Incident creation may need backend API call in production
     // TODO: Implement incident creation via API if needed
-    console.log('Creating incident:', {
-      ...data,
-      alertIds: selectedAlerts,
-    });
 
     toast({
       title: "Incident Created",
@@ -184,9 +179,8 @@ const SecurityAlerts = () => {
       setAlerts(prev => prev.map(alert => 
         alert.id === alertId ? { ...alert, status: newStatus } : alert
       ));
-      // Removed incident update logic to keep incidents separate
     } catch (error) {
-      console.error('Error updating alert status:', error);
+      // removed console.error debug output
     }
   };
 

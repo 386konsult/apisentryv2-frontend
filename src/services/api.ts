@@ -348,13 +348,46 @@ class APIService {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(JSON.stringify(errorData) || `HTTP error! status: ${response.status}`);
+        // Try to parse error body, but fall back gracefully
+        const text = await response.text().catch(() => '');
+        let errorData: any = {};
+        if (text) {
+          try {
+            errorData = JSON.parse(text);
+          } catch {
+            errorData = text;
+          }
+        }
+
+        // Debug logs removed in production build
+        // Create an Error instance and attach structured data so callers can inspect it
+        const err = new Error(
+          (errorData && (errorData.detail || errorData.message)) ||
+          (typeof errorData === 'string' ? errorData : JSON.stringify(errorData)) ||
+          `HTTP error! status: ${response.status}`
+        );
+        (err as any).status = response.status;
+        (err as any).statusText = response.statusText;
+        (err as any).body = errorData;
+
+        throw err;
       }
 
-      return await response.json();
+      // Handle empty response bodies (204 or no content)
+      const text = await response.text().catch(() => '');
+      if (!text) {
+        // Return empty object when no JSON body is present
+        return {} as T;
+      }
+
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        // If JSON.parse fails, return raw text as any to avoid crashing the app
+        return (text as unknown) as T;
+      }
     } catch (error) {
-      console.error('API request failed:', error);
+      // debug logs removed
       throw error;
     }
   }

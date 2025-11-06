@@ -654,14 +654,28 @@ class APIService {
     return await this.request<any[]>(`/incidents/${query}`);
   }
 
-  // Get triggers for alerts
-  async getTriggers(alertId?: string, platformId?: string): Promise<any[]> {
-    let query = '';
-    const params: string[] = [];
-    if (alertId) params.push(`alert_id=${alertId}`);
-    if (platformId) params.push(`platform_uuid=${platformId}`);
-    if (params.length > 0) query = '?' + params.join('&');
-    return await this.request<any[]>(`/triggers/${query}`);
+  // Create a new incident
+  async createIncident(incidentData: Record<string, any>): Promise<any> {
+    // incidentData should include platform_uuid
+    return await this.request<any>('/incidents/', {
+      method: 'POST',
+      body: JSON.stringify(incidentData),
+    });
+  }
+
+  // Update an existing incident
+  async updateIncident(incidentId: string, incidentData: Record<string, any>): Promise<any> {
+    // Ensure platform_uuid is included in update payload
+    if (!incidentData.platform_uuid) {
+      const platformId = this.getPlatformId();
+      if (platformId) {
+        incidentData.platform_uuid = platformId;
+      }
+    }
+    return await this.request<any>(`/incidents/${incidentId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(incidentData),
+    });
   }
 }
 

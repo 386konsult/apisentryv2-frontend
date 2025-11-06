@@ -154,9 +154,12 @@ const generateSampleIncidents = (): Incident[] => {
 };
 
 const Incidents = () => {
-  const { platform } = usePlatform();
+  // get selected platform id from context
+  const { selectedPlatformId } = usePlatform();
+  const [platform, setPlatform] = useState<any>(null);
   const { toast } = useToast();
-  const [incidents, setIncidents] = useState<Incident[]>(generateSampleIncidents());
+  const [incidents, setIncidents] = useState<Incident[]>([]); // start empty, load from API
+  const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
@@ -171,67 +174,211 @@ const Incidents = () => {
         const usersData = await apiService.getUsers();
         setUsers(usersData);
       } catch (error) {
-        console.error("Error fetching users:", error);
+        // log error for debugging
+        console.error("Incidents: error fetching users", error);
       }
     };
     fetchUsers();
   }, []);
 
+  // fetch platform details (name, etc.) when selectedPlatformId changes
+  useEffect(() => {
+    if (!selectedPlatformId) {
+      setPlatform(null);
+      return;
+    }
+    let mounted = true;
+    apiService.getPlatformDetails(selectedPlatformId)
+      .then(data => { if (mounted) setPlatform(data); })
+      .catch(() => { if (mounted) setPlatform(null); });
+    return () => { mounted = false; };
+  }, [selectedPlatformId]);
+
+  // extract fetchIncidents so we can call it after create/update
+  const fetchIncidents = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const platformId = selectedPlatformId || localStorage.getItem("selected_platform_id");
+      const data = await apiService.getIncidents(platformId || undefined);
+      // Normalize server response to Incident[]
+      const normalized = (data || []).map((it: any) => ({
+        id: it.id,
+        title: it.title,
+        severity: it.severity,
+        status: it.status,
+        category: it.category,
+        impactedEndpoints: it.impacted_endpoints || it.impactedEndpoints || [],
+        sourceIPs: it.source_ips || it.sourceIPs || "",
+        associatedAlertIds: it.associated_alert_ids || it.associatedAlertIds || [],
+        summary: it.summary || "",
+        assignedTo: it.assigned_to || it.assignedTo || "",
+        containmentActions: it.containment_actions || it.containmentActions || [],
+        nextStep: it.next_step || it.nextStep || "",
+        customerDataExposure: it.customer_data_exposure || it.customerDataExposure || "no",
+        dataClass: it.data_class || it.dataClass || "",
+        requiresCustomerNotification: it.requires_customer_notification || it.requiresCustomerNotification || "no",
+        regulatoryImpact: it.regulatory_impact || it.regulatoryImpact || "None",
+        createdAt: it.created_at || it.createdAt || new Date().toISOString(),
+        updatedAt: it.updated_at || it.updatedAt || new Date().toISOString(),
+        responseNote: it.response_note || it.responseNote,
+        actionsTaken: it.actions_taken || it.actionsTaken,
+        lessonsLearned: it.lessons_learned || it.lessonsLearned,
+      }));
+      setIncidents(normalized);
+    } catch (error: any) {
+      // log error for debugging
+      console.error("Incidents: error fetching incidents", error);
+      toast({
+        title: "Error loading incidents",
+        description: error?.message || "Could not fetch incidents",
+        variant: "destructive",
+      });
+      setIncidents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedPlatformId, toast]);
+
+  // call fetchIncidents when platform changes (or on mount)
+  useEffect(() => {
+    fetchIncidents();
+  }, [fetchIncidents]);
+
+  // Guard title/summary access to avoid undefined.toLowerCase errors
   const filteredIncidents = incidents.filter((incident) => {
-    const matchesSearch =
-      incident.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      incident.summary.toLowerCase().includes(searchTerm.toLowerCase());
+    const title = (incident.title || '').toLowerCase();
+    const summary = (incident.summary || '').toLowerCase();
+    const q = searchTerm.toLowerCase();
+    const matchesSearch = title.includes(q) || summary.includes(q);
     const matchesStatus = statusFilter === "all" || incident.status === statusFilter;
     const matchesSeverity = severityFilter === "all" || incident.severity === severityFilter;
     return matchesSearch && matchesStatus && matchesSeverity;
   });
 
-  const handleCreateIncident = (data: IncidentFormData) => {
-    const newIncident: Incident = {
-      ...data,
-      id: `inc-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setIncidents((prev) => [newIncident, ...prev]);
-    setShowCreateModal(false);
-    toast({
-      title: "Incident Created",
-      description: "New incident has been created successfully.",
-      variant: "default",
-    });
-  };
+  const handleCreateIncident = async (data: IncidentFormData) => {
+		try {
+			setLoading(true);
+			const platformId = platform?.id || localStorage.getItem("selected_platform_id");
+			if (!platformId) throw new Error("No platform selected");
 
-  const handleUpdateIncident = (data: any) => {
-    if (!selectedIncident) return;
+			// Build structured associated_alerts: [{ alert_id, incident_type }]
+			const modalIds = Array.isArray(data.associatedAlertIds) ? [...data.associatedAlertIds] : [];
+			const associated_alerts = modalIds.map((id) => ({
+				alert_id: id,
+				incident_type: (data as any).incident_type || "rate_anomaly",
+			}));
 
-    const updatedIncident: Incident = {
-      ...data,
-      id: selectedIncident.id,
-      createdAt: selectedIncident.createdAt,
-      updatedAt: new Date().toISOString(),
-      responseNote: data.status === "Closed" ? (data.responseNote || data.nextStep) : (data.responseNote || selectedIncident.responseNote),
-      actionsTaken: data.status === "Closed" ? (data.actionsTaken || data.summary) : (data.actionsTaken || selectedIncident.actionsTaken),
-      lessonsLearned: data.status === "Closed" ? (data.lessonsLearned || data.nextStep) : (data.lessonsLearned || selectedIncident.lessonsLearned),
-    };
+			// map UI keys to backend expected snake_case payload
+			const payload: Record<string, any> = {
+				platform_uuid: platformId,
+				title: data.title,
+				severity: data.severity,
+				status: data.status,
+				category: data.category,
+				impacted_endpoints: data.impactedEndpoints,
+				source_ips: data.sourceIPs,
+				// structured associations
+				associated_alerts,
+				// keep array of ids as well (optional)
+				associated_alert_ids: modalIds,
+				summary: data.summary,
+				assigned_to: data.assignedTo,
+				containment_actions: data.containmentActions,
+				next_step: data.nextStep,
+				customer_data_exposure: data.customerDataExposure,
+				data_class: data.dataClass,
+				requires_customer_notification: data.requiresCustomerNotification,
+				regulatory_impact: data.regulatoryImpact,
+			};
 
-    setIncidents((prev) =>
-      prev.map((inc) => (inc.id === selectedIncident.id ? updatedIncident : inc))
-    );
+			await apiService.createIncident(payload);
 
-    // Generate PDF if status is Closed
-    if (data.status === "Closed") {
-      generatePDFReport(updatedIncident);
-    }
+			// Refresh from server to ensure consistent data (prevents blank UI / stale state)
+			await fetchIncidents();
 
-    setShowUpdateModal(false);
-    setSelectedIncident(null);
-    toast({
-      title: "Incident Updated",
-      description: "Incident has been updated successfully.",
-      variant: "default",
-    });
-  };
+			setShowCreateModal(false);
+			toast({
+				title: "Incident Created",
+				description: "New incident has been created successfully.",
+				variant: "default",
+			});
+		} catch (error: any) {
+			// log error for debugging
+			console.error("Incidents: error creating incident", error);
+			toast({
+				title: "Error creating incident",
+				description: error?.message || "Failed to create incident.",
+				variant: "destructive",
+			});
+		} finally {
+			setLoading(false);
+		}
+	};
+
+  const handleUpdateIncident = async (data: any) => {
+		if (!selectedIncident) return;
+
+		try {
+			setLoading(true);
+			// Build payload for update (snake_case)
+			const payload: Record<string, any> = {
+				title: data.title,
+				severity: data.severity,
+				status: data.status,
+				category: data.category,
+				impacted_endpoints: data.impactedEndpoints,
+				source_ips: data.sourceIPs,
+				// keep id list for backward compatibility
+				associated_alert_ids: data.associatedAlertIds,
+				summary: data.summary,
+				assigned_to: data.assignedTo,
+				containment_actions: data.containmentActions,
+				next_step: data.nextStep,
+				customer_data_exposure: data.customerDataExposure,
+				data_class: data.dataClass,
+				requires_customer_notification: data.requiresCustomerNotification,
+				regulatory_impact: data.regulatoryImpact,
+			};
+
+			// Build and include structured associated_alerts if provided
+			if (Array.isArray(data.associatedAlertIds) && data.associatedAlertIds.length > 0) {
+				payload.associated_alerts = data.associatedAlertIds.map((id: string) => ({
+					alert_id: id,
+					incident_type: (data as any).incident_type || "rate_anomaly",
+				}));
+			}
+
+			// If closing, include closure fields
+			if (data.status === "Closed") {
+				payload.response_note = data.responseNote;
+				payload.actions_taken = data.actionsTaken;
+				payload.lessons_learned = data.lessonsLearned;
+			}
+
+			await apiService.updateIncident(selectedIncident.id, payload);
+
+			// Refresh from server to show authoritative updated record and avoid blank UI
+			await fetchIncidents();
+
+			setShowUpdateModal(false);
+			setSelectedIncident(null);
+			toast({
+				title: "Incident Updated",
+			 description: "Incident has been updated successfully.",
+				variant: "default",
+			});
+		} catch (error: any) {
+			// log error for debugging
+			console.error("Incidents: error updating incident", error);
+			toast({
+				title: "Error updating incident",
+				description: error?.message || "Failed to update incident.",
+				variant: "destructive",
+			});
+		} finally {
+			setLoading(false);
+		}
+	};
 
   const generatePDFReport = (incident: Incident) => {
     const doc = new jsPDF();
@@ -641,7 +788,7 @@ const Incidents = () => {
             Security Incidents
             {platform && (
               <span className="text-base sm:text-lg font-normal text-muted-foreground ml-2 break-words">
-                • {platform.name}
+                • {platform.name || selectedPlatformId}
               </span>
             )}
           </h1>
@@ -777,8 +924,8 @@ const Incidents = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredIncidents.map((incident) => (
-                    <tr key={incident.id} className="border-b hover:bg-muted/30 transition-colors">
+                  {filteredIncidents.map((incident, _idx) => (
+                    <tr key={incident.id ?? `incident-${_idx}`} className="border-b hover:bg-muted/30 transition-colors">
                       <td className="px-3 py-2">
                         <div className="min-w-0">
                           <div className="font-medium truncate max-w-[240px]" title={incident.title}>
@@ -1120,8 +1267,8 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
             <div>
               <Label className="text-xs text-muted-foreground">Impacted Endpoints</Label>
               <div className="flex flex-wrap gap-2 mt-1">
-                {incident.impactedEndpoints.map((ep) => (
-                  <Badge key={ep} variant="secondary">
+                {incident.impactedEndpoints.map((ep, i) => (
+                  <Badge key={`${ep}-${i}`} variant="secondary">
                     {ep}
                   </Badge>
                 ))}

@@ -82,54 +82,54 @@ const SecurityAlerts = () => {
   const [loading, setLoading] = useState(true);
   const [platform, setPlatform] = useState<any>(null); // Added for platform display
 
-  useEffect(() => {
-    const fetchAlerts = async () => {
-      setLoading(true);
-      try {
-        const platformId = localStorage.getItem('selected_platform_id');
-        const apiAlerts = await apiService.getAlerts(platformId || undefined);
-        
-        // Fetch platform details
-        if (platformId) {
-          apiService.getPlatformDetails(platformId).then(setPlatform).catch(() => {});
-        }
-        
-        // Map API fields to component expected structure
-        const mappedAlerts = apiAlerts.map(alert => ({
-          id: alert.id,
-          platform: alert.platform,
-          alert_type: alert.alert_type,
-          severity: alert.severity,
-          name: alert.name,
-          description: alert.description,
-          status: alert.status,
-          created_at: alert.created_at,
-          last_triggered: alert.last_triggered,
-          trigger_count: alert.trigger_count,
-          configuration: alert.configuration,
-          notification_channels: alert.notification_channels,
-          acknowledged: alert.acknowledged,
-          incident_id: alert.incident_id,
-          // Additional derived fields for component
-          type: alert.alert_type,
-          lastTriggered: alert.last_triggered,
-          triggerCount: alert.trigger_count,
-          notifications: alert.notification_channels,
-          incidentId: alert.incident_id,
-        }));
-        
-        setAlerts(mappedAlerts);
-        
-        // Triggers API endpoint doesn't exist yet - set to empty array for now
-        setTriggers([]);
-      } catch (error) {
-        setAlerts([]);
-        setTriggers([]);
-      } finally {
-        setLoading(false);
+  // fetchAlerts is reusable so we can refresh after create/update
+  const fetchAlerts = async () => {
+    setLoading(true);
+    try {
+      const platformId = localStorage.getItem('selected_platform_id');
+      const apiAlerts = await apiService.getAlerts(platformId || undefined);
+      
+      // Fetch platform details
+      if (platformId) {
+        apiService.getPlatformDetails(platformId).then(setPlatform).catch(() => {});
       }
-    };
-    
+      
+      // Map API fields to component expected structure
+      const mappedAlerts = apiAlerts.map((alert: any) => ({
+        id: alert.id,
+        platform: alert.platform,
+        alert_type: alert.alert_type,
+        severity: alert.severity,
+        name: alert.name,
+        description: alert.description,
+        status: alert.status,
+        created_at: alert.created_at,
+        last_triggered: alert.last_triggered,
+        trigger_count: alert.trigger_count,
+        configuration: alert.configuration,
+        notification_channels: alert.notification_channels || [],
+        acknowledged: alert.acknowledged,
+        incident_id: alert.incident_id,
+        // Additional derived fields for component
+        type: alert.alert_type,
+        lastTriggered: alert.last_triggered,
+        triggerCount: alert.trigger_count,
+        notifications: alert.notification_channels || [],
+        incidentId: alert.incident_id,
+      }));
+      
+      setAlerts(mappedAlerts);
+      // Triggers API endpoint doesn't exist yet - set to empty array for now
+      setTriggers([]);
+    } catch (error) {
+      setAlerts([]);
+      setTriggers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchAlerts();
   }, []);
 
@@ -159,20 +159,72 @@ const SecurityAlerts = () => {
     }
   };
 
-  const handleCreateIncident = (data: IncidentFormData) => {
-    // Note: Incident creation may need backend API call in production
-    // TODO: Implement incident creation via API if needed
+  const handleCreateIncident = async (data: IncidentFormData) => {
+    try {
+      setLoading(true);
+      const platformId = platform?.id || localStorage.getItem('selected_platform_id');
+      if (!platformId) throw new Error('No platform selected');
 
-    toast({
-      title: "Incident Created",
-      description: "New incident has been created successfully.",
-      variant: "default",
-    });
+      // Merge selected alerts (from list) with any alert ids included in the modal data
+      const fromModal = Array.isArray(data.associatedAlertIds) ? [...data.associatedAlertIds] : [];
+      const combinedIds = Array.from(new Set([...(selectedAlerts || []), ...fromModal]));
 
-    setSelectedAlerts([]);
-    setShowCreateIncident(false);
+      // Build associated_alerts array with { alert_id, incident_type } as backend expects
+      const associated_alerts = combinedIds.map((id) => {
+        const found = alerts.find(a => a.id === id);
+        // prefer the alert's type, otherwise allow form to provide incident_type or fallback to 'rate_anomaly'
+        const incident_type = found?.alert_type || (data as any).incident_type || 'rate_anomaly';
+        return { alert_id: id, incident_type };
+      });
+
+      // Build payload in snake_case (backend expected)
+      const payload: Record<string, any> = {
+        platform_uuid: platformId,
+        title: data.title,
+        severity: data.severity,
+        status: data.status,
+        category: data.category,
+        impacted_endpoints: data.impactedEndpoints,
+        source_ips: data.sourceIPs,
+        // send new structured association expected by backend
+        associated_alerts,
+        // keep simple id array for backward compatibility (optional)
+        associated_alert_ids: combinedIds,
+        summary: data.summary,
+        assigned_to: data.assignedTo,
+        containment_actions: data.containmentActions,
+        next_step: data.nextStep,
+        customer_data_exposure: data.customerDataExposure,
+        data_class: data.dataClass,
+        requires_customer_notification: data.requiresCustomerNotification,
+        regulatory_impact: data.regulatoryImpact,
+      };
+ 
+      await apiService.createIncident(payload);
+ 
+      // Refresh alerts (and triggers) so UI reflects any incident links/changes
+      await fetchAlerts();
+ 
+      toast({
+        title: "Incident Created",
+        description: "New incident has been created successfully.",
+        variant: "default",
+      });
+ 
+      setSelectedAlerts([]);
+      setShowCreateIncident(false);
+    } catch (error: any) {
+      console.error('SecurityAlerts: error creating incident', error);
+      toast({
+        title: "Error creating incident",
+        description: error?.message || "Failed to create incident.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
-
+ 
   const handleAlertStatusChange = async (alertId: string, newStatus: string) => {
     try {
       await apiService.updateAlertStatus(alertId, newStatus);

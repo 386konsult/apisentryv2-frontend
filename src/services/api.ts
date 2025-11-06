@@ -204,7 +204,7 @@ class APIService {
     return Array.isArray(data) ? data : (data.results || []);
   }
 
-  // Get request logs for a platform
+  // Get request logs for a platform (returns array/result handling as before)
   async getPlatformRequestLogs(platformId: string, params?: { range?: string; start?: string; end?: string }): Promise<any[]> {
     const token = localStorage.getItem('auth_token');
     const query = params
@@ -229,6 +229,23 @@ class APIService {
     } else {
       return [];
     }
+  }
+
+  // Get threat (blocked) request logs for a platform — return raw parsed response so pagination meta is available
+  async getPlatformThreatLogs(platformId: string, params?: { range?: string; page?: string; start?: string; end?: string }): Promise<any> {
+    const token = localStorage.getItem('auth_token');
+    const query = params
+      ? '?' + new URLSearchParams(params as Record<string, string>).toString()
+      : '';
+    
+    const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;
+    
+    const res = await fetch(fullUrl, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    // return full parsed JSON (could be array or paginated object)
+    return res.json();
   }
   // Upload collection to platform
   async uploadCollection(platformId: string, collectionType: string, fileOrData: File | object): Promise<any> {

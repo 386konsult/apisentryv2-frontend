@@ -44,6 +44,10 @@ const ThreatLogs = () => {
   const [endpointFilter, setEndpointFilter] = useState("all");
   const [allLogs, setAllLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // pagination state
+  const [page, setPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number | null>(null);
+  const [pageSize, setPageSize] = useState<number>(100);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -62,26 +66,53 @@ const ThreatLogs = () => {
       const found = arr.find((p: any) => p.id === platformId);
       if (found) setPlatformName(found.name);
     }
+
     const fetchThreats = async () => {
+      setLoading(true);
       try {
-        // Send range parameter to backend for server-side filtering
-        const params: any = {};
+        // Send range and page parameters to backend so it returns blocked logs (page present triggers that branch)
+        const params: any = {
+          page: String(page ?? 1), // always include page (even page=1) so backend returns paginated blocked logs
+        };
+        // send both 'range' (backend-friendly) and explicit start/end ISO strings (preferred)
         if (timeRange && timeRange !== 'all') {
           params.range = timeRange;
+          const dates = getRangeDates(timeRange);
+          if (dates) {
+            params.start = dates.start.toISOString();
+            params.end = dates.end.toISOString();
+          }
         }
-        
-        const logs = await apiService.getPlatformRequestLogs(platformId, params);
-        
-        if (Array.isArray(logs)) {
-          setAllLogs(logs);
+
+        // use threat-specific endpoint (returns raw parsed JSON)
+        const res = await apiService.getPlatformThreatLogs(platformId, params);
+
+        // normalize returned logs array from various shapes and apply client-side range filter
+        let rawLogs: any[] = [];
+        if (Array.isArray(res)) {
+          rawLogs = res;
+          setTotalPages(null);
+        } else if (res && Array.isArray((res as any).logs)) {
+          rawLogs = (res as any).logs;
+          setPage(Number((res as any).page) || page);
+          setPageSize(Number((res as any).page_size) || pageSize);
+          setTotalPages(Number((res as any).total_pages) || null);
+        } else if (res && Array.isArray((res as any).results)) {
+          rawLogs = (res as any).results;
+          setTotalPages(null);
         } else {
-          setAllLogs([]);
+          rawLogs = [];
+          setTotalPages(null);
           toast({
             title: "Error loading threat logs",
             description: "Invalid data format received",
             variant: "destructive",
           });
         }
+
+        // Apply client-side filtering by selected time range so UI matches the selected range even if backend doesn't
+        const filteredByRange = applyClientRangeFilter(rawLogs, timeRange);
+        setAllLogs(filteredByRange);
       } catch (error) {
         setAllLogs([]);
         toast({
@@ -93,8 +124,9 @@ const ThreatLogs = () => {
         setLoading(false);
       }
     };
+
     fetchThreats();
-  }, [toast, navigate, timeRange]); // Re-added timeRange dependency
+  }, [toast, navigate, timeRange, page]); // depend on page so changing it re-fetches
 
   // Get all blocked threats (unfiltered for stats - from current time range)
   const allBlockedThreats = allLogs.filter(t => t.waf_blocked);
@@ -184,6 +216,93 @@ const ThreatLogs = () => {
 
   const getStatusColor = (waf_blocked: boolean) => {
     return waf_blocked ? "destructive" : "default";
+  };
+
+  const getRangeDates = (range: string) => {
+    if (!range || range === 'all') return null;
+    const now = new Date();
+    let start: Date;
+    switch (range) {
+      case '7d':
+        start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '1y':
+        start = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        return null;
+    }
+    return { start, end: now };
+  };
+
+  // Robust timestamp parser: supports numeric (s or ms) and common string formats
+  const parseLogTimestamp = (log: any): number | null => {
+    const raw = log?.timestamp ?? log?.created_at ?? log?.createdAt;
+    if (raw == null) return null;
+
+    // numeric timestamps (seconds or milliseconds)
+    if (typeof raw === "number") {
+      // seconds -> convert to ms, milliseconds -> keep
+      return raw < 1e12 ? raw * 1000 : raw;
+    }
+
+    if (typeof raw === "string") {
+      let s = raw.trim();
+      // handle weird "+00:00Z" occurrences by normalizing trailing tokens
+      s = s.replace(/\+00:00Z$/, "Z");
+
+      // Handle common "DD-MM-YYYY HH:MM" or "D-M-YYYY H:MM" pattern explicitly (e.g. "06-11-2025 17:50")
+      const ddmmyyyyRegex = /^(\d{1,2})-(\d{1,2})-(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/;
+      const m = s.match(ddmmyyyyRegex);
+      if (m) {
+        const day = Number(m[1]);
+        const month = Number(m[2]);
+        const year = Number(m[3]);
+        const hour = Number(m[4]);
+        const minute = Number(m[5]);
+        const second = m[6] ? Number(m[6]) : 0;
+        // Construct as UTC to avoid local timezone surprises
+        const ms = Date.UTC(year, month - 1, day, hour, minute, second);
+        return ms;
+      }
+
+      // If format is "YYYY-MM-DD HH:MM:SS" convert to ISO "YYYY-MM-DDTHH:MM:SS"
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(s)) {
+        s = s.replace(" ", "T");
+      }
+
+      // If there's no timezone information, assume UTC by appending "Z"
+      if (!/[zZ]|[+\-]\d{2}:\d{2}$/.test(s)) {
+        s = `${s}Z`;
+      }
+
+      const ms = Date.parse(s);
+      if (!isNaN(ms)) return ms;
+
+      // Fallback: strip fractional seconds and retry
+      const stripped = s.replace(/\.\d+/, "");
+      const ms2 = Date.parse(stripped);
+      if (!isNaN(ms2)) return ms2;
+    }
+
+    return null;
+  };
+
+  const applyClientRangeFilter = (logs: any[], range: string) => {
+    const dates = getRangeDates(range);
+    if (!dates) return logs;
+    const { start, end } = dates;
+    const startMs = start.getTime();
+    const endMs = end.getTime();
+
+    return logs.filter((l) => {
+      const ts = parseLogTimestamp(l);
+      if (ts == null) return false;
+      return ts >= startMs && ts <= endMs;
+    });
   };
 
   return (
@@ -608,6 +727,31 @@ const ThreatLogs = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pagination controls for paged blocked logs */}
+      {totalPages && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 mt-4">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            Prev
+          </Button>
+          <div className="text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={totalPages !== null && page >= (totalPages || 1)}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

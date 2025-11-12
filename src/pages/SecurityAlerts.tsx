@@ -119,8 +119,21 @@ const SecurityAlerts = () => {
       }));
       
       setAlerts(mappedAlerts);
-      // Triggers API endpoint doesn't exist yet - set to empty array for now
-      setTriggers([]);
+      // Fetch alert triggers (normalize paginated or array responses)
+      try {
+        const triggersRes = await apiService.getAlertTriggers(platformId || undefined, { page: '1', page_size: '100' });
+        if (Array.isArray(triggersRes)) {
+          setTriggers(triggersRes);
+        } else if (triggersRes && Array.isArray((triggersRes as any).triggers)) {
+          setTriggers((triggersRes as any).triggers);
+        } else if (triggersRes && Array.isArray((triggersRes as any).results)) {
+          setTriggers((triggersRes as any).results);
+        } else {
+          setTriggers([]);
+        }
+      } catch {
+        setTriggers([]);
+      }
     } catch (error) {
       setAlerts([]);
       setTriggers([]);

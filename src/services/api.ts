@@ -639,6 +639,21 @@ class APIService {
     return await this.request<any[]>(`/alerts/${query}`);
   }
 
+  // Get alert triggers (supports paginated or array responses)
+  async getAlertTriggers(platformId?: string, params?: { page?: string; page_size?: string; range?: string; start?: string; end?: string }): Promise<any> {
+    const token = localStorage.getItem('auth_token');
+    const baseQuery: Record<string, string> = {};
+    if (platformId) baseQuery.platform_uuid = platformId;
+    if (params) Object.assign(baseQuery, params);
+    const query = Object.keys(baseQuery).length ? '?' + new URLSearchParams(baseQuery).toString() : '';
+    const fullUrl = `${this.baseURL}/alerts/triggers/${query}`;
+    const res = await fetch(fullUrl, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    return res.json(); // could be array or paginated object { triggers, count, page, total_pages }
+  }
+
   // Create a new alert
   async createAlert(alertData: {
     platform_uuid: string;

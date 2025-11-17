@@ -48,6 +48,7 @@ import ForcePasswordReset from "./pages/ForcePasswordReset";
 import IPBlacklist from "./pages/IPBlacklist";
 import SecurityHub from "./pages/SecurityHub";
 import Incidents from "./pages/Incidents";
+import AuditLogs from "./pages/AuditLogs";
 
 const queryClient = new QueryClient();
 
@@ -185,6 +186,11 @@ const AppContent = () => {
                       <Route path="/incidents" element={
                         <ProtectedPlatformRoute>
                           <Incidents />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/audit-logs" element={
+                        <ProtectedPlatformRoute>
+                          <AuditLogs />
                         </ProtectedPlatformRoute>
                       } />
                       <Route path="*" element={<NotFound />} />

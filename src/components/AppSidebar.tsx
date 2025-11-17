@@ -41,6 +41,7 @@ const securityPlatformItems = [
   { title: "Threat Logs", url: "/threat-logs", icon: AlertTriangle },
   { title: "Security Alerts", url: "/security-alerts", icon: Bell },
   { title: "Incidents", url: "/incidents", icon: FileText },
+  { title: "Audit Logs", url: "/audit-logs", icon: Clock },
   { title: "API Endpoints", url: "/api-endpoints", icon: Globe },
   { title: "IP Blacklist", url: "/ip-blacklist", icon: Shield },
   { title: "Playground", url: "/playground", icon: Code },

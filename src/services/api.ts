@@ -680,6 +680,62 @@ class APIService {
     });
   }
 
+  // Update alert (full update)
+  async updateAlert(alertId: string, alertData: {
+    notification_channels?: string[];
+    slack_webhook?: string;
+    teams_webhook?: string;
+    email?: string;
+    webhook_url?: string;
+    [key: string]: any;
+  }): Promise<any> {
+    return await this.request<any>(`/alerts/${alertId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(alertData),
+    });
+  }
+
+  // Delete alert
+  async deleteAlert(alertId: string): Promise<void> {
+    await this.request(`/alerts/${alertId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Get audit logs
+  async getAuditLogs(params?: {
+    platform_id?: string;
+    resource_type?: string;
+    search?: string;
+    action?: string;
+    start_date?: string;
+    end_date?: string;
+    user?: string;
+    page?: string;
+    page_size?: string;
+  }): Promise<any> {
+    const platformId = params?.platform_id || this.getPlatformId();
+    if (!platformId) {
+      throw new Error('Platform ID is required for audit logs');
+    }
+
+    const queryParams: Record<string, string> = {
+      platform_id: platformId,
+    };
+
+    if (params?.resource_type) queryParams.resource_type = params.resource_type;
+    if (params?.search) queryParams.search = params.search;
+    if (params?.action) queryParams.action = params.action;
+    if (params?.start_date) queryParams.start_date = params.start_date;
+    if (params?.end_date) queryParams.end_date = params.end_date;
+    if (params?.user) queryParams.user = params.user;
+    if (params?.page) queryParams.page = params.page;
+    if (params?.page_size) queryParams.page_size = params.page_size;
+
+    const query = '?' + new URLSearchParams(queryParams).toString();
+    return await this.request<any>(`/audit-logs/${query}`);
+  }
+
   // Get incidents for a platform
   async getIncidents(platformId?: string): Promise<any[]> {
     const query = platformId ? `?platform_uuid=${platformId}` : '';

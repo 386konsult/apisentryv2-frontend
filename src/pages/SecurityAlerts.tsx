@@ -931,34 +931,30 @@ const SecurityAlerts = () => {
                                 
                                 {trigger.request_body && (
                                   <div>
-                                    <Label>Request Body</Label>
+                                    <Label>Evidence</Label>
+                                    <div className="bg-muted p-3 rounded font-mono text-xs mt-2 overflow-x-auto">
+                                      <p className="whitespace-pre-wrap break-words">{trigger.evidence}</p>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {trigger.headers && Object.keys(trigger.headers).length > 0 && (
+                                  <div>
+                                    <Label>Request Headers</Label>
                                     <div className="bg-muted p-3 rounded font-mono text-xs mt-2 overflow-x-auto">
                                       <pre className="whitespace-pre-wrap break-words">
-                                        {typeof trigger.request_body === 'object' 
-                                          ? JSON.stringify(trigger.request_body, null, 2) 
-                                          : trigger.request_body}
+                                        {JSON.stringify(trigger.headers, null, 2)}
                                       </pre>
                                     </div>
                                   </div>
                                 )}
                                 
-                                {trigger.details && Object.keys(trigger.details).length > 0 && (
+                                {trigger.extra && Object.keys(trigger.extra).length > 0 && (
                                   <div>
-                                    <Label>Additional Details</Label>
+                                    <Label>Extra Data</Label>
                                     <div className="bg-muted p-3 rounded font-mono text-xs mt-2 overflow-x-auto">
                                       <pre className="whitespace-pre-wrap break-words">
-                                        {JSON.stringify(trigger.details, null, 2)}
-                                      </pre>
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                {trigger.metadata && Object.keys(trigger.metadata).length > 0 && (
-                                  <div>
-                                    <Label>Metadata</Label>
-                                    <div className="bg-muted p-3 rounded font-mono text-xs mt-2 overflow-x-auto">
-                                      <pre className="whitespace-pre-wrap break-words">
-                                        {JSON.stringify(trigger.metadata, null, 2)}
+                                        {JSON.stringify(trigger.extra, null, 2)}
                                       </pre>
                                     </div>
                                   </div>

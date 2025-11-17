@@ -83,7 +83,7 @@ interface RequestLog {
 }
 
 const SecurityHub = () => {
-  const [logs, setLogs] = useState<RequestLog[]>([]);
+  const [allLogs, setAllLogs] = useState<any[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<RequestLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState<RequestLog | null>(null);
@@ -99,9 +99,6 @@ const SecurityHub = () => {
   const [statusCodeFilter, setStatusCodeFilter] = useState("all");
   const [threatLevelFilter, setThreatLevelFilter] = useState("all");
   const [wafBlockedFilter, setWafBlockedFilter] = useState("all");
-  const [timeRange, setTimeRange] = useState("24h");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -122,21 +119,15 @@ const SecurityHub = () => {
     }
 
     fetchLogs(platformId);
-  }, [navigate, timeRange, dateFrom, dateTo]);
+  }, [navigate]);
 
   const fetchLogs = async (platformId: string) => {
     setLoading(true);
     try {
-      const params: any = {};
-      if (timeRange && timeRange !== "all") {
-        params.range = timeRange;
-      }
-      if (dateFrom) params.start = dateFrom;
-      if (dateTo) params.end = dateTo;
-
-      const response = await apiService.getPlatformRequestLogs(platformId, params);
+      // Get latest 100 request logs (all types - blocked and allowed) using num parameter
+      const response = await apiService.getPlatformRequestLogs(platformId, { num: '100' });
       const logsData = Array.isArray(response) ? response : response.logs || [];
-      setLogs(logsData);
+      setAllLogs(logsData);
     } catch (error) {
       console.error("Error fetching logs:", error);
       toast({
@@ -151,34 +142,34 @@ const SecurityHub = () => {
 
   // Extract unique values for filters
   const uniqueIPs = useMemo(() => {
-    return Array.from(new Set(logs.map((log) => log.client_ip))).sort();
-  }, [logs]);
+    return Array.from(new Set(allLogs.map((log) => log.client_ip))).sort();
+  }, [allLogs]);
 
   const uniqueEndpoints = useMemo(() => {
     return Array.from(
-      new Set(logs.map((log) => `${log.method} ${log.path}`))
+      new Set(allLogs.map((log) => `${log.method} ${log.path}`))
     ).sort();
-  }, [logs]);
+  }, [allLogs]);
 
   const uniqueMethods = useMemo(() => {
-    return Array.from(new Set(logs.map((log) => log.method))).sort();
-  }, [logs]);
+    return Array.from(new Set(allLogs.map((log) => log.method))).sort();
+  }, [allLogs]);
 
   const uniqueStatusCodes = useMemo(() => {
-    return Array.from(new Set(logs.map((log) => log.status_code))).sort(
+    return Array.from(new Set(allLogs.map((log) => log.status_code))).sort(
       (a, b) => a - b
     );
-  }, [logs]);
+  }, [allLogs]);
 
   const uniqueThreatLevels = useMemo(() => {
     return Array.from(
-      new Set(logs.map((log) => log.threat_level).filter(Boolean))
+      new Set(allLogs.map((log) => log.threat_level).filter(Boolean))
     ).sort();
-  }, [logs]);
+  }, [allLogs]);
 
   // Apply filters
   useEffect(() => {
-    let filtered = [...logs];
+    let filtered = [...allLogs];
 
     // Search filter
     if (searchTerm) {
@@ -230,7 +221,7 @@ const SecurityHub = () => {
 
     setFilteredLogs(filtered);
   }, [
-    logs,
+    allLogs,
     searchTerm,
     ipFilter,
     endpointFilter,
@@ -544,7 +535,7 @@ const SecurityHub = () => {
       <Card className="w-full min-w-0">
         <CardHeader className="w-full min-w-0">
           <CardTitle>Filters</CardTitle>
-          <CardDescription>Filter request logs for detailed analysis</CardDescription>
+          <CardDescription>Filter latest 100 request logs for detailed analysis</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 w-full min-w-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -557,37 +548,9 @@ const SecurityHub = () => {
                 className="pl-8 w-full min-w-0"
               />
             </div>
-
-            <Select value={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger>
-                <Clock className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Time Range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1h">Last Hour</SelectItem>
-                <SelectItem value="24h">Last 24 Hours</SelectItem>
-                <SelectItem value="7d">Last 7 Days</SelectItem>
-                <SelectItem value="30d">Last 30 Days</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Input
-              type="date"
-              placeholder="From Date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
-
-            <Input
-              type="date"
-              placeholder="To Date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full min-w-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full min-w-0">
             <Select value={ipFilter} onValueChange={setIpFilter}>
               <SelectTrigger>
                 <MapPin className="h-4 w-4 mr-2" />
@@ -684,9 +647,6 @@ const SecurityHub = () => {
               {searchTerm && (
                 <Badge variant="secondary" className="text-xs">Search: {searchTerm.length > 15 ? searchTerm.substring(0, 15) + '...' : searchTerm}</Badge>
               )}
-              {timeRange !== "all" && (
-                <Badge variant="secondary" className="text-xs">Time: {timeRange}</Badge>
-              )}
               {ipFilter !== "all" && (
                 <Badge variant="secondary" className="text-xs truncate max-w-[150px]" title={ipFilter}>IP: {ipFilter.length > 12 ? ipFilter.substring(0, 12) + '...' : ipFilter}</Badge>
               )}
@@ -706,7 +666,6 @@ const SecurityHub = () => {
                 <Badge variant="secondary" className="text-xs">WAF: {wafBlockedFilter}</Badge>
               )}
               {(searchTerm ||
-                timeRange !== "all" ||
                 ipFilter !== "all" ||
                 endpointFilter !== "all" ||
                 methodFilter !== "all" ||
@@ -725,9 +684,6 @@ const SecurityHub = () => {
                     setStatusCodeFilter("all");
                     setThreatLevelFilter("all");
                     setWafBlockedFilter("all");
-                    setTimeRange("24h");
-                    setDateFrom("");
-                    setDateTo("");
                   }}
                 >
                   Clear all
@@ -741,9 +697,9 @@ const SecurityHub = () => {
       {/* Request Logs - Responsive View */}
       <Card className="w-full min-w-0 overflow-hidden">
         <CardHeader className="w-full min-w-0">
-          <CardTitle className="truncate">Request Logs ({filteredLogs.length})</CardTitle>
+          <CardTitle className="truncate">Latest Request Logs ({filteredLogs.length})</CardTitle>
           <CardDescription>
-            Detailed view of all API request logs for security analysis
+            Latest 100 request logs for security analysis
           </CardDescription>
         </CardHeader>
         <CardContent className="w-full min-w-0 p-4">

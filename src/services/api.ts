@@ -205,7 +205,7 @@ class APIService {
   }
 
   // Get request logs for a platform (returns array/result handling as before)
-  async getPlatformRequestLogs(platformId: string, params?: { range?: string; start?: string; end?: string }): Promise<any[]> {
+  async getPlatformRequestLogs(platformId: string, params?: { range?: string; start?: string; end?: string; num?: string }): Promise<any[]> {
     const token = localStorage.getItem('auth_token');
     const query = params
       ? '?' + new URLSearchParams(params as Record<string, string>).toString()

@@ -610,30 +610,31 @@ const SecurityAlerts = () => {
                 </thead>
                 <tbody>
                   {triggers.map((trigger) => {
-                    const relatedAlert = alerts.find(a => a.id === trigger.alert_id || a.id === trigger.alert);
+                    // Use alert_type directly from trigger since alert field is null
+                    const alertTypeInfo = ALERT_TYPES[trigger.alert_type as keyof typeof ALERT_TYPES];
                     
                     return (
                       <tr key={trigger.id} className="border-b hover:bg-muted/30 transition-colors">
                         <td className="px-3 py-2">
                           <span className="text-xs whitespace-nowrap">
-                            {trigger.timestamp ? formatDate(trigger.timestamp) : trigger.created_at ? formatDate(trigger.created_at) : '-'}
+                            {trigger.occurred_at ? formatDate(trigger.occurred_at) : trigger.created_at ? formatDate(trigger.created_at) : '-'}
                           </span>
                         </td>
                         <td className="px-3 py-2">
                           <div className="min-w-0">
-                            <div className="font-medium truncate max-w-[200px]" title={relatedAlert?.name || trigger.alert_name || 'Unknown Alert'}>
-                              {relatedAlert?.name || trigger.alert_name || 'Unknown Alert'}
+                            <div className="font-medium truncate max-w-[200px]" title={alertTypeInfo?.name || trigger.alert_type || 'Unknown Alert'}>
+                              {alertTypeInfo?.name || trigger.alert_type || 'Unknown Alert'}
                             </div>
-                            {relatedAlert?.description && (
-                              <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={relatedAlert.description}>
-                                {relatedAlert.description}
+                            {trigger.evidence && (
+                              <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={trigger.evidence}>
+                                {trigger.evidence}
                               </div>
                             )}
                           </div>
                         </td>
                         <td className="px-3 py-2">
-                          <Badge className={`${getSeverityColor(trigger.severity || relatedAlert?.severity || 'medium')} text-xs`}>
-                            {trigger.severity || relatedAlert?.severity || 'medium'}
+                          <Badge className={`${getSeverityColor(trigger.threat_level || 'medium')} text-xs`}>
+                            {trigger.threat_level || 'medium'}
                           </Badge>
                         </td>
                         <td className="px-3 py-2">
@@ -645,8 +646,8 @@ const SecurityAlerts = () => {
                           </div>
                         </td>
                         <td className="px-3 py-2">
-                          <span className="text-xs font-mono truncate max-w-[150px]" title={trigger.endpoint || trigger.path || trigger.endpoint_path || '-'}>
-                            {trigger.endpoint || trigger.path || trigger.endpoint_path || '-'}
+                          <span className="text-xs font-mono truncate max-w-[150px]" title={trigger.url || trigger.endpoint || trigger.path || '-'}>
+                            {trigger.url || trigger.endpoint || trigger.path || '-'}
                           </span>
                         </td>
                         <td className="px-3 py-2">
@@ -682,16 +683,16 @@ const SecurityAlerts = () => {
                                 <div className="grid grid-cols-2 gap-4">
                                   <div>
                                     <Label>Timestamp</Label>
-                                    <p className="text-sm">{trigger.timestamp ? formatDate(trigger.timestamp) : trigger.created_at ? formatDate(trigger.created_at) : '-'}</p>
+                                    <p className="text-sm">{trigger.occurred_at ? formatDate(trigger.occurred_at) : trigger.created_at ? formatDate(trigger.created_at) : '-'}</p>
                                   </div>
                                   <div>
-                                    <Label>Alert</Label>
-                                    <p className="text-sm font-medium">{relatedAlert?.name || trigger.alert_name || 'Unknown'}</p>
+                                    <Label>Alert Type</Label>
+                                    <p className="text-sm font-medium">{alertTypeInfo?.name || trigger.alert_type || 'Unknown'}</p>
                                   </div>
                                   <div>
                                     <Label>Severity</Label>
-                                    <Badge className={getSeverityColor(trigger.severity || relatedAlert?.severity || 'medium')}>
-                                      {trigger.severity || relatedAlert?.severity || 'medium'}
+                                    <Badge className={getSeverityColor(trigger.threat_level || 'medium')}>
+                                      {trigger.threat_level || 'medium'}
                                     </Badge>
                                   </div>
                                   <div>
@@ -707,10 +708,10 @@ const SecurityAlerts = () => {
                                   </div>
                                 ) : null}
                                 
-                                {trigger.endpoint || trigger.path || trigger.endpoint_path ? (
+                                {trigger.url || trigger.endpoint || trigger.path ? (
                                   <div>
-                                    <Label>Endpoint</Label>
-                                    <p className="text-sm font-mono">{trigger.endpoint || trigger.path || trigger.endpoint_path}</p>
+                                    <Label>URL</Label>
+                                    <p className="text-sm font-mono">{trigger.url || trigger.endpoint || trigger.path}</p>
                                   </div>
                                 ) : null}
                                 
@@ -721,36 +722,32 @@ const SecurityAlerts = () => {
                                   </div>
                                 )}
                                 
-                                {trigger.request_body && (
+                                {trigger.evidence && (
                                   <div>
-                                    <Label>Request Body</Label>
+                                    <Label>Evidence</Label>
+                                    <div className="bg-muted p-3 rounded font-mono text-xs mt-2 overflow-x-auto">
+                                      <p className="whitespace-pre-wrap break-words">{trigger.evidence}</p>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {trigger.headers && Object.keys(trigger.headers).length > 0 && (
+                                  <div>
+                                    <Label>Request Headers</Label>
                                     <div className="bg-muted p-3 rounded font-mono text-xs mt-2 overflow-x-auto">
                                       <pre className="whitespace-pre-wrap break-words">
-                                        {typeof trigger.request_body === 'object' 
-                                          ? JSON.stringify(trigger.request_body, null, 2) 
-                                          : trigger.request_body}
+                                        {JSON.stringify(trigger.headers, null, 2)}
                                       </pre>
                                     </div>
                                   </div>
                                 )}
                                 
-                                {trigger.details && Object.keys(trigger.details).length > 0 && (
+                                {trigger.extra && Object.keys(trigger.extra).length > 0 && (
                                   <div>
-                                    <Label>Additional Details</Label>
+                                    <Label>Extra Data</Label>
                                     <div className="bg-muted p-3 rounded font-mono text-xs mt-2 overflow-x-auto">
                                       <pre className="whitespace-pre-wrap break-words">
-                                        {JSON.stringify(trigger.details, null, 2)}
-                                      </pre>
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                {trigger.metadata && Object.keys(trigger.metadata).length > 0 && (
-                                  <div>
-                                    <Label>Metadata</Label>
-                                    <div className="bg-muted p-3 rounded font-mono text-xs mt-2 overflow-x-auto">
-                                      <pre className="whitespace-pre-wrap break-words">
-                                        {JSON.stringify(trigger.metadata, null, 2)}
+                                        {JSON.stringify(trigger.extra, null, 2)}
                                       </pre>
                                     </div>
                                   </div>

@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,28 +13,99 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Settings as SettingsIcon,
-  Shield,
   Globe,
   Save,
   Eye,
   EyeOff,
   Lock,
+  Terminal,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { API_BASE_URL } from "@/services/api";
+import { apiService, API_BASE_URL } from "@/services/api";
+import { Shield, Cloud, Server, Container, Copy, Check, Upload, Download } from 'lucide-react';
 
 const Settings = () => {
   const { toast } = useToast();
+  const [platformDetails, setPlatformDetails] = useState<any>(null);
+  const [isUpdatingPlatform, setIsUpdatingPlatform] = useState(false);
+  const [platformFormData, setPlatformFormData] = useState({
+    name: "",
+    application_url: "",
+    listening_port: "",
+    forwarded_port: "",
+  });
+
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordData, setPasswordData] = useState({
-    oldPassword: '',
-    newPassword: '',
-    confirmPassword: '',
+    oldPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
+
+  const [selectedOS, setSelectedOS] = useState<'linux' | 'windows'>('linux');
+  const [selectedTool, setSelectedTool] = useState<'curl' | 'wget'>('curl');
+
+  // Fetch platform details
+  useEffect(() => {
+    const fetchPlatformDetails = async () => {
+      try {
+        const platformId = localStorage.getItem("selected_platform_id");
+        if (!platformId) throw new Error("No platform selected");
+        const details = await apiService.getPlatformDetails(platformId);
+        setPlatformDetails(details);
+        setPlatformFormData({
+          name: details.name || "",
+          application_url: details.base_url || "",
+          listening_port: details.listening_port || "",
+          forwarded_port: details.forwarded_port || "",
+        });
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch platform details.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchPlatformDetails();
+  }, [toast]);
+
+  const handlePlatformUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdatingPlatform(true);
+
+    try {
+      const platformId = localStorage.getItem("selected_platform_id");
+      if (!platformId) throw new Error("No platform selected");
+
+      const payload: Record<string, any> = {};
+      if (platformFormData.name) payload.name = platformFormData.name;
+      if (platformFormData.application_url) payload.application_url = platformFormData.application_url;
+      if (platformFormData.listening_port) payload.listening_port = platformFormData.listening_port;
+      if (platformFormData.forwarded_port) payload.forwarded_port = platformFormData.forwarded_port;
+
+      await apiService.updatePlatform(platformId, payload);
+
+      toast({
+        title: "Platform Updated",
+        description: "Platform details have been successfully updated.",
+        variant: "default",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update platform details.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingPlatform(false);
+    }
+  };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,19 +114,19 @@ const Settings = () => {
     // Validation
     const errors: Record<string, string> = {};
     if (!passwordData.oldPassword) {
-      errors.oldPassword = 'Current password is required';
+      errors.oldPassword = "Current password is required";
     }
     if (!passwordData.newPassword) {
-      errors.newPassword = 'New password is required';
+      errors.newPassword = "New password is required";
     } else if (passwordData.newPassword.length < 8) {
-      errors.newPassword = 'Password must be at least 8 characters';
+      errors.newPassword = "Password must be at least 8 characters";
     } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(passwordData.newPassword)) {
-      errors.newPassword = 'Password must contain uppercase, lowercase, and number';
+      errors.newPassword = "Password must contain uppercase, lowercase, and number";
     }
     if (!passwordData.confirmPassword) {
-      errors.confirmPassword = 'Please confirm your password';
+      errors.confirmPassword = "Please confirm your password";
     } else if (passwordData.newPassword !== passwordData.confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
+      errors.confirmPassword = "Passwords do not match";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -72,7 +142,7 @@ const Settings = () => {
     setIsChangingPassword(true);
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/auth/change-password/`, {
+      const res = await fetch(`${API_BASE_URL}/auth/reset-password/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -98,9 +168,9 @@ const Settings = () => {
 
       // Reset form
       setPasswordData({
-        oldPassword: '',
-        newPassword: '',
-        confirmPassword: '',
+        oldPassword: "",
+        newPassword: "",
+        confirmPassword: "",
       });
     } catch (error: any) {
       toast({
@@ -138,78 +208,168 @@ const Settings = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <SettingsIcon className="h-5 w-5" />
-                  Platform Configuration
+                  <Globe className="h-5 w-5" />
+                  Platform Details
                 </CardTitle>
                 <CardDescription>
-                  Basic platform settings and preferences
+                  View and update your platform details
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="platformName">Platform Name</Label>
-                  <Input id="platformName" defaultValue="APISentry Security" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select defaultValue="utc">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="utc">UTC</SelectItem>
-                      <SelectItem value="est">Eastern Time</SelectItem>
-                      <SelectItem value="pst">Pacific Time</SelectItem>
-                      <SelectItem value="cet">Central European Time</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="language">Default Language</Label>
-                  <Select defaultValue="en">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Spanish</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                      <SelectItem value="de">German</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <CardContent>
+                {platformDetails ? (
+                  <form onSubmit={handlePlatformUpdate} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="platformName">Platform Name</Label>
+                      <Input
+                        id="platformName"
+                        value={platformFormData.name || platformDetails.name}
+                        onChange={(e) =>
+                          setPlatformFormData((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="applicationUrl">Base URL</Label>
+                      <Input
+                        id="applicationUrl"
+                        value={platformFormData.application_url}
+                        onChange={(e) =>
+                          setPlatformFormData((prev) => ({
+                            ...prev,
+                            application_url: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="listeningPort">Listening Port</Label>
+                      <Input
+                        id="listeningPort"
+                        type="number"
+                        value={platformFormData.listening_port}
+                        onChange={(e) =>
+                          setPlatformFormData((prev) => ({
+                            ...prev,
+                            listening_port: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="forwardedPort">Forwarded Port</Label>
+                      <Input
+                        id="forwardedPort"
+                        type="number"
+                        value={platformFormData.forwarded_port}
+                        onChange={(e) =>
+                          setPlatformFormData((prev) => ({
+                            ...prev,
+                            forwarded_port: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        type="submit"
+                        className="gradient-primary"
+                        disabled={isUpdatingPlatform}
+                      >
+                        {isUpdatingPlatform ? "Updating..." : "Update Platform"}
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <p>Loading platform details...</p>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5" />
-                  API Configuration
+                  <Terminal className="h-5 w-5" />
+                  Installation Commands
                 </CardTitle>
                 <CardDescription>
-                  Global API settings and rate limits
+                  Use the following commands to install the platform
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="baseUrl">Base URL</Label>
-                  <Input id="baseUrl" defaultValue="https://api.company.com" />
+              <CardContent className="space-y-6">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold mb-2">Select Your Operating System</h3>
+                  <p className="text-muted-foreground">
+                    Choose your OS and copy the installation command below.
+                  </p>
+                </div>
+                <div className="flex justify-center gap-4 mb-4">
+                  <Button
+                    variant={selectedOS === 'linux' ? 'default' : 'outline'}
+                    onClick={() => {
+                      setSelectedOS('linux');
+                      setSelectedTool('curl');
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <Server className="h-5 w-5" />
+                    Linux
+                  </Button>
+                  <Button
+                    variant={selectedOS === 'windows' ? 'default' : 'outline'}
+                    onClick={() => setSelectedOS('windows')}
+                    className="flex items-center gap-2"
+                  >
+                    <Cloud className="h-5 w-5" />
+                    Windows
+                  </Button>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="globalRateLimit">Global Rate Limit (per minute)</Label>
-                  <Input id="globalRateLimit" type="number" defaultValue="1000" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="maxPayloadSize">Max Payload Size (MB)</Label>
-                  <Input id="maxPayloadSize" type="number" defaultValue="10" />
+                  <Label>
+                    Installation Command ({selectedOS === 'linux' ? 'Linux' : 'Windows'})
+                  </Label>
+                  <div className="bg-muted p-4 rounded-lg flex items-center">
+                    <code className="text-sm font-mono flex-1">
+                      {platformDetails
+                        ? selectedOS === 'linux'
+                          ? `curl -L https://raw.githubusercontent.com/Wired-Assurance/installation-script/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port}`
+                          : `curl -L https://raw.githubusercontent.com/Wired-Assurance/installation-script/main/install.bat -o install.bat && install.bat ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port}`
+                        : 'Loading...'}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-2"
+                      onClick={() => {
+                        const command = platformDetails
+                          ? selectedOS === 'linux'
+                            ? `curl -L https://raw.githubusercontent.com/Wired-Assurance/installation-script/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port}`
+                            : `curl -L https://raw.githubusercontent.com/Wired-Assurance/installation-script/main/install.bat -o install.bat && install.bat ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port}`
+                          : '';
+                        navigator.clipboard.writeText(command);
+                        toast({
+                          title: "Copied to Clipboard",
+                          description: "The installation command has been copied.",
+                          variant: "default",
+                        });
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    This command will install Envoy, download the .wasm module, and configure it to listen on the specified ports.
+                  </p>
                 </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
-        {/* Security Settings - Password Reset */}
+        {/* Security Settings */}
         <TabsContent value="security">
           <Card className="max-w-2xl">
             <CardHeader>
@@ -388,7 +548,6 @@ const Settings = () => {
             </CardContent>
           </Card>
         </TabsContent>
-
       </Tabs>
     </div>
   );

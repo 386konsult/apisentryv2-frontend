@@ -1,6 +1,6 @@
-export const API_BASE_URL = 'http://16.16.182.74/api/v1';
+// export const API_BASE_URL = 'http://16.16.182.74/api/v1';
 
-// export const API_BASE_URL = 'http://127.0.0.1:5000/api/v1';
+export const API_BASE_URL = 'http://127.0.0.1:5000/api/v1';
 
 
 // Types for API responses
@@ -622,6 +622,26 @@ class APIService {
     if (!res.ok) {
       throw new Error('Failed to remove IP from blacklist');
     }
+  }
+
+  // Update platform details
+  async updatePlatform(platformId: string, data: { application_url?: string; listening_port?: string; forwarded_port?: string; name?: string }): Promise<any> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/platforms/${platformId}/`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Token ${token}` } : {}),
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || errorData.message || 'Failed to update platform');
+    }
+
+    return res.json();
   }
 
   // Utility methods

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -86,11 +86,22 @@ const SecurityAlerts = () => {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [triggers, setTriggers] = useState<any[]>([]);
   const [selectedAlerts, setSelectedAlerts] = useState<string[]>([]);
+  const [selectedTriggers, setSelectedTriggers] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  // Trigger filters
+  const [triggerIPFilter, setTriggerIPFilter] = useState('');
+  const [triggerEndpointFilter, setTriggerEndpointFilter] = useState('');
+  const [triggerDateStart, setTriggerDateStart] = useState('');
+  const [triggerDateEnd, setTriggerDateEnd] = useState('');
+  const [triggerAlertTypeFilter, setTriggerAlertTypeFilter] = useState('all');
+  const [triggerSeverityFilter, setTriggerSeverityFilter] = useState('all');
+  const [triggerMethodFilter, setTriggerMethodFilter] = useState('all');
   const [showCreateIncident, setShowCreateIncident] = useState(false);
+  const [showAddTriggersToIncident, setShowAddTriggersToIncident] = useState(false);
+  const [incidents, setIncidents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [platform, setPlatform] = useState<any>(null); // Added for platform display
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
@@ -169,7 +180,18 @@ const SecurityAlerts = () => {
 
   useEffect(() => {
     fetchAlerts();
+    fetchIncidents();
   }, []);
+
+  const fetchIncidents = async () => {
+    try {
+      const platformId = localStorage.getItem('selected_platform_id');
+      const data = await apiService.getIncidents(platformId || undefined);
+      setIncidents(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setIncidents([]);
+    }
+  };
 
   const filteredAlerts = alerts.filter(alert => {
     const matchesSearch = alert.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -180,6 +202,65 @@ const SecurityAlerts = () => {
     
     return matchesSearch && matchesStatus && matchesSeverity && matchesType;
   });
+
+  const filteredTriggers = useMemo(() => triggers.filter(trigger => {
+    // IP filter
+    const triggerIP = trigger.client_ip || trigger.ip || '';
+    const matchesIP = !triggerIPFilter || triggerIP.toLowerCase().includes(triggerIPFilter.toLowerCase());
+    
+    // Endpoint filter
+    const triggerEndpoint = trigger.url || trigger.endpoint || trigger.path || trigger.endpoint_path || '';
+    const matchesEndpoint = !triggerEndpointFilter || triggerEndpoint.toLowerCase().includes(triggerEndpointFilter.toLowerCase());
+    
+    // Date range filter
+    const triggerTime = trigger.occurred_at || trigger.timestamp || trigger.created_at;
+    let matchesDateRange = true;
+    if (triggerTime && (triggerDateStart || triggerDateEnd)) {
+      try {
+        const triggerDate = new Date(triggerTime);
+        if (triggerDateStart) {
+          const startDate = new Date(triggerDateStart);
+          startDate.setHours(0, 0, 0, 0);
+          if (triggerDate < startDate) matchesDateRange = false;
+        }
+        if (triggerDateEnd && matchesDateRange) {
+          const endDate = new Date(triggerDateEnd);
+          endDate.setHours(23, 59, 59, 999);
+          if (triggerDate > endDate) matchesDateRange = false;
+        }
+      } catch {
+        // If date parsing fails, don't filter by date
+      }
+    } else if (triggerDateStart || triggerDateEnd) {
+      // If date filter is set but trigger has no date, exclude it
+      matchesDateRange = false;
+    }
+    
+    // Alert type filter
+    const relatedAlert = alerts.find(a => 
+      a.alert_type === trigger.alert_type || 
+      a.id === trigger.alert_id || 
+      a.id === trigger.alert
+    );
+    const alertType = trigger.alert_type || relatedAlert?.alert_type || relatedAlert?.type || '';
+    const matchesAlertType = triggerAlertTypeFilter === 'all' || alertType === triggerAlertTypeFilter;
+    
+    // Severity filter
+    const threatLevel = trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium';
+    const matchesSeverity = triggerSeverityFilter === 'all' || threatLevel === triggerSeverityFilter;
+    
+    // Method filter
+    const method = trigger.method || '';
+    const matchesMethod = triggerMethodFilter === 'all' || method.toLowerCase() === triggerMethodFilter.toLowerCase();
+    
+    return matchesIP && matchesEndpoint && matchesDateRange && matchesAlertType && matchesSeverity && matchesMethod;
+  }), [triggers, alerts, triggerIPFilter, triggerEndpointFilter, triggerDateStart, triggerDateEnd, triggerAlertTypeFilter, triggerSeverityFilter, triggerMethodFilter]);
+
+  // Clear selected triggers that are no longer in filtered list
+  useEffect(() => {
+    const filteredTriggerIds = new Set(filteredTriggers.map(t => t.id));
+    setSelectedTriggers(prev => prev.filter(id => filteredTriggerIds.has(id)));
+  }, [filteredTriggers]);
 
   const handleAlertSelect = (alertId: string) => {
     setSelectedAlerts(prev => 
@@ -194,6 +275,109 @@ const SecurityAlerts = () => {
       setSelectedAlerts([]);
     } else {
       setSelectedAlerts(filteredAlerts.map(alert => alert.id));
+    }
+  };
+
+  const handleTriggerSelect = (triggerId: string) => {
+    setSelectedTriggers(prev => 
+      prev.includes(triggerId) 
+        ? prev.filter(id => id !== triggerId)
+        : [...prev, triggerId]
+    );
+  };
+
+  const handleSelectAllTriggers = () => {
+    if (selectedTriggers.length === filteredTriggers.length) {
+      setSelectedTriggers([]);
+    } else {
+      setSelectedTriggers(filteredTriggers.map(trigger => trigger.id));
+    }
+  };
+
+  const clearTriggerFilters = () => {
+    setTriggerIPFilter('');
+    setTriggerEndpointFilter('');
+    setTriggerDateStart('');
+    setTriggerDateEnd('');
+    setTriggerAlertTypeFilter('all');
+    setTriggerSeverityFilter('all');
+    setTriggerMethodFilter('all');
+  };
+
+  const handleAddTriggersToIncident = async (incidentId: string | null) => {
+    if (!selectedTriggers.length) {
+      toast({
+        title: "No triggers selected",
+        description: "Please select at least one trigger to add as evidence.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const platformId = platform?.id || localStorage.getItem('selected_platform_id');
+      if (!platformId) throw new Error('No platform selected');
+
+      if (incidentId) {
+        // Add triggers to existing incident
+        const incident = incidents.find(inc => inc.id === incidentId);
+        if (!incident) throw new Error('Incident not found');
+
+        // Get existing trigger_ids or evidence from incident
+        const existingTriggerIds = incident.trigger_ids || incident.evidence?.trigger_ids || [];
+        const updatedTriggerIds = Array.from(new Set([...existingTriggerIds, ...selectedTriggers]));
+
+        // Build update payload in snake_case format (matching API expectations)
+        const updatePayload: Record<string, any> = {
+          title: incident.title,
+          severity: incident.severity,
+          status: incident.status,
+          category: incident.category || '',
+          impacted_endpoints: incident.impacted_endpoints || incident.impactedEndpoints || [],
+          source_ips: incident.source_ips || incident.sourceIPs || '',
+          associated_alert_ids: incident.associated_alert_ids || incident.associatedAlertIds || [],
+          summary: incident.summary || '',
+          assigned_to: incident.assigned_to || incident.assignedTo || '',
+          containment_actions: incident.containment_actions || incident.containmentActions || [],
+          next_step: incident.next_step || incident.nextStep || '',
+          customer_data_exposure: incident.customer_data_exposure || incident.customerDataExposure || 'no',
+          data_class: incident.data_class || incident.dataClass || '',
+          requires_customer_notification: incident.requires_customer_notification || incident.requiresCustomerNotification || 'no',
+          regulatory_impact: incident.regulatory_impact || incident.regulatoryImpact || 'None',
+          // Add trigger IDs as evidence
+          trigger_ids: updatedTriggerIds,
+          evidence: {
+            ...(incident.evidence || {}),
+            trigger_ids: updatedTriggerIds,
+          },
+        };
+
+        await apiService.updateIncident(incidentId, updatePayload);
+
+        toast({
+          title: "Triggers Added",
+          description: `${selectedTriggers.length} trigger(s) added as evidence to incident.`,
+          variant: "default",
+        });
+      } else {
+        // Create new incident with triggers
+        setShowCreateIncident(true);
+        // The triggers will be added when the incident is created
+      }
+
+      setSelectedTriggers([]);
+      setShowAddTriggersToIncident(false);
+      await fetchIncidents();
+    } catch (error: any) {
+      console.error('SecurityAlerts: error adding triggers to incident', error);
+      toast({
+        title: "Error adding triggers",
+        description: error?.message || "Failed to add triggers to incident.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -214,6 +398,9 @@ const SecurityAlerts = () => {
         const incident_type = found?.alert_type || (data as any).incident_type || 'rate_anomaly';
         return { alert_id: id, incident_type };
       });
+
+      // Include selected triggers as evidence if any
+      const triggerIds = selectedTriggers.length > 0 ? selectedTriggers : [];
 
       // Build payload in snake_case (backend expected)
       const payload: Record<string, any> = {
@@ -236,20 +423,27 @@ const SecurityAlerts = () => {
         data_class: data.dataClass,
         requires_customer_notification: data.requiresCustomerNotification,
         regulatory_impact: data.regulatoryImpact,
+        // Add trigger IDs as evidence
+        trigger_ids: triggerIds,
+        evidence: {
+          trigger_ids: triggerIds,
+        },
       };
  
       await apiService.createIncident(payload);
  
       // Refresh alerts (and triggers) so UI reflects any incident links/changes
       await fetchAlerts();
+      await fetchIncidents();
  
       toast({
         title: "Incident Created",
-        description: "New incident has been created successfully.",
+        description: `New incident has been created successfully${triggerIds.length > 0 ? ` with ${triggerIds.length} trigger(s) as evidence` : ''}.`,
         variant: "default",
       });
  
       setSelectedAlerts([]);
+      setSelectedTriggers([]);
       setShowCreateIncident(false);
     } catch (error: any) {
       console.error('SecurityAlerts: error creating incident', error);
@@ -471,7 +665,15 @@ const SecurityAlerts = () => {
           </Button>
           <CreateIncidentModal
             open={showCreateIncident}
-            onOpenChange={setShowCreateIncident}
+            onOpenChange={(open) => {
+              setShowCreateIncident(open);
+              if (!open) {
+                // If closing and we came from "Add to Incident", reset selected triggers
+                if (showAddTriggersToIncident) {
+                  setShowAddTriggersToIncident(false);
+                }
+              }
+            }}
             onSubmit={handleCreateIncident}
             selectedAlertIds={selectedAlerts}
             alerts={alerts}
@@ -741,15 +943,159 @@ const SecurityAlerts = () => {
       {/* Alert Triggers Section */}
       <Card className="min-w-0">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-orange-500" />
-            Alert Triggers
-          </CardTitle>
-          <CardDescription>
-            Trigger events for all security alerts
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-orange-500" />
+                Alert Triggers
+              </CardTitle>
+              <CardDescription>
+                Trigger events for all security alerts ({filteredTriggers.length} of {triggers.length})
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {selectedTriggers.length > 0 && (
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setShowAddTriggersToIncident(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add to Incident ({selectedTriggers.length})
+                </Button>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
+          {/* Trigger Filters */}
+          <div className="p-4 border-b bg-muted/30">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filter Triggers
+                </Label>
+                {(triggerIPFilter || triggerEndpointFilter || triggerDateStart || triggerDateEnd || 
+                  triggerAlertTypeFilter !== 'all' || triggerSeverityFilter !== 'all' || triggerMethodFilter !== 'all') && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearTriggerFilters}
+                    className="h-7 text-xs"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {/* IP Address Filter */}
+                <div className="space-y-1">
+                  <Label className="text-xs">IP Address</Label>
+                  <div className="relative">
+                    <MapPin className="absolute left-2 top-2.5 h-3 w-3 text-muted-foreground" />
+                    <Input
+                      placeholder="Filter by IP..."
+                      value={triggerIPFilter}
+                      onChange={(e) => setTriggerIPFilter(e.target.value)}
+                      className="pl-7 h-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Endpoint Filter */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Endpoint</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-3 w-3 text-muted-foreground" />
+                    <Input
+                      placeholder="Filter by endpoint..."
+                      value={triggerEndpointFilter}
+                      onChange={(e) => setTriggerEndpointFilter(e.target.value)}
+                      className="pl-7 h-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Alert Type Filter */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Alert Type</Label>
+                  <Select value={triggerAlertTypeFilter} onValueChange={setTriggerAlertTypeFilter}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="All Types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      {Object.entries(ALERT_TYPES).map(([key, value]) => (
+                        <SelectItem key={key} value={key}>
+                          {value.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Severity Filter */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Severity</Label>
+                  <Select value={triggerSeverityFilter} onValueChange={setTriggerSeverityFilter}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="All Severity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Severity</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Method Filter */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Method</Label>
+                  <Select value={triggerMethodFilter} onValueChange={setTriggerMethodFilter}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="All Methods" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Methods</SelectItem>
+                      <SelectItem value="GET">GET</SelectItem>
+                      <SelectItem value="POST">POST</SelectItem>
+                      <SelectItem value="PUT">PUT</SelectItem>
+                      <SelectItem value="DELETE">DELETE</SelectItem>
+                      <SelectItem value="PATCH">PATCH</SelectItem>
+                      <SelectItem value="HEAD">HEAD</SelectItem>
+                      <SelectItem value="OPTIONS">OPTIONS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Date Start Filter */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Start Date</Label>
+                  <Input
+                    type="date"
+                    value={triggerDateStart}
+                    onChange={(e) => setTriggerDateStart(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+
+                {/* Date End Filter */}
+                <div className="space-y-1">
+                  <Label className="text-xs">End Date</Label>
+                  <Input
+                    type="date"
+                    value={triggerDateEnd}
+                    onChange={(e) => setTriggerDateEnd(e.target.value)}
+                    className="h-8 text-xs"
+                    min={triggerDateStart || undefined}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
           {triggers.length === 0 ? (
             <div className="text-center py-12">
               <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -758,11 +1104,33 @@ const SecurityAlerts = () => {
                 Trigger events will appear here when alerts are triggered
               </p>
             </div>
+          ) : filteredTriggers.length === 0 ? (
+            <div className="text-center py-12">
+              <Filter className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground">No triggers match the filters</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Try adjusting your filter criteria
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearTriggerFilters}
+                className="mt-4"
+              >
+                Clear Filters
+              </Button>
+            </div>
           ) : (
             <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
               <table className="w-full text-sm border-0">
                 <thead className="bg-muted/50 sticky top-0">
                   <tr>
+                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[40px]">
+                      <Checkbox
+                        checked={selectedTriggers.length === filteredTriggers.length && filteredTriggers.length > 0}
+                        onCheckedChange={handleSelectAllTriggers}
+                      />
+                    </th>
                     <th className="px-3 py-2 text-left whitespace-nowrap min-w-[150px]">Timestamp</th>
                     <th className="px-3 py-2 text-left whitespace-nowrap min-w-[200px]">Alert</th>
                     <th className="px-3 py-2 text-left whitespace-nowrap min-w-[100px]">Severity</th>
@@ -774,7 +1142,7 @@ const SecurityAlerts = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {triggers.map((trigger) => {
+                  {filteredTriggers.map((trigger) => {
                     // Try to find related alert by alert_type or alert_id
                     const relatedAlert = alerts.find(a => 
                       a.alert_type === trigger.alert_type || 
@@ -790,6 +1158,12 @@ const SecurityAlerts = () => {
                     
                     return (
                       <tr key={trigger.id} className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="px-3 py-2">
+                          <Checkbox
+                            checked={selectedTriggers.includes(trigger.id)}
+                            onCheckedChange={() => handleTriggerSelect(trigger.id)}
+                          />
+                        </td>
                         <td className="px-3 py-2">
                           <span className="text-xs whitespace-nowrap">
                             {triggerTime ? formatDate(triggerTime) : '-'}
@@ -1101,6 +1475,82 @@ const SecurityAlerts = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add Triggers to Incident Dialog */}
+      <Dialog open={showAddTriggersToIncident} onOpenChange={setShowAddTriggersToIncident}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Triggers as Evidence</DialogTitle>
+            <DialogDescription>
+              Add {selectedTriggers.length} selected trigger(s) as evidence to an incident
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Select Incident</Label>
+              <Select 
+                onValueChange={(value) => {
+                  if (value === 'new') {
+                    // Close this dialog and open create incident modal
+                    setShowAddTriggersToIncident(false);
+                    setShowCreateIncident(true);
+                  } else {
+                    // Add to existing incident
+                    handleAddTriggersToIncident(value);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose an incident or create new" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new">Create New Incident</SelectItem>
+                  {incidents.length > 0 ? (
+                    incidents.map((incident) => (
+                      <SelectItem key={incident.id} value={incident.id}>
+                        {incident.title} ({incident.status})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="new" disabled>No incidents available - Create New</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="p-3 bg-muted rounded-md">
+              <Label className="text-sm font-medium mb-2 block">Selected Triggers ({selectedTriggers.length})</Label>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {selectedTriggers.map((triggerId) => {
+                  const trigger = triggers.find(t => t.id === triggerId);
+                  const relatedAlert = trigger ? alerts.find(a => 
+                    a.alert_type === trigger.alert_type || 
+                    a.id === trigger.alert_id || 
+                    a.id === trigger.alert
+                  ) : null;
+                  return (
+                    <div key={triggerId} className="text-xs p-2 bg-background rounded">
+                      <span className="font-medium">{relatedAlert?.name || trigger?.alert_type || triggerId}</span>
+                      {trigger?.client_ip && (
+                        <span className="text-muted-foreground ml-2">• {trigger.client_ip}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAddTriggersToIncident(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* View Alert Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>

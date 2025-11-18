@@ -618,43 +618,40 @@ const CreateAlert = () => {
         <div>
           <Label className="text-sm font-medium">Select Notification Channels</Label>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            {NOTIFICATION_CHANNELS.map((channel) => (
-              <div key={channel.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`notification-${channel.id}`}
-                  checked={notificationChannels.includes(channel.id)}
-                  onCheckedChange={() => handleNotificationToggle(channel.id)}
-                />
-                <channel.icon className={`h-4 w-4 ${channel.color}`} />
-                <Label htmlFor={`notification-${channel.id}`} className="text-sm">{channel.name}</Label>
-              </div>
-            ))}
+            {NOTIFICATION_CHANNELS.map((channel) => {
+              const isEmail = channel.id === 'email';
+              const isDisabled = !isEmail;
+              return (
+                <div 
+                  key={channel.id} 
+                  className={`flex items-center space-x-2 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <Checkbox
+                    id={`notification-${channel.id}`}
+                    checked={notificationChannels.includes(channel.id)}
+                    onCheckedChange={() => {
+                      if (!isDisabled) {
+                        handleNotificationToggle(channel.id);
+                      }
+                    }}
+                    disabled={isDisabled}
+                  />
+                  <channel.icon className={`h-4 w-4 ${channel.color}`} />
+                  <Label 
+                    htmlFor={`notification-${channel.id}`} 
+                    className={`text-sm ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    {channel.name}
+                    {isDisabled && <span className="text-xs text-muted-foreground ml-1">(Coming soon)</span>}
+                  </Label>
+                </div>
+              );
+            })}
           </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Only Email notifications are currently available. Other channels will be enabled in a future update.
+          </p>
         </div>
-
-        {notificationChannels.includes('slack') && (
-          <div>
-            <Label htmlFor="slackWebhook" className="text-sm font-medium">Slack Webhook URL</Label>
-            <Input
-              id="slackWebhook"
-              placeholder="https://hooks.slack.com/services/..."
-              value={formData.slackWebhook}
-              onChange={(e) => handleInputChange('slackWebhook', e.target.value)}
-            />
-          </div>
-        )}
-
-        {notificationChannels.includes('teams') && (
-          <div>
-            <Label htmlFor="teamsWebhook" className="text-sm font-medium">Teams Webhook URL</Label>
-            <Input
-              id="teamsWebhook"
-              placeholder="https://outlook.office.com/webhook/..."
-              value={formData.teamsWebhook}
-              onChange={(e) => handleInputChange('teamsWebhook', e.target.value)}
-            />
-          </div>
-        )}
 
         {notificationChannels.includes('email') && (
           <div>
@@ -665,18 +662,6 @@ const CreateAlert = () => {
               placeholder="admin@company.com"
               value={formData.emailAddress}
               onChange={(e) => handleInputChange('emailAddress', e.target.value)}
-            />
-          </div>
-        )}
-
-        {notificationChannels.includes('webhook') && (
-          <div>
-            <Label htmlFor="webhookURL" className="text-sm font-medium">Webhook URL</Label>
-            <Input
-              id="webhookURL"
-              placeholder="https://your-server.com/webhook"
-              value={formData.webhookURL}
-              onChange={(e) => handleInputChange('webhookURL', e.target.value)}
             />
           </div>
         )}

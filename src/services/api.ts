@@ -232,7 +232,7 @@ class APIService {
   }
 
   // Get threat (blocked) request logs for a platform — return raw parsed response so pagination meta is available
-  async getPlatformThreatLogs(platformId: string, params?: { range?: string; page?: string; start?: string; end?: string }): Promise<any> {
+  async getPlatformThreatLogs(platformId: string, params?: { range?: string; page?: string; start?: string; end?: string; path?: string }): Promise<any> {
     const token = localStorage.getItem('auth_token');
     const query = params
       ? '?' + new URLSearchParams(params as Record<string, string>).toString()

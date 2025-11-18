@@ -14,6 +14,8 @@ import {
   PieChart,
   Pie,
   Cell,
+  AreaChart,
+  Area,
 } from 'recharts';
 import {
   Shield,
@@ -27,6 +29,11 @@ import {
   Settings,
   Eye,
   Plus,
+  Flag,
+  Clock,
+  Ban,
+  FileText,
+  Code,
 } from 'lucide-react';
 import apiService from '@/services/api';
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
@@ -37,6 +44,19 @@ const TIME_RANGES = [
   { label: 'Last Year', value: '1y' },
   { label: 'Custom', value: 'custom' },
 ];
+
+interface OWASPThreat {
+  name: string;
+  category: string;
+  count: number;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+}
+
+interface CountryData {
+  code: string;
+  name: string;
+  count: number;
+}
 
 const PlatformDetails = () => {
   const { id } = useParams();
@@ -49,6 +69,43 @@ const PlatformDetails = () => {
   const [threatLogs, setThreatLogs] = useState([]);
   const [trafficData, setTrafficData] = useState([]);
   const [threatTypes, setThreatTypes] = useState([]);
+  // New charts data - initialized with dummy data
+  const [threatTypesByCategory, setThreatTypesByCategory] = useState([
+    { name: 'SQL Injection', value: 45, color: '#ef4444' },
+    { name: 'XSS', value: 32, color: '#f59e0b' },
+    { name: 'Path Traversal', value: 28, color: '#8b5cf6' },
+    { name: 'Brute Force', value: 22, color: '#dc2626' },
+    { name: 'Command Injection', value: 15, color: '#ec4899' },
+    { name: 'CSRF', value: 12, color: '#06b6d4' },
+    { name: 'XXE', value: 8, color: '#10b981' },
+  ]);
+  const [owaspThreats, setOwaspThreats] = useState<OWASPThreat[]>([
+    { name: 'Broken Access Control', category: 'Access Control', count: 85, severity: 'critical' },
+    { name: 'Cryptographic Failures', category: 'Cryptography', count: 62, severity: 'high' },
+    { name: 'Injection', category: 'Injection', count: 94, severity: 'critical' },
+    { name: 'Insecure Design', category: 'Design', count: 45, severity: 'high' },
+    { name: 'Security Misconfiguration', category: 'Configuration', count: 38, severity: 'medium' },
+    { name: 'Vulnerable Components', category: 'Components', count: 52, severity: 'high' },
+    { name: 'Authentication Failures', category: 'Authentication', count: 78, severity: 'critical' },
+    { name: 'Software & Data Integrity', category: 'Integrity', count: 35, severity: 'high' },
+    { name: 'Security Logging Failures', category: 'Logging', count: 28, severity: 'medium' },
+    { name: 'Server-Side Request Forgery', category: 'SSRF', count: 41, severity: 'high' },
+  ]);
+  const [countryData, setCountryData] = useState<CountryData[]>([
+    { code: 'US', name: 'United States', count: 1245 },
+    { code: 'CN', name: 'China', count: 892 },
+    { code: 'RU', name: 'Russia', count: 678 },
+    { code: 'GB', name: 'United Kingdom', count: 543 },
+    { code: 'DE', name: 'Germany', count: 412 },
+    { code: 'FR', name: 'France', count: 356 },
+    { code: 'IN', name: 'India', count: 789 },
+    { code: 'BR', name: 'Brazil', count: 445 },
+    { code: 'JP', name: 'Japan', count: 321 },
+    { code: 'CA', name: 'Canada', count: 298 },
+    { code: 'AU', name: 'Australia', count: 234 },
+    { code: 'KR', name: 'South Korea', count: 189 },
+  ]);
+  const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState('7d');
   const [customRange, setCustomRange] = useState({ start: null, end: null });
   const [trafficTimeRange, setTrafficTimeRange] = useState('7d'); // Independent time range for Traffic Overview
@@ -454,14 +511,14 @@ const PlatformDetails = () => {
           </CardContent>
         </Card>
 
-        {/* Threat Types */}
+        {/* Threat Types by Response Code */}
         <Card className="min-w-0">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Threats by Type</CardTitle>
+                <CardTitle>Response Code Breakdown</CardTitle>
                 <CardDescription>
-                  Distribution of detected threat categories over the selected time range
+                  Distribution of response codes over the selected time range
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -498,25 +555,211 @@ const PlatformDetails = () => {
             </div>
           </CardHeader>
           <CardContent className="pt-2">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={threatTypes}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                >
-                  {(Array.isArray(threatTypes) ? threatTypes : []).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            <div style={{ width: '100%', height: '300px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={threatTypes.length > 0 ? threatTypes : threatTypesByCategory}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    label={({ name, percent }) => `${name.substring(0, 12)}${name.length > 12 ? '...' : ''} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {(threatTypes.length > 0 ? threatTypes : threatTypesByCategory).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Row 2 - Threats by Type, OWASP Top 10, and Countries */}
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+        {/* Threats by Type (SQL Injection, XSS, etc.) */}
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>Threats by Type</CardTitle>
+            <CardDescription>
+              Distribution of detected threat categories (SQL Injection, XSS, etc.)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div style={{ width: '100%', height: '300px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={threatTypesByCategory}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    label={({ name, percent }) => `${name.substring(0, 12)}${name.length > 12 ? '...' : ''} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {threatTypesByCategory.map((entry, index) => (
+                      <Cell key={`cell-threat-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* OWASP Top 10 Detected Threats */}
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>OWASP Top 10 Detected Threats</CardTitle>
+            <CardDescription>
+              Security risks based on OWASP Top 10 classification
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div style={{ width: '100%', height: '300px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={owaspThreats}>
+                  <defs>
+                    <linearGradient id="colorSeverity" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0.1}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="name" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                    interval={0}
+                    tick={{ fontSize: 9 }}
+                  />
+                  <YAxis />
+                  <Tooltip 
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload as OWASPThreat;
+                        return (
+                          <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                            <p className="font-semibold text-sm">{data.name}</p>
+                            <p className="text-xs text-muted-foreground">Category: {data.category}</p>
+                            <p className="text-xs">Count: <span className="font-bold">{data.count}</span></p>
+                            <p className="text-xs">Severity: <span className={`font-bold ${
+                              data.severity === 'critical' ? 'text-red-600' :
+                              data.severity === 'high' ? 'text-orange-600' :
+                              data.severity === 'medium' ? 'text-yellow-600' : 'text-green-600'
+                            }`}>{data.severity}</span></p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="count" 
+                    stroke="#ef4444" 
+                    fillOpacity={1} 
+                    fill="url(#colorSeverity)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Requests by Countries - World Map */}
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>Requests by Countries</CardTitle>
+            <CardDescription>
+              Geographic distribution of API requests
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="space-y-4">
+              {/* Simplified World Map Visualization */}
+              <div className="relative w-full h-[200px] border border-border rounded-lg bg-muted/20 p-4 overflow-hidden">
+                <div className="grid grid-cols-4 gap-2 h-full">
+                  {countryData.slice(0, 12).map((country) => {
+                    const maxCount = Math.max(...countryData.map(c => c.count), 1);
+                    const intensity = country.count / maxCount;
+                    const isHovered = hoveredCountry === country.code;
+                    
+                    return (
+                      <div
+                        key={country.code}
+                        className="relative group cursor-pointer"
+                        onMouseEnter={() => setHoveredCountry(country.code)}
+                        onMouseLeave={() => setHoveredCountry(null)}
+                      >
+                        <div
+                          className={`w-full h-full rounded-lg border-2 transition-all ${
+                            isHovered 
+                              ? 'border-primary shadow-lg scale-105' 
+                              : 'border-border'
+                          }`}
+                          style={{
+                            backgroundColor: `rgba(239, 68, 68, ${0.3 + intensity * 0.7})`,
+                            minHeight: '40px',
+                          }}
+                        >
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-1">
+                            <span className="text-[10px] font-bold text-foreground">
+                              {country.code}
+                            </span>
+                            <span className="text-[8px] text-muted-foreground mt-0.5">
+                              {country.count}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Tooltip */}
+                        {isHovered && (
+                          <div className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-background border border-border rounded-lg p-2 shadow-xl min-w-[120px]">
+                            <p className="font-semibold text-xs">{country.name}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                              Requests: <span className="font-bold text-primary">{country.count.toLocaleString()}</span>
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {countryData.length === 0 && (
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                    No country data available
+                  </div>
+                )}
+              </div>
+              
+              {/* Country List */}
+              <div className="space-y-1 max-h-[60px] overflow-y-auto">
+                {countryData.slice(0, 5).map((country) => (
+                  <div
+                    key={country.code}
+                    className="flex items-center justify-between p-1.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                    onMouseEnter={() => setHoveredCountry(country.code)}
+                    onMouseLeave={() => setHoveredCountry(null)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Flag className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs font-mono font-bold">{country.code}</span>
+                      <span className="text-xs">{country.name}</span>
+                    </div>
+                    <span className="text-xs font-semibold">{country.count.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -601,10 +844,10 @@ const PlatformDetails = () => {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-3">
-              Manage security logs and alerts
+              Triage security logs and alerts
             </p>
-            <Button variant="outline" size="sm" className="w-full">
-              Configure Rules
+            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/security-hub')}>
+              View all logs
             </Button>
           </CardContent>
         </Card>
@@ -620,14 +863,113 @@ const PlatformDetails = () => {
             <p className="text-sm text-muted-foreground mb-3">
               Review detailed security events
             </p>
-            <Button variant="outline" size="sm" className="w-full">
+            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/threat-logs')}>
               View Logs
             </Button>
           </CardContent>
         </Card>
 
-      {/* Threat Logs List (improved UI) */}
-      
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-5 w-5 text-green-500" />
+              User Management
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              Manage team access and permissions
+            </p>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/users')}>
+              Manage Users
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="h-5 w-5 text-purple-500" />
+              Audit Logs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              View system activity and changes
+            </p>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/audit-logs')}>
+              View Logs
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="h-5 w-5 text-cyan-500" />
+              API Endpoints
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              Manage and monitor API endpoints
+            </p>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/api-endpoints')}>
+              Manage Endpoints
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Shield className="h-5 w-5 text-red-500" />
+              WAF Rules
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              Configure security rules and policies
+            </p>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/waf-rules')}>
+              Configure Rules
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Ban className="h-5 w-5 text-red-600" />
+              IP Blacklist
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              Manage blocked IP addresses
+            </p>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/ip-blacklist')}>
+              Manage Blacklist
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="h-5 w-5 text-indigo-500" />
+              Security Alerts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              Configure and manage security alerts
+            </p>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/security-alerts')}>
+              View Alerts
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

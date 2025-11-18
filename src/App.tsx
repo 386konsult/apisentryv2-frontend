@@ -15,6 +15,7 @@ import { PlatformProvider } from "@/contexts/PlatformContext";
 
 // Auth Pages
 import Login from "./pages/Login";
+import Register from "./pages/Register";
 import OTPVerification from "./pages/OTPVerification";
 import Onboarding from "./pages/Onboarding";
 
@@ -87,6 +88,7 @@ const AppContent = () => {
       <Routes>
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/otp-verification" element={<OTPVerification />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/auth/github/callback" element={<GitHubCallback />} />
@@ -119,6 +121,11 @@ const AppContent = () => {
                   <main className="p-6 overflow-x-hidden overflow-y-auto flex-1 min-w-0">
                     <Routes>
                       <Route path="/" element={<Platforms />} />
+                      <Route path="/dashboard" element={
+                        <ProtectedPlatformRoute>
+                          <Dashboard />
+                        </ProtectedPlatformRoute>
+                      } />
                       <Route path="/waf-rules" element={<WAFRules />} />
                       <Route path="/threat-logs" element={<ThreatLogs />} />
                       <Route path="/api-endpoints" element={<APIEndpoints />} />

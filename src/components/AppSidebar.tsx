@@ -41,18 +41,17 @@ const securityPlatformItems = [
   { title: "Threat Logs", url: "/threat-logs", icon: AlertTriangle },
   { title: "Security Alerts", url: "/security-alerts", icon: Bell },
   { title: "Incidents", url: "/incidents", icon: FileText },
-  { title: "Audit Logs", url: "/audit-logs", icon: Clock },
   { title: "API Endpoints", url: "/api-endpoints", icon: Globe },
   { title: "IP Blacklist", url: "/ip-blacklist", icon: Shield },
   { title: "Playground", url: "/playground", icon: Code },
 ];
 
-const vulnerabilityManagementItems = [
-  // { title: "Vulnerability Dashboard", url: "/vulnerability-dashboard", icon: Bug },
-  // { title: "Run Scan", url: "/vulnerability-scan", icon: Search },
-  // { title: "Reports", url: "/vulnerability-reports", icon: FileText },
-  // { title: "Scan Settings", url: "/vulnerability-settings", icon: Clock },
-];
+// const vulnerabilityManagementItems = [
+//   { title: "Vulnerability Dashboard", url: "/vulnerability-dashboard", icon: Bug },
+//   { title: "Run Scan", url: "/vulnerability-scan", icon: Search },
+//   { title: "Reports", url: "/vulnerability-reports", icon: FileText },
+//   { title: "Scan Settings", url: "/vulnerability-settings", icon: Clock },
+// ];
 
 const sourceCodeReviewItems = [
   { title: "Dashboard", url: "/code-review-dashboard", icon: LayoutDashboard },
@@ -65,6 +64,8 @@ const sourceCodeReviewItems = [
 const settingItems = [
   { title: "Users & Teams", url: "/users", icon: Users },
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Audit Logs", url: "/audit-logs", icon: Clock },
+
 ];
 
 const AppSidebar = () => {
@@ -135,7 +136,7 @@ const AppSidebar = () => {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
+        {/* <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
             Vulnerability Management
           </SidebarGroupLabel>
@@ -158,7 +159,7 @@ const AppSidebar = () => {
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
-        </SidebarGroup>
+        </SidebarGroup> */}
 
         {hasSelectedPlatform && (
           <SidebarGroup>

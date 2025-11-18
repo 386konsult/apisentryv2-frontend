@@ -205,7 +205,7 @@ const Onboarding = () => {
               <Shield className="h-6 w-6 text-white" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome to API Shield</CardTitle>
+          <CardTitle className="text-2xl font-bold">Welcome to APISentry</CardTitle>
           <CardDescription>
             Let's set up your security platform in just a few steps
           </CardDescription>
@@ -232,7 +232,7 @@ const Onboarding = () => {
             <div className="space-y-6">
               <div className="text-center">
                 <h3 className="text-lg font-semibold mb-2">Select Your Platform</h3>
-                <p className="text-muted-foreground">Choose where you'll deploy API Shield</p>
+                <p className="text-muted-foreground">Choose where you'll deploy APISentry</p>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

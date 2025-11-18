@@ -41,7 +41,7 @@ const ThreatLogs = () => {
   const [severityFilter, setSeverityFilter] = useState("all");
   const [timeRange, setTimeRange] = useState("all");
   const [ipFilter, setIpFilter] = useState("all");
-  const [endpointFilter, setEndpointFilter] = useState("all");
+  const [endpointFilter, setEndpointFilter] = useState("");
   const [allLogs, setAllLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   // pagination state
@@ -52,6 +52,13 @@ const ThreatLogs = () => {
   const navigate = useNavigate();
 
   const [platformName, setPlatformName] = useState<string>('');
+
+  // Reset page to 1 when endpoint filter changes
+  useEffect(() => {
+    if (endpointFilter) {
+      setPage(1);
+    }
+  }, [endpointFilter]);
 
   useEffect(() => {
     const platformId = localStorage.getItem('selected_platform_id');
@@ -82,6 +89,10 @@ const ThreatLogs = () => {
             params.start = dates.start.toISOString();
             params.end = dates.end.toISOString();
           }
+        }
+        // Add endpoint filter to backend request
+        if (endpointFilter && endpointFilter.trim()) {
+          params.path = endpointFilter.trim();
         }
 
         // use threat-specific endpoint (returns raw parsed JSON)
@@ -126,7 +137,7 @@ const ThreatLogs = () => {
     };
 
     fetchThreats();
-  }, [toast, navigate, timeRange, page]); // depend on page so changing it re-fetches
+  }, [toast, navigate, timeRange, page, endpointFilter]); // depend on page and endpointFilter so changing them re-fetches
 
   // Get all blocked threats (unfiltered for stats - from current time range)
   const allBlockedThreats = allLogs.filter(t => t.waf_blocked);
@@ -179,9 +190,10 @@ const ThreatLogs = () => {
     const matchesIP = ipFilter === 'all' || 
       log.client_ip === ipFilter;
 
-    // Endpoint filter
-    const matchesEndpoint = endpointFilter === 'all' || 
-      `${log.method} ${log.path}` === endpointFilter;
+    // Endpoint filter - backend handles filtering, but we can also do client-side partial matching as fallback
+    const matchesEndpoint = !endpointFilter || !endpointFilter.trim() || 
+      log.path?.toLowerCase().includes(endpointFilter.toLowerCase()) ||
+      `${log.method} ${log.path}`.toLowerCase().includes(endpointFilter.toLowerCase());
 
     // Threat type filter
     let matchesThreatType = true;
@@ -468,24 +480,19 @@ const ThreatLogs = () => {
                 </SelectContent>
               </Select>
 
-              <Select value={endpointFilter} onValueChange={setEndpointFilter}>
-                <SelectTrigger className="w-full sm:w-[250px]">
-                  <Code className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Endpoint" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Endpoints</SelectItem>
-                  {uniqueEndpoints.map(endpoint => (
-                    <SelectItem key={endpoint} value={endpoint}>
-                      {endpoint}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="relative w-full sm:w-[250px]">
+                <Code className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Filter by endpoint path..."
+                  value={endpointFilter}
+                  onChange={(e) => setEndpointFilter(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
             </div>
 
             {/* Filter Summary */}
-            {(searchTerm || severityFilter !== 'all' || threatType !== 'all' || ipFilter !== 'all' || endpointFilter !== 'all' || timeRange !== 'all') && (
+            {(searchTerm || severityFilter !== 'all' || threatType !== 'all' || ipFilter !== 'all' || (endpointFilter && endpointFilter.trim()) || timeRange !== 'all') && (
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm text-muted-foreground">Active filters:</span>
                 {searchTerm && (
@@ -513,9 +520,9 @@ const ThreatLogs = () => {
                     IP: {ipFilter}
                   </Badge>
                 )}
-                {endpointFilter !== 'all' && (
+                {endpointFilter && endpointFilter.trim() && (
                   <Badge variant="secondary" className="gap-1">
-                    Endpoint: {endpointFilter}
+                    Endpoint: {endpointFilter.length > 20 ? endpointFilter.substring(0, 20) + '...' : endpointFilter}
                   </Badge>
                 )}
                 <Button 
@@ -526,7 +533,7 @@ const ThreatLogs = () => {
                     setSeverityFilter('all');
                     setThreatType('all');
                     setIpFilter('all');
-                    setEndpointFilter('all');
+                    setEndpointFilter('');
                     setTimeRange('all');
                   }}
                 >

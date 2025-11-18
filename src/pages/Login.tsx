@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Shield, Eye, EyeOff } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { API_BASE_URL } from "@/services/api";
@@ -54,7 +54,7 @@ const Login = () => {
         console.log("Normal login, redirecting to dashboard");
         toast({
           title: "Login successful",
-          description: "Welcome to API Shield!",
+          description: "Welcome to APISentry!",
         });
         
         // Force a page reload to ensure the auth state is properly updated
@@ -82,7 +82,7 @@ const Login = () => {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold gradient-primary bg-clip-text text-transparent">
-            API Shield
+            APISentry
           </CardTitle>
           <CardDescription>
             Sign in to your security platform
@@ -134,7 +134,13 @@ const Login = () => {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Don't have an account?{' '}
+              <Link to="/register" className="text-primary hover:underline font-medium">
+                Sign up
+              </Link>
+            </p>
             <Button variant="link" className="text-sm text-muted-foreground">
               Forgot your password?
             </Button>

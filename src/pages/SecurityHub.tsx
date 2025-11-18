@@ -38,6 +38,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
   Search,
   Filter,
   Download,
@@ -54,10 +67,14 @@ import {
   Code,
   TrendingUp,
   Flag,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 import { apiService } from "@/services/api";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import countriesData from "@/data/countries.json";
+import { cn } from "@/lib/utils";
 
 interface RequestLog {
   id: string;
@@ -93,7 +110,9 @@ const SecurityHub = () => {
   
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
-  const [ipFilter, setIpFilter] = useState("all");
+  const [ipFilter, setIpFilter] = useState("");
+  const [countryFilter, setCountryFilter] = useState<string | null>(null);
+  const [countryFilterOpen, setCountryFilterOpen] = useState(false);
   const [endpointFilter, setEndpointFilter] = useState("all");
   const [methodFilter, setMethodFilter] = useState("all");
   const [statusCodeFilter, setStatusCodeFilter] = useState("all");
@@ -126,7 +145,7 @@ const SecurityHub = () => {
     try {
       // Get latest 100 request logs (all types - blocked and allowed) using num parameter
       const response = await apiService.getPlatformRequestLogs(platformId, { num: '100' });
-      const logsData = Array.isArray(response) ? response : response.logs || [];
+      const logsData = Array.isArray(response) ? response : (response as any)?.logs || [];
       setAllLogs(logsData);
     } catch (error) {
       console.error("Error fetching logs:", error);
@@ -184,9 +203,30 @@ const SecurityHub = () => {
       );
     }
 
-    // IP filter
-    if (ipFilter !== "all") {
-      filtered = filtered.filter((log) => log.client_ip === ipFilter);
+    // IP filter - allow partial matching for text input
+    if (ipFilter) {
+      filtered = filtered.filter((log) => 
+        log.client_ip?.toLowerCase().includes(ipFilter.toLowerCase())
+      );
+    }
+
+    // Country filter - check if log has country data
+    if (countryFilter) {
+      filtered = filtered.filter((log) => {
+        // Check if log has country field (if backend provides it)
+        const logCountry = (log as any).country || (log as any).country_code;
+        if (logCountry) {
+          const selectedCountry = countriesData.find(c => c.name === countryFilter || c.code === countryFilter);
+          if (selectedCountry) {
+            return logCountry === selectedCountry.code || 
+                   logCountry === selectedCountry.name ||
+                   (typeof logCountry === 'string' && logCountry.toLowerCase() === selectedCountry.name.toLowerCase());
+          }
+        }
+        // If no country data in log, we can't filter by country
+        // Return true to show all logs (or false to hide all if strict filtering is desired)
+        return true;
+      });
     }
 
     // Endpoint filter
@@ -224,6 +264,7 @@ const SecurityHub = () => {
     allLogs,
     searchTerm,
     ipFilter,
+    countryFilter,
     endpointFilter,
     methodFilter,
     statusCodeFilter,
@@ -529,6 +570,17 @@ const SecurityHub = () => {
             <p className="text-xs text-muted-foreground">&gt;10 requests/IP</p>
           </CardContent>
         </Card>
+
+        <Card className="w-full min-w-0 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium truncate">Unique Countries</CardTitle>
+            <Globe className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">0</div>
+            <p className="text-xs text-muted-foreground">Source countries</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -551,20 +603,69 @@ const SecurityHub = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full min-w-0">
-            <Select value={ipFilter} onValueChange={setIpFilter}>
-              <SelectTrigger>
-                <MapPin className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="IP Address" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All IPs</SelectItem>
-                {uniqueIPs.map((ip) => (
-                  <SelectItem key={ip} value={ip}>
-                    {ip}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="relative w-full min-w-0">
+              <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Filter by IP address..."
+                value={ipFilter}
+                onChange={(e) => setIpFilter(e.target.value)}
+                className="pl-8 w-full min-w-0"
+              />
+            </div>
+
+            <Popover open={countryFilterOpen} onOpenChange={setCountryFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={countryFilterOpen}
+                  className="w-full justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Flag className="h-4 w-4 text-muted-foreground" />
+                    <span className={cn("truncate", !countryFilter && "text-muted-foreground")}>
+                      {countryFilter
+                        ? countriesData.find((country) => country.name === countryFilter)?.name
+                        : "Filter by country..."}
+                    </span>
+                  </div>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search country..." />
+                  <CommandList>
+                    <CommandEmpty>No country found.</CommandEmpty>
+                    <CommandGroup>
+                      {countriesData.map((country) => (
+                        <CommandItem
+                          key={country.code}
+                          value={country.name}
+                          onSelect={() => {
+                            setCountryFilter(
+                              countryFilter === country.name ? null : country.name
+                            );
+                            setCountryFilterOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              countryFilter === country.name
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          <Flag className="mr-2 h-4 w-4" />
+                          {country.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
 
             <Select value={endpointFilter} onValueChange={setEndpointFilter}>
               <SelectTrigger>
@@ -647,8 +748,14 @@ const SecurityHub = () => {
               {searchTerm && (
                 <Badge variant="secondary" className="text-xs">Search: {searchTerm.length > 15 ? searchTerm.substring(0, 15) + '...' : searchTerm}</Badge>
               )}
-              {ipFilter !== "all" && (
+              {ipFilter && (
                 <Badge variant="secondary" className="text-xs truncate max-w-[150px]" title={ipFilter}>IP: {ipFilter.length > 12 ? ipFilter.substring(0, 12) + '...' : ipFilter}</Badge>
+              )}
+              {countryFilter && (
+                <Badge variant="secondary" className="text-xs truncate max-w-[150px]" title={countryFilter}>
+                  <Flag className="h-3 w-3 mr-1 inline" />
+                  Country: {countryFilter.length > 15 ? countryFilter.substring(0, 15) + '...' : countryFilter}
+                </Badge>
               )}
               {endpointFilter !== "all" && (
                 <Badge variant="secondary" className="text-xs truncate max-w-[200px]" title={endpointFilter}>Endpoint: {endpointFilter.length > 20 ? endpointFilter.substring(0, 20) + '...' : endpointFilter}</Badge>
@@ -666,7 +773,8 @@ const SecurityHub = () => {
                 <Badge variant="secondary" className="text-xs">WAF: {wafBlockedFilter}</Badge>
               )}
               {(searchTerm ||
-                ipFilter !== "all" ||
+                ipFilter ||
+                countryFilter ||
                 endpointFilter !== "all" ||
                 methodFilter !== "all" ||
                 statusCodeFilter !== "all" ||
@@ -678,7 +786,8 @@ const SecurityHub = () => {
                   className="text-xs"
                   onClick={() => {
                     setSearchTerm("");
-                    setIpFilter("all");
+                    setIpFilter("");
+                    setCountryFilter(null);
                     setEndpointFilter("all");
                     setMethodFilter("all");
                     setStatusCodeFilter("all");

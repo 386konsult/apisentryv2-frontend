@@ -90,7 +90,7 @@ const Register = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       toast({
         title: "Validation Error",
@@ -101,24 +101,27 @@ const Register = () => {
     }
 
     setIsLoading(true);
-    
+
     try {
+      const username = `${formData.firstName.trim().toLowerCase()}_${formData.lastName.trim().toLowerCase()}`;
       const userData = {
         email: formData.email,
         password: formData.password,
+        password_confirm: formData.confirmPassword,
         first_name: formData.firstName,
         last_name: formData.lastName,
-        company_name: formData.companyName || undefined,
+        username, // Add the generated username
         phone_number: formData.phoneNumber || undefined,
+        company_name: formData.companyName || undefined,
       };
 
       const response = await apiService.register(userData);
-      
+
       toast({
         title: "Registration successful",
         description: response.message || "Your account has been created successfully",
       });
-      
+
       // Redirect to login page
       setTimeout(() => {
         navigate('/login', { replace: true });
@@ -126,7 +129,7 @@ const Register = () => {
     } catch (error: any) {
       console.error("Registration error:", error);
       const errorMessage = error?.body?.message || error?.message || "Registration failed. Please try again.";
-      
+
       toast({
         title: "Registration failed",
         description: errorMessage,

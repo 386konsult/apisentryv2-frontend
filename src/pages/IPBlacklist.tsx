@@ -319,8 +319,8 @@ const IPBlacklist = () => {
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                          <span className="text-xs truncate max-w-[100px]" title={item.blocked_by || item.user || item.created_by || "System"}>
-                            {item.blocked_by || item.user || item.created_by || "System"}
+                          <span className="text-xs truncate max-w-[100px]" title={item.user_email || item.blocked_by || item.user || item.created_by || "System"}>
+                            {item.user_email || item.blocked_by || item.user || item.created_by || "System"}
                           </span>
                         </div>
                       </td>

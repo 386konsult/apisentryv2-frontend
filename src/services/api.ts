@@ -432,12 +432,39 @@ class APIService {
     }
   }
 
-  async register(userData: Record<string, unknown>): Promise<{ message: string; user: User }> {
-    return await this.request('/auth/register/', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    });
+  // Authentication methods
+async register(userData: {
+  email: string;
+  password: string;
+  password_confirm: string;
+  first_name: string;
+  last_name: string;
+  phone_number?: string;
+  company_name?: string;
+}): Promise<{ message: string; user: User }> {
+  const csrfToken = this.getCSRFToken(); // Retrieve CSRF token from cookies
+
+  return await this.request('/auth/register/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken, // Include CSRF token in the request
+    },
+    body: JSON.stringify(userData),
+  });
+}
+
+// Helper method to get CSRF token from cookies
+private getCSRFToken(): string | null {
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [key, value] = cookie.trim().split('=');
+    if (key === 'csrftoken') {
+      return value;
+    }
   }
+  return null;
+}
 
   async getUserInfo(): Promise<User> {
     return await this.request<User>('/auth/user-info/');

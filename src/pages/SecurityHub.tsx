@@ -143,10 +143,16 @@ const SecurityHub = () => {
   const fetchLogs = async (platformId: string) => {
     setLoading(true);
     try {
-      // Get latest 100 request logs (all types - blocked and allowed) using num parameter
-      const response = await apiService.getPlatformRequestLogs(platformId, { num: '100' });
-      const logsData = Array.isArray(response) ? response : (response as any)?.logs || [];
-      setAllLogs(logsData);
+      // Fetch last 100 logs
+      const response = await apiService.getSecurityHubLogs(platformId);
+      if (Array.isArray(response)) {
+        setAllLogs(response); // Set logs directly if response is an array
+      } else if (response && Array.isArray(response.logs)) {
+        setAllLogs(response.logs); // Extract logs if nested in `logs`
+      } else {
+        console.error('Unexpected response format for security hub logs:', response);
+        setAllLogs([]); // Fallback to an empty array
+      }
     } catch (error) {
       console.error("Error fetching logs:", error);
       toast({
@@ -154,6 +160,7 @@ const SecurityHub = () => {
         description: "Failed to fetch request logs",
         variant: "destructive",
       });
+      setAllLogs([]);
     } finally {
       setLoading(false);
     }

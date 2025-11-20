@@ -846,6 +846,21 @@ private getCSRFToken = () => {
       body: JSON.stringify(incidentData),
     });
   }
+
+  // Fetch the last 10 logs for platform details
+  async getPlatformLogs(platformId: string): Promise<any[]> {
+    return await this.request<any[]>(`/platforms/${platformId}/request-logs/`);
+  }
+
+  // Fetch the last 100 logs for security hub
+  async getSecurityHubLogs(platformId: string): Promise<any[]> {
+    return await this.request<any[]>(`/platforms/${platformId}/request-logs/?num=100`);
+  }
+
+  // Fetch the last 100 blocked logs for threat logs
+  async getBlockedThreatLogs(platformId: string): Promise<any[]> {
+    return await this.request<any[]>(`/platforms/${platformId}/request-logs/?blocked=true`);
+  }
 }
 
 // Create and export a singleton instance

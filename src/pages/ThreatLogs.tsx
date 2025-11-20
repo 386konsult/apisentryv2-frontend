@@ -77,54 +77,24 @@ const ThreatLogs = () => {
     const fetchThreats = async () => {
       setLoading(true);
       try {
-        // Send range and page parameters to backend so it returns blocked logs (page present triggers that branch)
-        const params: any = {
-          page: String(page ?? 1), // always include page (even page=1) so backend returns paginated blocked logs
-        };
-        // send both 'range' (backend-friendly) and explicit start/end ISO strings (preferred)
-        if (timeRange && timeRange !== 'all') {
-          params.range = timeRange;
-          const dates = getRangeDates(timeRange);
-          if (dates) {
-            params.start = dates.start.toISOString();
-            params.end = dates.end.toISOString();
-          }
-        }
-        // Add endpoint filter to backend request
-        if (endpointFilter && endpointFilter.trim()) {
-          params.path = endpointFilter.trim();
+        const platformId = localStorage.getItem('selected_platform_id');
+        if (!platformId) {
+          navigate('/platforms');
+          return;
         }
 
-        // use threat-specific endpoint (returns raw parsed JSON)
-        const res = await apiService.getPlatformThreatLogs(platformId, params);
-
-        // normalize returned logs array from various shapes and apply client-side range filter
-        let rawLogs: any[] = [];
-        if (Array.isArray(res)) {
-          rawLogs = res;
-          setTotalPages(null);
-        } else if (res && Array.isArray((res as any).logs)) {
-          rawLogs = (res as any).logs;
-          setPage(Number((res as any).page) || page);
-          setPageSize(Number((res as any).page_size) || pageSize);
-          setTotalPages(Number((res as any).total_pages) || null);
-        } else if (res && Array.isArray((res as any).results)) {
-          rawLogs = (res as any).results;
-          setTotalPages(null);
+        // Fetch last 100 blocked logs
+        const response = await apiService.getBlockedThreatLogs(platformId);
+        if (Array.isArray(response)) {
+          setAllLogs(response); // Set logs directly if response is an array
+        } else if (response && Array.isArray(response.logs)) {
+          setAllLogs(response.logs); // Extract logs if nested in `logs`
         } else {
-          rawLogs = [];
-          setTotalPages(null);
-          toast({
-            title: "Error loading threat logs",
-            description: "Invalid data format received",
-            variant: "destructive",
-          });
+          console.error('Unexpected response format for threat logs:', response);
+          setAllLogs([]); // Fallback to an empty array
         }
-
-        // Apply client-side filtering by selected time range so UI matches the selected range even if backend doesn't
-        const filteredByRange = applyClientRangeFilter(rawLogs, timeRange);
-        setAllLogs(filteredByRange);
       } catch (error) {
+        console.error('Error fetching threat logs:', error);
         setAllLogs([]);
         toast({
           title: "Error loading threat logs",

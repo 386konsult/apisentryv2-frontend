@@ -66,7 +66,7 @@ const PlatformDetails = () => {
   const [analytics, setAnalytics] = useState(null);
   const [endpoints, setEndpoints] = useState([]);
   const [wafRules, setWafRules] = useState([]);
-  const [threatLogs, setThreatLogs] = useState([]);
+  const [threatLogs, setThreatLogs] = useState<any[]>([]); // Ensure it's initialized as an empty array
   const [trafficData, setTrafficData] = useState([]);
   const [threatTypes, setThreatTypes] = useState([]);
   // New charts data - initialized with dummy data
@@ -203,10 +203,15 @@ const PlatformDetails = () => {
       })
       .catch(() => setTrafficData([]));
 
-    // Fetch latest logs for the table (always top 10, no range)
-    apiService.getPlatformRequestLogs(id, {})
-      .then(logs => {
-        setThreatLogs(logs);
+    // Fetch latest logs for the table (last 10 logs)
+    apiService.getPlatformLogs(id)
+      .then(response => {
+        if (response.success && Array.isArray(response.logs)) {
+          setThreatLogs(response.logs); // Extract the logs array
+        } else {
+          console.error('Unexpected response format for threat logs:', response);
+          setThreatLogs([]); // Fallback to an empty array
+        }
       })
       .catch((err) => {
         console.error('Error fetching threat logs:', err);

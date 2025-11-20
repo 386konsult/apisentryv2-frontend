@@ -418,6 +418,8 @@ class APIService {
 
     this.token = response.token;
     localStorage.setItem('auth_token', response.token);
+
+    // Remove any logic that redirects to password reset
     return response;
   }
 
@@ -454,17 +456,49 @@ async register(userData: {
   });
 }
 
+async passwordReset(email: string): Promise<{ message: string }> {
+  const csrfToken = this.getCSRFToken(); // Retrieve CSRF token from cookies
+
+  return await this.request('/password-reset/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken, // Include CSRF token in the request
+    },
+    credentials: 'include', // Ensure cookies are sent with the request
+    body: JSON.stringify({ email }),
+  });
+}
+
+async passwordResetConfirm(data: {
+  token: { uid: string; token: string };
+  new_password: string;
+  new_password_confirm: string;
+}): Promise<{ message: string }> {
+  const csrfToken = this.getCSRFToken(); // Retrieve CSRF token from cookies
+
+  return await this.request('/password-reset-confirm/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken, // Include CSRF token in the request
+    },
+    credentials: 'include', // Ensure cookies are sent with the request
+    body: JSON.stringify(data),
+  });
+}
+
 // Helper method to get CSRF token from cookies
-private getCSRFToken(): string | null {
+private getCSRFToken = () => {
   const cookies = document.cookie.split(';');
-  for (const cookie of cookies) {
+  for (let cookie of cookies) {
     const [key, value] = cookie.trim().split('=');
     if (key === 'csrftoken') {
       return value;
     }
   }
   return null;
-}
+};
 
   async getUserInfo(): Promise<User> {
     return await this.request<User>('/auth/user-info/');

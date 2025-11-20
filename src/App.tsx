@@ -18,6 +18,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import OTPVerification from "./pages/OTPVerification";
 import Onboarding from "./pages/Onboarding";
+import ForgotPassword from "./pages/ForgotPassword";
+import PasswordReset from "./pages/PasswordReset";
 
 // Main Pages
 import Dashboard from "./pages/Dashboard";
@@ -45,7 +47,6 @@ import PlatformDetails from "./pages/PlatformDetails";
 import CreateAlert from "./pages/CreateAlert";
 import SecurityAlerts from "./pages/SecurityAlerts";
 import GitHubCallback from "./pages/GitHubCallback";
-import ForcePasswordReset from "./pages/ForcePasswordReset";
 import IPBlacklist from "./pages/IPBlacklist";
 import SecurityHub from "./pages/SecurityHub";
 import Incidents from "./pages/Incidents";
@@ -89,10 +90,11 @@ const AppContent = () => {
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/password-reset-confirm/:uid/:token" element={<PasswordReset />} />
         <Route path="/otp-verification" element={<OTPVerification />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/auth/github/callback" element={<GitHubCallback />} />
-        <Route path="/force-password-reset" element={<ForcePasswordReset />} />
         {/* Main App Routes */}
         <Route path="/*" element={
           <ProtectedRoute>

@@ -80,16 +80,16 @@ const PlatformDetails = () => {
     { name: 'XXE', value: 8, color: '#10b981' },
   ]);
   const [owaspThreats, setOwaspThreats] = useState<OWASPThreat[]>([
-    { name: 'Broken Access Control', category: 'Access Control', count: 85, severity: 'critical' },
-    { name: 'Cryptographic Failures', category: 'Cryptography', count: 62, severity: 'high' },
-    { name: 'Injection', category: 'Injection', count: 94, severity: 'critical' },
-    { name: 'Insecure Design', category: 'Design', count: 45, severity: 'high' },
-    { name: 'Security Misconfiguration', category: 'Configuration', count: 38, severity: 'medium' },
-    { name: 'Vulnerable Components', category: 'Components', count: 52, severity: 'high' },
-    { name: 'Authentication Failures', category: 'Authentication', count: 78, severity: 'critical' },
-    { name: 'Software & Data Integrity', category: 'Integrity', count: 35, severity: 'high' },
-    { name: 'Security Logging Failures', category: 'Logging', count: 28, severity: 'medium' },
-    { name: 'Server-Side Request Forgery', category: 'SSRF', count: 41, severity: 'high' },
+    { name: 'Broken Access Control', category: 'Access Control', count: 0, severity: 'critical' },
+    { name: 'Cryptographic Failures', category: 'Cryptography', count: 0, severity: 'high' },
+    { name: 'Injection', category: 'Injection', count: 0, severity: 'critical' },
+    { name: 'Insecure Design', category: 'Design', count: 0, severity: 'high' },
+    { name: 'Security Misconfiguration', category: 'Configuration', count: 0, severity: 'medium' },
+    { name: 'Vulnerable Components', category: 'Components', count: 0, severity: 'high' },
+    { name: 'Authentication Failures', category: 'Authentication', count: 0, severity: 'critical' },
+    { name: 'Software & Data Integrity', category: 'Integrity', count: 0, severity: 'high' },
+    { name: 'Security Logging Failures', category: 'Logging', count: 0, severity: 'medium' },
+    { name: 'Server-Side Request Forgery', category: 'SSRF', count: 0, severity: 'high' },
   ]);
   const [countryData, setCountryData] = useState<CountryData[]>([
     { code: 'US', name: 'United States', count: 1245 },
@@ -204,13 +204,13 @@ const PlatformDetails = () => {
       .catch(() => setTrafficData([]));
 
     // Fetch latest logs for the table (last 10 logs)
-    apiService.getPlatformLogs(id)
-      .then(response => {
-        if (response.success && Array.isArray(response.logs)) {
-          setThreatLogs(response.logs); // Extract the logs array
+    apiService.getPlatformRequestLogs(id, { num: '10' })
+      .then(logs => {
+        if (Array.isArray(logs)) {
+          setThreatLogs(logs);
         } else {
-          console.error('Unexpected response format for threat logs:', response);
-          setThreatLogs([]); // Fallback to an empty array
+          console.error('Unexpected response format for threat logs:', logs);
+          setThreatLogs([]);
         }
       })
       .catch((err) => {

@@ -8,11 +8,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Link2, GitBranch, PlusCircle, ExternalLink, Settings, Users, Star, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "@/services/api";
 import { usePlatform } from "@/contexts/PlatformContext";
+
+type Provider = 'github' | 'bitbucket';
 
 interface Repo {
   id: number;
@@ -35,7 +38,7 @@ interface Repo {
   };
 }
 
-interface GitHubProfile {
+interface ProviderProfile {
   account_login?: string;
   account_type?: string;
   avatar_url?: string;
@@ -49,8 +52,9 @@ interface GitHubProfile {
 
 const CodeReviewConnect = () => {
   const { selectedPlatformId } = usePlatform();
+  const [provider, setProvider] = useState<Provider>('github');
   const [repos, setRepos] = useState<Repo[]>([]);
-  const [profile, setProfile] = useState<GitHubProfile | null>(null);
+  const [profile, setProfile] = useState<ProviderProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [error, setError] = useState("");
@@ -74,7 +78,7 @@ const CodeReviewConnect = () => {
     }
   }, [successMessage]);
 
-  // Fetch GitHub profile
+  // Fetch provider profile (GitHub or Bitbucket)
   const fetchProfile = () => {
     if (!selectedPlatformId) {
       setProfile(null);
@@ -86,7 +90,8 @@ const CodeReviewConnect = () => {
     setError("");
     
     const token = localStorage.getItem('auth_token');
-    fetch(`${API_BASE_URL}/github/status/?platform_id=${selectedPlatformId}`, {
+    const providerName = provider === 'github' ? 'github' : 'bitbucket';
+    fetch(`${API_BASE_URL}/${providerName}/status/?platform_id=${selectedPlatformId}`, {
       method: "GET",
       credentials: "include",
       headers: token ? { 'Authorization': `Token ${token}` } : {},
@@ -108,21 +113,21 @@ const CodeReviewConnect = () => {
         setProfileLoading(false);
       })
       .catch((err) => {
-        console.error("Error fetching profile:", err);
-        setError(err.message || "Failed to fetch GitHub profile");
+        console.error(`Error fetching ${providerName} profile:`, err);
+        setError(err.message || `Failed to fetch ${providerName === 'github' ? 'GitHub' : 'Bitbucket'} profile`);
         setProfile(null);
         setProfileLoading(false);
       });
   };
 
-  // Handle OAuth callback and GitHub App installation callback
+  // Handle GitHub App installation callback
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const installationId = urlParams.get("installation_id");
     const setupAction = urlParams.get("setup_action");
 
-    if (installationId) {
-      // Handle GitHub App installation callback
+    // Handle GitHub App installation callback
+    if (installationId && provider === 'github') {
       setLoading(true);
       setError("");
       
@@ -179,7 +184,7 @@ const CodeReviewConnect = () => {
       fetchProfile();
     }
     // eslint-disable-next-line
-  }, [selectedPlatformId, page]);
+  }, [selectedPlatformId, page, provider]);
 
   const fetchRepos = (pageNum: number) => {
     if (!selectedPlatformId) {
@@ -192,7 +197,8 @@ const CodeReviewConnect = () => {
     setError("");
     
     const token = localStorage.getItem('auth_token');
-    fetch(`${API_BASE_URL}/github/repos/?page=${pageNum}&page_size=${pageSize}&platform_id=${selectedPlatformId}`, {
+    const providerName = provider === 'github' ? 'github' : 'bitbucket';
+    fetch(`${API_BASE_URL}/${providerName}/repos/?page=${pageNum}&page_size=${pageSize}&platform_id=${selectedPlatformId}`, {
       method: "GET",
       credentials: "include",
       headers: token ? { 'Authorization': `Token ${token}` } : {},
@@ -210,7 +216,19 @@ const CodeReviewConnect = () => {
         return res.json();
       })
       .then((data) => {
-        if (data) setRepos(Array.isArray(data) ? data : []);
+        if (data) {
+          // Handle both array response and paginated object response
+          if (Array.isArray(data)) {
+            setRepos(data);
+          } else if (data.results && Array.isArray(data.results)) {
+            // Paginated response with results array
+            setRepos(data.results);
+          } else {
+            setRepos([]);
+          }
+        } else {
+          setRepos([]);
+        }
         setLoading(false);
       })
       .catch((err) => {
@@ -223,13 +241,49 @@ const CodeReviewConnect = () => {
       });
   };
 
-  // Start GitHub App installation flow
-  const handleConnectGitHub = () => {
-    window.location.href = "https://github.com/apps/apisentry-ai/installations/select_target";
+  // Start provider connection flow
+  const handleConnect = async () => {
+    if (provider === 'github') {
+      // GitHub App installation flow
+      window.location.href = "https://github.com/apps/apisentry-ai/installations/select_target";
+    } else if (provider === 'bitbucket') {
+      // Bitbucket OAuth flow
+      if (!selectedPlatformId) {
+        setError("No platform selected");
+        return;
+      }
+      
+      try {
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch(`${API_BASE_URL}/bitbucket/oauth/authorize/?platform_id=${selectedPlatformId}`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: token ? { 'Authorization': `Token ${token}` } : {},
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Handle both direct URL string or object with authorization_url/auth_url/url property
+          const authUrl = typeof data === 'string' 
+            ? data 
+            : (data.authorization_url || data.auth_url || data.url);
+          if (authUrl) {
+            window.location.href = authUrl;
+          } else {
+            throw new Error("No authorization URL received");
+          }
+        } else {
+          throw new Error(`Failed to initiate Bitbucket connection: ${response.status}`);
+        }
+      } catch (err: any) {
+        console.error("Bitbucket connection error:", err);
+        setError(err.message || "Error connecting to Bitbucket");
+      }
+    }
   };
 
-  // Disconnect GitHub
-  const handleDisconnectGitHub = async () => {
+  // Disconnect provider
+  const handleDisconnect = async () => {
     if (!selectedPlatformId) {
       setError("No platform selected");
       return;
@@ -237,7 +291,8 @@ const CodeReviewConnect = () => {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE_URL}/github/disconnect/?platform_id=${selectedPlatformId}`, {
+      const providerName = provider === 'github' ? 'github' : 'bitbucket';
+      const response = await fetch(`${API_BASE_URL}/${providerName}/disconnect/?platform_id=${selectedPlatformId}`, {
         method: 'POST',
         credentials: 'include',
         headers: token ? { 'Authorization': `Token ${token}` } : {},
@@ -247,15 +302,26 @@ const CodeReviewConnect = () => {
         setProfile(null);
         setRepos([]);
         setError("");
-        setSuccessMessage("Successfully disconnected from GitHub");
+        const providerDisplayName = provider === 'github' ? 'GitHub' : 'Bitbucket';
+        setSuccessMessage(`Successfully disconnected from ${providerDisplayName}`);
       } else {
         throw new Error(`Failed to disconnect: ${response.status}`);
       }
     } catch (err) {
       console.error("Disconnect error:", err);
-      setError("Error disconnecting GitHub");
+      const providerDisplayName = provider === 'github' ? 'GitHub' : 'Bitbucket';
+      setError(`Error disconnecting ${providerDisplayName}`);
     }
   };
+
+  // Update data when provider changes
+  useEffect(() => {
+    if (selectedPlatformId) {
+      fetchRepos(page);
+      fetchProfile();
+    }
+    // eslint-disable-next-line
+  }, [provider]);
 
   // Show platform selection message if no platform is selected
   if (!selectedPlatformId) {
@@ -268,7 +334,7 @@ const CodeReviewConnect = () => {
               <span>Platform Required</span>
             </CardTitle>
             <CardDescription>
-              Please select a platform to manage GitHub connections.
+              Please select a platform to manage repository connections.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -276,21 +342,49 @@ const CodeReviewConnect = () => {
     );
   }
 
+  const providerDisplayName = provider === 'github' ? 'GitHub' : 'Bitbucket';
+  const providerColor = provider === 'github' 
+    ? 'from-blue-600 to-purple-600' 
+    : 'from-blue-500 to-blue-700';
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">GitHub Connect</h1>
-          <p className="text-muted-foreground mt-2">Manage your GitHub App installation and view connected repositories</p>
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent" style={{
+              backgroundImage: `linear-gradient(to right, ${provider === 'github' ? '#2563eb, #9333ea' : '#0052cc, #0065ff'})`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>
+              Repository Connect
+            </h1>
+            <p className="text-muted-foreground mt-2">Connect your repositories for code review and security scanning</p>
+          </div>
         </div>
+        
+        {/* Provider Selector Tabs */}
+        <Tabs value={provider} onValueChange={(value) => setProvider(value as Provider)} className="mb-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="github">GitHub</TabsTrigger>
+            <TabsTrigger value="bitbucket">Bitbucket</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <div className="flex gap-2">
           <Button 
-            onClick={handleConnectGitHub}
-            className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+            onClick={handleConnect}
+            className={`bg-gradient-to-r text-white ${
+              provider === 'github' 
+                ? 'from-blue-500 to-purple-500' 
+                : 'from-blue-500 to-blue-700'
+            }`}
           >
             <PlusCircle className="w-4 h-4 mr-2" />
-            {profile?.connected ? 'Update Installation' : 'Install GitHub App'}
+            {profile?.connected 
+              ? (provider === 'github' ? 'Update Installation' : 'Reconnect') 
+              : (provider === 'github' ? 'Install GitHub App' : 'Connect Bitbucket')}
           </Button>
           {profile?.connected && (
             <Dialog open={showDisconnectConfirm} onOpenChange={setShowDisconnectConfirm}>
@@ -305,16 +399,16 @@ const CodeReviewConnect = () => {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Confirm GitHub Disconnection</DialogTitle>
+                  <DialogTitle>Confirm {providerDisplayName} Disconnection</DialogTitle>
                   <DialogDescription>
-                    Are you sure you want to disconnect the GitHub App? This action will:
+                    Are you sure you want to disconnect {providerDisplayName}? This action will:
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="text-sm text-muted-foreground space-y-2">
                     <p>• Remove access to all connected repositories</p>
                     <p>• Stop code review and security scanning</p>
-                    <p>• Require a new installation to reconnect</p>
+                    <p>• Require a new connection to reconnect</p>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button 
@@ -327,10 +421,10 @@ const CodeReviewConnect = () => {
                       variant="destructive" 
                       onClick={() => {
                         setShowDisconnectConfirm(false);
-                        handleDisconnectGitHub();
+                        handleDisconnect();
                       }}
                     >
-                      Disconnect GitHub App
+                      Disconnect {providerDisplayName}
                     </Button>
                   </div>
                 </div>
@@ -361,14 +455,14 @@ const CodeReviewConnect = () => {
         </motion.div>
       )}
 
-      {/* GitHub Connection Status */}
+      {/* Provider Connection Status */}
       {profileLoading ? (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                <span>Loading GitHub Status...</span>
+                <span>Loading {providerDisplayName} Status...</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -388,10 +482,10 @@ const CodeReviewConnect = () => {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>GitHub Connected</span>
+                <span>{providerDisplayName} Connected</span>
               </CardTitle>
               <CardDescription>
-                GitHub App is installed and connected
+                {provider === 'github' ? 'GitHub App is installed and connected' : 'Bitbucket is connected'}
                 {profile.account_login && ` as ${profile.account_login}`}
                 {profile.repositories_count && ` (${profile.repositories_count} repositories)`}
               </CardDescription>
@@ -404,9 +498,13 @@ const CodeReviewConnect = () => {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <span>GitHub Not Connected</span>
+                <span>{providerDisplayName} Not Connected</span>
               </CardTitle>
-              <CardDescription>GitHub App is not installed for this platform</CardDescription>
+              <CardDescription>
+                {provider === 'github' 
+                  ? 'GitHub App is not installed for this platform' 
+                  : 'Bitbucket is not connected for this platform'}
+              </CardDescription>
             </CardHeader>
           </Card>
         </motion.div>
@@ -439,7 +537,11 @@ const CodeReviewConnect = () => {
               <div className="text-center py-8 text-muted-foreground">
                 <GitBranch className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>No repositories found.</p>
-                <p className="text-sm">Make sure you've installed the GitHub App and granted access to repositories.</p>
+                <p className="text-sm">
+                  {provider === 'github' 
+                    ? "Make sure you've installed the GitHub App and granted access to repositories."
+                    : "Make sure you've connected Bitbucket and granted access to repositories."}
+                </p>
               </div>
             ) : (
               <div className="space-y-2">

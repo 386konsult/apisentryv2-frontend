@@ -4,44 +4,106 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { LayoutDashboard, Shield, GitBranch, TrendingUp, Zap, Users, BookOpen, Info, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
+import { 
+  LayoutDashboard, 
+  Shield, 
+  GitBranch, 
+  TrendingUp, 
+  Zap, 
+  AlertTriangle, 
+  CheckCircle, 
+  Loader2,
+  Activity,
+  Target,
+  BarChart3,
+  Gauge,
+  FileWarning,
+  Lock,
+  Clock,
+  XCircle,
+  PlayCircle,
+  CheckCircle2
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { apiService } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  RadialBarChart,
+  RadialBar,
+  Cell,
+  Legend,
+  Treemap,
+  AreaChart,
+  Area
+} from "recharts";
 import { API_BASE_URL } from "@/services/api";
 import { usePlatform } from "@/contexts/PlatformContext";
 
-interface SecurityFinding {
+interface DashboardData {
+  scan_status: {
+    completed: number;
+    in_progress: number;
+    queued: number;
+    failed: number;
+  };
+  scores: {
+    security_score: number;
+    performance_score: number;
+  };
+  issues_summary: {
+    total_issues: number;
+    resolved_issues: number;
+    open_issues: number;
+    security_issues: number;
+    performance_issues: number;
+    other_issues: number;
+  };
+  severity_breakdown: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  affected_security_frameworks: Array<{
+    name: string;
+    count: number;
+    percentage: number;
+  }>;
+  affected_compliance_frameworks: Array<{
+    name: string;
+    count: number;
+    percentage: number;
+  }>;
+  top_owasp_findings: Array<{
+    category: string;
+    count: number;
+  }>;
+  total_scanned_repositories: number;
+  top_api_endpoints: Array<{
   id: string;
-  file: string;
-  line: number;
-  code: string;
-  type: string;
-  risk: 'Low' | 'Medium' | 'High' | 'Critical';
-  recommendation: string;
-  suggestedFix: string;
-  cve?: string;
-  assignedTo?: string;
-  status: string;
-  repository: string;
-  createdAt: string;
-  resolvedAt?: string;
+    name: string;
+    path: string;
+    method: string;
+    total_issues: number;
+    security_percentage: number;
+    performance_percentage: number;
+    other_percentage: number;
+    risk_level: string;
+  }>;
 }
 
 const CodeReviewDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { selectedPlatformId } = usePlatform();
-  const [selectedFinding, setSelectedFinding] = useState<SecurityFinding | null>(null);
-  const [showFindingDetails, setShowFindingDetails] = useState(false);
-
-  const [repos, setRepos] = useState([]);
-  const [securityFindings, setSecurityFindings] = useState<SecurityFinding[]>([]);
-  const [reviewFeedbackData, setReviewFeedbackData] = useState([]);
-  const [toolFindingsData, setToolFindingsData] = useState([]);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
@@ -55,102 +117,18 @@ const CodeReviewDashboard = () => {
         throw new Error("No platform selected. Please select a platform first.");
       }
 
-      // Fetch repositories data
-      const reposResponse = await fetch(`${API_BASE_URL}/github/repos/?platform_id=${selectedPlatformId}`, { headers });
-      if (reposResponse.ok) {
-        const reposData = await reposResponse.json();
-        setRepos(reposData || []);
-      } else {
-        console.error('Repositories API error:', reposResponse.status, reposResponse.statusText);
-        setRepos([]);
-        // Try to parse error message from response
-        try {
-          const errorData = await reposResponse.json();
-          throw new Error(errorData.error || `Failed to fetch repositories: ${reposResponse.status} ${reposResponse.statusText}`);
-        } catch (parseError) {
-          throw new Error(`Failed to fetch repositories: ${reposResponse.status} ${reposResponse.statusText}`);
-        }
+      const response = await fetch(`${API_BASE_URL}/codereview/dashboard/?platform_id=${selectedPlatformId}`, { headers });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dashboard data: ${response.status} ${response.statusText}`);
       }
 
-      // Fetch security findings
-      const findingsResponse = await fetch(`${API_BASE_URL}/github/security-findings/?platform_id=${selectedPlatformId}`, { headers });
-      if (findingsResponse.ok) {
-        const findingsData = await findingsResponse.json();
-        const mappedFindings = (findingsData.issues || []).map((issue: {
-          id: string;
-          file: string;
-          line: number;
-          code: string;
-          type: string;
-          risk: string;
-          recommendation: string;
-          suggestedFix: string;
-          cve?: string;
-          assignedTo?: string;
-          status: string;
-          repository: string;
-          createdAt: string;
-          resolvedAt?: string;
-        }) => ({
-          id: issue.id,
-          file: issue.file,
-          line: issue.line,
-          code: issue.code,
-          type: issue.type,
-          risk: issue.risk,
-          recommendation: issue.recommendation,
-          suggestedFix: issue.suggestedFix,
-          cve: issue.cve,
-          assignedTo: issue.assignedTo,
-          status: issue.status,
-          repository: issue.repository,
-          createdAt: issue.createdAt,
-          resolvedAt: issue.resolvedAt,
-        }));
-        setSecurityFindings(mappedFindings);
-      } else {
-        console.error('Security findings API error:', findingsResponse.status, findingsResponse.statusText);
-        setSecurityFindings([]);
-        // Try to parse error message from response
-        try {
-          const errorData = await findingsResponse.json();
-          throw new Error(errorData.error || `Failed to fetch security findings: ${findingsResponse.status} ${findingsResponse.statusText}`);
-        } catch (parseError) {
-          throw new Error(`Failed to fetch security findings: ${findingsResponse.status} ${findingsResponse.statusText}`);
-        }
-      }
-
-      // Fetch review feedback statistics
-      const feedbackResponse = await fetch(`${API_BASE_URL}/github/review-stats/?platform_id=${selectedPlatformId}`, { headers });
-      if (feedbackResponse.ok) {
-        const feedbackData = await feedbackResponse.json();
-        setReviewFeedbackData(feedbackData.feedback_breakdown || []);
-        setToolFindingsData(feedbackData.tool_findings || []);
-        
-        // You can now also use feedbackData.summary_stats for additional metrics
-      } else {
-        console.error('Review stats API error:', feedbackResponse.status, feedbackResponse.statusText);
-        setReviewFeedbackData([]);
-        setToolFindingsData([]);
-        // Try to parse error message from response
-        try {
-          const errorData = await feedbackResponse.json();
-          throw new Error(errorData.error || `Failed to fetch review stats: ${feedbackResponse.status} ${feedbackResponse.statusText}`);
-        } catch (parseError) {
-          throw new Error(`Failed to fetch review stats: ${feedbackResponse.status} ${feedbackResponse.statusText}`);
-        }
-      }
-    } catch (err) {
+      const data = await response.json();
+      setDashboardData(data);
+    } catch (err: any) {
       console.error('Dashboard data fetch error:', err);
-      // Do not show error for 404 Not Found on repositories
-      if (!err.message?.includes('Failed to fetch repositories: 404')) {
         setError(err.message || "An unexpected error occurred while loading the dashboard.");
-      }
-      // Set default empty states to prevent further errors
-      setRepos([]);
-      setSecurityFindings([]);
-      setReviewFeedbackData([]);
-      setToolFindingsData([]);
+      setDashboardData(null);
     }
   };
 
@@ -177,7 +155,7 @@ const CodeReviewDashboard = () => {
       const response = await fetch(`${API_BASE_URL}/github/scan-all/?platform_id=${selectedPlatformId}`, {
         method: "POST",
         headers,
-        body: JSON.stringify({}), // Empty body since we get repos from GitHub App
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
@@ -190,11 +168,9 @@ const CodeReviewDashboard = () => {
         description: `Code review scan started successfully. Scan ID: ${result.scanId || "N/A"}`,
       });
       
-      // Refresh dashboard data after successful scan
       await fetchDashboardData();
-      
       navigate('/code-review-scan-reports');
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to start code review scan.",
@@ -220,28 +196,18 @@ const CodeReviewDashboard = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'Resolved':
-        return <Badge className="bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />{status}</Badge>;
-      case 'Open':
-        return <Badge className="bg-orange-100 text-orange-800"><AlertTriangle className="w-3 h-3 mr-1" />{status}</Badge>;
+  const getSeverityColor = (severity: string) => {
+    switch (severity.toLowerCase()) {
+      case 'critical':
+        return '#ef4444';
+      case 'high':
+        return '#f97316';
+      case 'medium':
+        return '#eab308';
+      case 'low':
+        return '#22c55e';
       default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  const getResolutionBadge = (resolution?: string) => {
-    if (!resolution) return null;
-    switch (resolution) {
-      case 'Fixed':
-        return <Badge className="bg-green-100 text-green-800">{resolution}</Badge>;
-      case 'Accepted':
-        return <Badge className="bg-blue-100 text-blue-800">{resolution}</Badge>;
-      case 'Marked False Positive':
-        return <Badge className="bg-gray-100 text-gray-800">{resolution}</Badge>;
-      default:
-        return <Badge variant="secondary">{resolution}</Badge>;
+        return '#6b7280';
     }
   };
 
@@ -256,6 +222,57 @@ const CodeReviewDashboard = () => {
     );
   }
 
+  if (!dashboardData) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertTriangle className="h-8 w-8 mx-auto mb-4 text-red-500" />
+          <p className="text-red-600">{error || "Failed to load dashboard data"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Prepare chart data
+  const severityData = [
+    { name: 'Critical', value: dashboardData.severity_breakdown.critical, color: '#ef4444' },
+    { name: 'High', value: dashboardData.severity_breakdown.high, color: '#f97316' },
+    { name: 'Medium', value: dashboardData.severity_breakdown.medium, color: '#eab308' },
+    { name: 'Low', value: dashboardData.severity_breakdown.low, color: '#22c55e' },
+  ];
+
+  const issuesTypeData = [
+    { name: 'Security', value: dashboardData.issues_summary.security_issues, color: '#ef4444' },
+    { name: 'Performance', value: dashboardData.issues_summary.performance_issues, color: '#f97316' },
+    { name: 'Other', value: dashboardData.issues_summary.other_issues, color: '#6b7280' },
+  ];
+
+  const securityFrameworksData = dashboardData.affected_security_frameworks.map(f => ({
+    name: f.name,
+    count: f.count,
+    percentage: f.percentage,
+    fill: '#3b82f6'
+  }));
+
+  const complianceFrameworksData = dashboardData.affected_compliance_frameworks.map(f => ({
+    name: f.name,
+    count: f.count,
+    percentage: f.percentage,
+    fill: '#8b5cf6'
+  }));
+
+  const owaspData = dashboardData.top_owasp_findings.map(f => ({
+    name: f.category,
+    value: f.count,
+    fill: `hsl(${Math.random() * 360}, 70%, 50%)`
+  }));
+
+  // Gauge chart data for scores
+  const scoreGaugeData = [
+    { name: 'Security', value: dashboardData.scores.security_score, fill: '#22c55e' },
+    { name: 'Performance', value: dashboardData.scores.performance_score, fill: '#3b82f6' },
+  ];
+
   return (
     <div className="space-y-6">
       {error && (
@@ -267,43 +284,31 @@ const CodeReviewDashboard = () => {
           <div className="flex items-start space-x-3">
             <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
             <div className="flex-1">
-              <p className="font-semibold text-red-900 mb-1">GitHub Authentication Required</p>
-              <p className="text-red-700 text-sm mb-3">{error}</p>
-              {error.includes("GitHub profile not found") && (
-                <div className="flex space-x-3">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => navigate('/integrations')}
-                    className="border-red-300 text-red-700 hover:bg-red-100"
-                  >
-                    <GitBranch className="w-4 h-4 mr-2" />
-                    Connect GitHub
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => window.location.reload()}
-                    className="border-red-300 text-red-700 hover:bg-red-100"
-                  >
-                    <Zap className="w-4 h-4 mr-2" />
-                    Retry
-                  </Button>
-                </div>
-              )}
+              <p className="font-semibold text-red-900 mb-1">Error</p>
+              <p className="text-red-700 text-sm">{error}</p>
             </div>
           </div>
         </motion.div>
       )}
 
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="flex items-center justify-between">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        transition={{ duration: 0.5 }} 
+        className="flex items-center justify-between"
+      >
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Source Code Review</h1>
-          <p className="text-muted-foreground mt-2">Monitor codebase security, risk, and team habits across all connected repositories</p>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Source Code Review Dashboard
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Comprehensive security and performance analysis across all repositories
+          </p>
         </div>
         <Button 
           onClick={startScan}
-          disabled={scanning}
+          // disabled={scanning}
+          disabled={true}
           className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
         >
           {scanning ? (
@@ -320,165 +325,348 @@ const CodeReviewDashboard = () => {
         </Button>
       </motion.div>
 
-      {/* Metrics Cards */}
-      <motion.div initial="hidden" animate="visible" variants={{hidden:{opacity:0},visible:{opacity:1,transition:{staggerChildren:0.1}}}} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <motion.div variants={{hidden:{y:20,opacity:0},visible:{y:0,opacity:1,transition:{duration:0.5}}}}>
+      {/* Scan Status Cards */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="grid grid-cols-1 md:grid-cols-4 gap-4"
+      >
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-light text-green-800 dark:text-green-200">Completed</p>
+                <p className="text-xl font-normal text-green-900 dark:text-green-100 mt-1">
+                  {dashboardData.scan_status.completed}
+                </p>
+              </div>
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-blue-800 dark:text-blue-200">Connected Repos</CardTitle>
-              <GitBranch className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{repos.length}</div>
-              <p className="text-xs text-blue-700 dark:text-blue-300">Active integrations</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-        <motion.div variants={{hidden:{y:20,opacity:0},visible:{y:0,opacity:1,transition:{duration:0.5}}}}>
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-green-800 dark:text-green-200">Avg Security Score</CardTitle>
-              <Shield className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-900 dark:text-green-100">
-                {repos.length > 0 ? Math.round(repos.reduce((a,b)=>a+(b.score || 0),0)/repos.length) : 'N/A'}
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-light text-blue-800 dark:text-blue-200">In Progress</p>
+                <p className="text-xl font-normal text-blue-900 dark:text-blue-100 mt-1">
+                  {dashboardData.scan_status.in_progress}
+                </p>
               </div>
-              <p className="text-xs text-green-700 dark:text-green-300">Across all repos</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-        <motion.div variants={{hidden:{y:20,opacity:0},visible:{y:0,opacity:1,transition:{duration:0.5}}}}>
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-orange-800 dark:text-orange-200">Risk Level</CardTitle>
-              <TrendingUp className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
-                {repos.filter(r=>r.risk && r.risk!=='Low').length}
+              <PlayCircle className="h-5 w-5 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900 border-yellow-200 dark:border-yellow-800">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-light text-yellow-800 dark:text-yellow-200">Queued</p>
+                <p className="text-xl font-normal text-yellow-900 dark:text-yellow-100 mt-1">
+                  {dashboardData.scan_status.queued}
+                </p>
               </div>
-              <p className="text-xs text-orange-700 dark:text-orange-300">Repos with risk</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-        <motion.div variants={{hidden:{y:20,opacity:0},visible:{y:0,opacity:1,transition:{duration:0.5}}}}>
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-purple-800 dark:text-purple-200">Last Scan</CardTitle>
-              <BookOpen className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                {repos.length > 0 && repos[0]?.lastScan ? repos[0].lastScan : 'N/A'}
+              <Clock className="h-5 w-5 text-yellow-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-light text-red-800 dark:text-red-200">Failed</p>
+                <p className="text-xl font-normal text-red-900 dark:text-red-100 mt-1">
+                  {dashboardData.scan_status.failed}
+                </p>
               </div>
-              <p className="text-xs text-purple-700 dark:text-purple-300">Most recent</p>
+              <XCircle className="h-5 w-5 text-red-600" />
+            </div>
             </CardContent>
           </Card>
         </motion.div>
+
+      {/* Scores and Issues Summary */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+      >
+        {/* Security Score Gauge */}
+        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border-emerald-200 dark:border-emerald-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center space-x-1 text-emerald-800 dark:text-emerald-200 text-sm font-light">
+              <Shield className="h-3 w-3" />
+              <span>Security Score</span>
+            </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-2">
+            <div className="flex items-center justify-center">
+              <div className="relative w-32 h-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadialBarChart 
+                    cx="50%" 
+                    cy="50%" 
+                    innerRadius="60%" 
+                    outerRadius="90%" 
+                    data={[{ value: dashboardData.scores.security_score, fill: '#22c55e' }]}
+                    startAngle={180}
+                    endAngle={0}
+                  >
+                    <RadialBar dataKey="value" cornerRadius={10} fill="#22c55e" />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-2xl font-normal text-emerald-900 dark:text-emerald-100">
+                      {dashboardData.scores.security_score}
+                    </div>
+                    <div className="text-xs font-light text-emerald-700 dark:text-emerald-300">/ 100</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            </CardContent>
+          </Card>
+
+        {/* Performance Score Gauge */}
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center space-x-1 text-blue-800 dark:text-blue-200 text-sm font-light">
+              <Activity className="h-3 w-3" />
+              <span>Performance Score</span>
+            </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-2">
+            <div className="flex items-center justify-center">
+              <div className="relative w-32 h-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadialBarChart 
+                    cx="50%" 
+                    cy="50%" 
+                    innerRadius="60%" 
+                    outerRadius="90%" 
+                    data={[{ value: dashboardData.scores.performance_score, fill: '#3b82f6' }]}
+                    startAngle={180}
+                    endAngle={0}
+                  >
+                    <RadialBar dataKey="value" cornerRadius={10} fill="#3b82f6" />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-2xl font-normal text-blue-900 dark:text-blue-100">
+                      {dashboardData.scores.performance_score}
+                    </div>
+                    <div className="text-xs font-light text-blue-700 dark:text-blue-300">/ 100</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            </CardContent>
+          </Card>
+
+        {/* Issues Summary */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center space-x-1 text-sm font-light">
+              <FileWarning className="h-3 w-3 text-orange-600" />
+              <span>Issues Summary</span>
+            </CardTitle>
+            </CardHeader>
+          <CardContent className="space-y-3 pt-2">
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-light">Total Issues</span>
+                <span className="text-lg font-normal">{dashboardData.issues_summary.total_issues}</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="font-light">Open</span>
+                  <span className="font-normal">{dashboardData.issues_summary.open_issues}</span>
+                </div>
+                <Progress 
+                  value={(dashboardData.issues_summary.open_issues / dashboardData.issues_summary.total_issues) * 100} 
+                  className="h-1"
+                />
+              </div>
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="font-light">Resolved</span>
+                  <span className="font-normal">{dashboardData.issues_summary.resolved_issues}</span>
+                </div>
+                <Progress 
+                  value={(dashboardData.issues_summary.resolved_issues / dashboardData.issues_summary.total_issues) * 100} 
+                  className="h-1"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 pt-1">
+              <div className="text-center p-1.5 bg-red-50 dark:bg-red-950 rounded">
+                <div className="text-sm font-normal text-red-600">{dashboardData.issues_summary.security_issues}</div>
+                <div className="text-xs font-light text-red-700 dark:text-red-300">Security</div>
+              </div>
+              <div className="text-center p-1.5 bg-orange-50 dark:bg-orange-950 rounded">
+                <div className="text-sm font-normal text-orange-600">{dashboardData.issues_summary.performance_issues}</div>
+                <div className="text-xs font-light text-orange-700 dark:text-orange-300">Performance</div>
+              </div>
+              <div className="text-center p-1.5 bg-gray-50 dark:bg-gray-950 rounded">
+                <div className="text-sm font-normal text-gray-600">{dashboardData.issues_summary.other_issues}</div>
+                <div className="text-xs font-light text-gray-700 dark:text-gray-300">Other</div>
+              </div>
+            </div>
+            </CardContent>
+          </Card>
       </motion.div>
 
-      {/* Charts Row */}
+      {/* Severity Breakdown and Repositories */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }} 
         animate={{ opacity: 1, y: 0 }} 
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
         className="grid grid-cols-1 lg:grid-cols-2 gap-6"
       >
-                {/* Review Feedback Breakdown */}
+        {/* Severity Breakdown - Horizontal Bar Chart */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <LayoutDashboard className="w-5 h-5 text-blue-600" />
-              <span>Review Feedback Breakdown</span>
-              <Info className="w-4 h-4 text-muted-foreground" />
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center space-x-1 text-sm font-light">
+              <BarChart3 className="h-3 w-3 text-purple-600" />
+              <span>Severity Breakdown</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={reviewFeedbackData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, value, percent }) =>
-                      percent > 0 ? `${name}: ${value}` : ""
-                    }
-                    labelLine={true}
-                  >
-                    {reviewFeedbackData.map((entry, index) => (
+          <CardContent className="pt-2">
+            <ResponsiveContainer width="100%" height={150}>
+              <BarChart data={severityData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis type="number" tick={{ fontSize: 10 }} />
+                <YAxis dataKey="name" type="category" width={60} tick={{ fontSize: 10 }} />
+                <Tooltip contentStyle={{ fontSize: '11px', padding: '4px 8px' }} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  {severityData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Total Repositories and Issues Type */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center space-x-1 text-sm font-light">
+              <GitBranch className="h-3 w-3 text-blue-600" />
+              <span>Repositories & Issue Types</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="mb-3">
+              <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 rounded-lg">
+                <div className="text-2xl font-normal bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  {dashboardData.total_scanned_repositories}
+                </div>
+                <div className="text-xs font-light text-muted-foreground mt-1">Total Scanned Repositories</div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-light text-xs">Issue Types Distribution</h4>
+              <ResponsiveContainer width="100%" height={120}>
+                <BarChart data={issuesTypeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip contentStyle={{ fontSize: '11px', padding: '4px 8px' }} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {issuesTypeData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
-            <div className="mt-4 space-y-2">
-              {reviewFeedbackData.map((item, index) => (
-                <div key={index} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center space-x-2">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: item.color }}
-                    ></div>
-                    <span>{item.name}</span>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Security & Compliance Frameworks */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+      >
+        {/* Affected Security Frameworks */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center space-x-1 text-sm font-light">
+              <Shield className="h-3 w-3 text-red-600" />
+              <span>Affected Security Frameworks</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart data={securityFrameworksData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} />
+                <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(value: any) => `${value}%`} contentStyle={{ fontSize: '11px', padding: '4px 8px' }} />
+                <Bar dataKey="percentage" radius={[0, 4, 4, 0]}>
+                  {securityFrameworksData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill="#3b82f6" />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="mt-2 space-y-1">
+              {securityFrameworksData.map((framework, index) => (
+                <div key={index} className="flex items-center justify-between text-xs">
+                  <span className="font-light">{framework.name}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-normal">{framework.count} issues</span>
+                    <Badge variant="outline" className="text-xs py-0 px-1">{framework.percentage}%</Badge>
                   </div>
-                  <span className="font-medium">{item.value}</span>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
         
-        {/* Tool Findings Breakdown */}
+        {/* Affected Compliance Frameworks */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Shield className="w-5 h-5 text-purple-600" />
-              <span>Tool Findings Breakdown</span>
-              <Info className="w-4 h-4 text-muted-foreground" />
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center space-x-1 text-sm font-light">
+              <Lock className="h-3 w-3 text-purple-600" />
+              <span>Affected Compliance Frameworks</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={toolFindingsData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, value, percent }) =>
-                      percent > 0 ? `${name}: ${value}` : ""
-                    }
-                    labelLine={true}
-                  >
-                    {toolFindingsData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
+          <CardContent className="pt-2">
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart data={complianceFrameworksData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} />
+                <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(value: any) => `${value}%`} contentStyle={{ fontSize: '11px', padding: '4px 8px' }} />
+                <Bar dataKey="percentage" radius={[0, 4, 4, 0]}>
+                  {complianceFrameworksData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill="#8b5cf6" />
+                  ))}
+                </Bar>
+              </BarChart>
               </ResponsiveContainer>
-            </div>
-            <div className="mt-4 space-y-2 max-h-32 overflow-y-auto">
-              {toolFindingsData.map((item, index) => (
-                <div key={index} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center space-x-2">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: item.color }}
-                    ></div>
-                    <span>{item.name}</span>
+            <div className="mt-2 space-y-1">
+              {complianceFrameworksData.map((framework, index) => (
+                <div key={index} className="flex items-center justify-between text-xs">
+                  <span className="font-light">{framework.name}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-normal">{framework.count} issues</span>
+                    <Badge variant="outline" className="text-xs py-0 px-1">{framework.percentage}%</Badge>
                   </div>
-                  <span className="font-medium">{item.value}</span>
                 </div>
               ))}
             </div>
@@ -486,46 +674,122 @@ const CodeReviewDashboard = () => {
         </Card>
       </motion.div>
 
-      {/* Security Findings Table */}
+      {/* Top OWASP Findings - Treemap */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+      >
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center space-x-1 text-sm font-light">
+              <Target className="h-3 w-3 text-orange-600" />
+              <span>Top OWASP Findings</span>
+            </CardTitle>
+            <CardDescription className="text-xs font-light">Most common OWASP Top 10 categories found in scans</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <ResponsiveContainer width="100%" height={150}>
+              <BarChart data={owaspData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis type="number" tick={{ fontSize: 10 }} />
+                <YAxis dataKey="name" type="category" width={60} tick={{ fontSize: 10 }} />
+                <Tooltip contentStyle={{ fontSize: '11px', padding: '4px 8px' }} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  {owaspData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="mt-2 grid grid-cols-2 md:grid-cols-5 gap-1.5">
+              {owaspData.map((item, index) => (
+                <div key={index} className="p-2 bg-muted rounded-lg text-center">
+                  <div className="text-sm font-normal">{item.value}</div>
+                  <div className="text-xs font-light text-muted-foreground">{item.name}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Top API Endpoints */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }} 
         animate={{ opacity: 1, y: 0 }} 
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.5, delay: 0.5 }}
       >
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Shield className="w-5 h-5 text-red-600" />
-              <span>Recent Tool Findings</span>
-              <Info className="w-4 h-4 text-muted-foreground" />
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center space-x-1 text-sm font-light">
+              <Activity className="h-3 w-3 text-indigo-600" />
+              <span>Top API Endpoints with Issues</span>
             </CardTitle>
+            <CardDescription className="text-xs font-light">Endpoints with the most security and performance issues</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-2">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>File</TableHead>
-                  <TableHead>Line</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Risk</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="text-xs font-light">Endpoint</TableHead>
+                  <TableHead className="text-xs font-light">Method</TableHead>
+                  <TableHead className="text-xs font-light">Total Issues</TableHead>
+                  <TableHead className="text-xs font-light">Security</TableHead>
+                  <TableHead className="text-xs font-light">Performance</TableHead>
+                  <TableHead className="text-xs font-light">Other</TableHead>
+                  <TableHead className="text-xs font-light">Risk Level</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {securityFindings.map((finding) => (
-                  <TableRow
-                    key={finding.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => {
-                      setSelectedFinding(finding);
-                      setShowFindingDetails(true);
-                    }}
-                  >
-                    <TableCell className="font-medium">{finding.file}</TableCell>
-                    <TableCell>{finding.line}</TableCell>
-                    <TableCell>{finding.type}</TableCell>
-                    <TableCell>{getRiskBadge(finding.risk)}</TableCell>
-                    <TableCell>{getStatusBadge(finding.status)}</TableCell>
+                {dashboardData.top_api_endpoints.map((endpoint) => (
+                  <TableRow key={endpoint.id} className="cursor-pointer hover:bg-muted/50">
+                    <TableCell className="font-normal">
+                      <div>
+                        <div className="text-xs font-normal">{endpoint.name}</div>
+                        <div className="text-xs font-light text-muted-foreground">{endpoint.path}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="font-mono text-xs py-0 px-1">
+                        {endpoint.method}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs font-normal">{endpoint.total_issues}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-12 bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-red-500 h-1.5 rounded-full"
+                            style={{ width: `${endpoint.security_percentage}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-light">{endpoint.security_percentage}%</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-12 bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-orange-500 h-1.5 rounded-full"
+                            style={{ width: `${endpoint.performance_percentage}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-light">{endpoint.performance_percentage}%</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-12 bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-gray-500 h-1.5 rounded-full"
+                            style={{ width: `${endpoint.other_percentage}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-light">{endpoint.other_percentage}%</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getRiskBadge(endpoint.risk_level)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -533,73 +797,6 @@ const CodeReviewDashboard = () => {
           </CardContent>
         </Card>
       </motion.div>
-
-      {/* Finding Details Dialog */}
-      <Dialog open={showFindingDetails} onOpenChange={setShowFindingDetails}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Security Finding Details - {selectedFinding?.type}</DialogTitle>
-          </DialogHeader>
-          
-          {selectedFinding && (
-            <div className="space-y-6">
-              {/* Finding Overview */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Shield className="w-5 h-5 text-red-600" />
-                    <span>{selectedFinding.type}</span>
-                    {getRiskBadge(selectedFinding.risk)}
-                  </CardTitle>
-                  <CardDescription>{selectedFinding.recommendation}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">File:</span>
-                      <span className="ml-2 font-medium">{selectedFinding.file}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Line:</span>
-                      <span className="ml-2 font-medium">{selectedFinding.line}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Repository:</span>
-                      <span className="ml-2 font-medium">{selectedFinding.repository}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Created At:</span>
-                      <span className="ml-2 font-medium">
-                        {new Date(selectedFinding.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    {selectedFinding.resolvedAt && (
-                      <div>
-                        <span className="text-muted-foreground">Resolved At:</span>
-                        <span className="ml-2 font-medium">
-                          {new Date(selectedFinding.resolvedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Suggested Fix */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Suggested Fix</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <pre className="bg-gray-100 p-4 rounded text-sm overflow-x-auto">
-                    {selectedFinding.suggestedFix}
-                  </pre>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

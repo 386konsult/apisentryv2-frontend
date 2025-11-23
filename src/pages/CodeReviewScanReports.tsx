@@ -32,12 +32,17 @@ interface ScanReport {
   averageScore: number;
   scan_by: string;
   repositories: RepositoryScan[];
+  repo_url?: string;
 }
 
 interface RepositoryScan {
   name: string;
   status: 'pending' | 'scanning' | 'completed' | 'failed';
   risk: 'Low' | 'Medium' | 'High' | 'Critical';
+  url?: string;
+  html_url?: string;
+  repo_url?: string;
+  full_name?: string;
 }
 
 const CodeReviewScanReports = () => {
@@ -66,7 +71,7 @@ const CodeReviewScanReports = () => {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/github/scan-reports/?platform_id=${platformId}`,
+        `${API_BASE_URL}/scan-reports/?platform_id=${platformId}`,
         { headers }
       );
       
@@ -160,8 +165,66 @@ const CodeReviewScanReports = () => {
     }
   };
 
-  const viewReport = (report: ScanReport) => {
-    navigate(`/code-review-report/${report.id}`, { state: { report } });
+  const viewReport = async (report: ScanReport) => {
+    const repo = report.repositories[0];
+    // Try multiple sources for repo URL
+    let repoUrl = report.repo_url || repo.repo_url || repo.url || repo.html_url || '';
+    
+    // If URL is still empty, try to fetch from repositories API
+    if (!repoUrl) {
+      try {
+        const token = localStorage.getItem("auth_token");
+        const headers = token ? { Authorization: `Token ${token}` } : {};
+        const platformId = localStorage.getItem('selected_platform_id');
+        
+        if (platformId) {
+          // Try GitHub first
+          const githubResponse = await fetch(
+            `${API_BASE_URL}/github/repos/?page=1&page_size=100&platform_id=${platformId}`,
+            { headers }
+          );
+          
+          if (githubResponse.ok) {
+            const githubRepos = await githubResponse.json();
+            const reposList = Array.isArray(githubRepos) ? githubRepos : (githubRepos.results || []);
+            const foundRepo = reposList.find((r: any) => r.name === repo.name);
+            if (foundRepo) {
+              repoUrl = foundRepo.html_url || foundRepo.url || '';
+            }
+          }
+          
+          // If not found in GitHub, try Bitbucket
+          if (!repoUrl) {
+            const bitbucketResponse = await fetch(
+              `${API_BASE_URL}/bitbucket/repos/?page=1&page_size=100&platform_id=${platformId}`,
+              { headers }
+            );
+            
+            if (bitbucketResponse.ok) {
+              const bitbucketRepos = await bitbucketResponse.json();
+              const reposList = Array.isArray(bitbucketRepos) ? bitbucketRepos : (bitbucketRepos.results || []);
+              const foundRepo = reposList.find((r: any) => r.name === repo.name);
+              if (foundRepo) {
+                repoUrl = foundRepo.html_url || foundRepo.url || '';
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching repository URL:", error);
+      }
+    }
+    
+    if (!repoUrl) {
+      toast({
+        title: "Error",
+        description: "Repository URL not available. Cannot navigate to repository details.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    navigate(`/code-review-repos/${repo.name}?repo_url=${encodeURIComponent(repoUrl)}`, { state: { report } });
   };
 
   return (
@@ -416,7 +479,7 @@ const CodeReviewScanReports = () => {
                           onClick={() => viewReport(report)}
                         >
                           <Eye className="w-4 h-4 mr-1" />
-                          View
+                          View Details
                         </Button>
                       </TableCell>
                     </TableRow>

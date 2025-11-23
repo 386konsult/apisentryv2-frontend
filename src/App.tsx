@@ -24,6 +24,7 @@ import Dashboard from "./pages/Dashboard";
 import WAFRules from "./pages/WAFRules";
 import ThreatLogs from "./pages/ThreatLogs";
 import APIEndpoints from "./pages/APIEndpoints";
+import EndpointAnalytics from "./pages/EndpointAnalytics";
 import Integrations from "./pages/Integrations";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
@@ -45,6 +46,7 @@ import PlatformDetails from "./pages/PlatformDetails";
 import CreateAlert from "./pages/CreateAlert";
 import SecurityAlerts from "./pages/SecurityAlerts";
 import GitHubCallback from "./pages/GitHubCallback";
+import BitbucketCallback from "./pages/BitbucketCallback";
 import ForcePasswordReset from "./pages/ForcePasswordReset";
 import IPBlacklist from "./pages/IPBlacklist";
 import SecurityHub from "./pages/SecurityHub";
@@ -92,6 +94,7 @@ const AppContent = () => {
         <Route path="/otp-verification" element={<OTPVerification />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/auth/github/callback" element={<GitHubCallback />} />
+        <Route path="/auth/bitbucket/callback" element={<BitbucketCallback />} />
         <Route path="/force-password-reset" element={<ForcePasswordReset />} />
         {/* Main App Routes */}
         <Route path="/*" element={
@@ -129,6 +132,11 @@ const AppContent = () => {
                       <Route path="/waf-rules" element={<WAFRules />} />
                       <Route path="/threat-logs" element={<ThreatLogs />} />
                       <Route path="/api-endpoints" element={<APIEndpoints />} />
+                      <Route path="/api-endpoints/:endpointId/analytics" element={
+                        <ProtectedPlatformRoute>
+                          <EndpointAnalytics />
+                        </ProtectedPlatformRoute>
+                      } />
                       <Route path="/integrations" element={<Integrations />} />
                       <Route path="/users" element={<Users />} />
                       <Route path="/settings" element={

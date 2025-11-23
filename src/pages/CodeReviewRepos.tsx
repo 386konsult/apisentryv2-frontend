@@ -3,20 +3,32 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { GitBranch, Zap, Loader2, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { GitBranch, Zap, Loader2, CheckCircle, AlertCircle, Clock, Building2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "@/services/api";
 import { usePlatform } from "@/contexts/PlatformContext";
 
+type Provider = 'github' | 'bitbucket';
+
+interface Workspace {
+  uuid: string;
+  slug: string;
+  name: string;
+}
+
 interface Repository {
-  id: number;
+  id: number | string; // Can be number (GitHub) or UUID string (Bitbucket)
   name: string;
   full_name: string;
   html_url: string;
   score?: number;
   risk?: "Low" | "Medium" | "High" | "Critical";
   lastScan?: string;
+  scan_status?: "queued" | "in progress" | "completed" | "failed";
+  scan_run_id?: string;
   status?: string;
   totalSuggestions?: number;
   openSuggestions?: number;
@@ -45,9 +57,11 @@ interface BatchScanJob {
 
 const CodeReviewRepos = () => {
   const navigate = useNavigate();
+  const [provider, setProvider] = useState<Provider>('github');
   const [repos, setRepos] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [scanningRepos, setScanningRepos] = useState<Set<string>>(new Set());
   const [activeScanJobs, setActiveScanJobs] = useState<Map<string, ScanJob>>(new Map());
   const [batchScan, setBatchScan] = useState<BatchScanJob | null>(null);
@@ -55,12 +69,87 @@ const CodeReviewRepos = () => {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const { selectedPlatformId } = usePlatform();
+  
+  // Bitbucket workspace selection
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>("");
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
 
-  const fetchRepos = async () => {
+  // Fetch Bitbucket workspaces
+  const fetchWorkspaces = async () => {
+    if (provider !== 'bitbucket' || !selectedPlatformId) {
+      setWorkspaces([]);
+      return;
+    }
+    
+    setLoadingWorkspaces(true);
+    const token = localStorage.getItem('auth_token');
+    try {
+      const response = await fetch(`${API_BASE_URL}/bitbucket/workspaces/?platform_id=${selectedPlatformId}`, {
+        method: "GET",
+        credentials: "include",
+        headers: token ? { 'Authorization': `Token ${token}` } : {},
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Handle response format: could be array, object with results, or object with workspaces + selected_workspace
+        let workspacesList: Workspace[] = [];
+        let backendSelectedWorkspace: string | null = null;
+        
+        if (Array.isArray(data)) {
+          workspacesList = data;
+        } else if (data.results && Array.isArray(data.results)) {
+          workspacesList = data.results;
+        } else if (data.workspaces && Array.isArray(data.workspaces)) {
+          workspacesList = data.workspaces;
+        }
+        
+        // Extract selected workspace from backend if provided
+        if (data.selected_workspace) {
+          backendSelectedWorkspace = data.selected_workspace.slug || data.selected_workspace.uuid || data.selected_workspace;
+        } else if (data.selected_workspace_slug) {
+          backendSelectedWorkspace = data.selected_workspace_slug;
+        }
+        
+        setWorkspaces(workspacesList);
+        
+        // Use backend's selected workspace if available, otherwise auto-select first workspace
+        if (backendSelectedWorkspace) {
+          setSelectedWorkspace(backendSelectedWorkspace);
+        } else if (workspacesList.length > 0 && !selectedWorkspace) {
+          setSelectedWorkspace(workspacesList[0].slug || workspacesList[0].uuid);
+        }
+      } else {
+        console.error("Failed to fetch workspaces:", response.status);
+      }
+    } catch (error) {
+      console.error("Error fetching workspaces:", error);
+    } finally {
+      setLoadingWorkspaces(false);
+    }
+  };
+
+  const fetchRepos = useCallback(async () => {
+    if (!selectedPlatformId) {
+      setError("No platform selected");
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     const token = localStorage.getItem('auth_token');
     try {
-      const response = await fetch(`${API_BASE_URL}/github/repos/?page=${page}&page_size=${pageSize}&platform_id=${selectedPlatformId}`, {
+      const providerName = provider === 'github' ? 'github' : 'bitbucket';
+      let url = `${API_BASE_URL}/${providerName}/repos/?page=${page}&page_size=${pageSize}&platform_id=${selectedPlatformId}`;
+      
+      // Add workspace_slug parameter for Bitbucket
+      if (provider === 'bitbucket' && selectedWorkspace) {
+        url += `&workspace_slug=${encodeURIComponent(selectedWorkspace)}`;
+      }
+      
+      const response = await fetch(url, {
         method: "GET",
         credentials: "include",
         headers: token ? { 'Authorization': `Token ${token}` } : {},
@@ -69,7 +158,14 @@ const CodeReviewRepos = () => {
       if (!response.ok) throw new Error("Failed to fetch repos");
       
       const data = await response.json();
-      setRepos(Array.isArray(data) ? data : []);
+      // Handle both array and paginated responses
+      if (Array.isArray(data)) {
+        setRepos(data);
+      } else if (data.results && Array.isArray(data.results)) {
+        setRepos(data.results);
+      } else {
+        setRepos([]);
+      }
       setError("");
     } catch (error) {
       console.error("Error fetching repos:", error);
@@ -77,13 +173,14 @@ const CodeReviewRepos = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedPlatformId, provider, page, pageSize, selectedWorkspace]);
 
   // Poll scan status for active jobs
   const pollScanStatus = useCallback(async (analysisRunId: string) => {
     const token = localStorage.getItem('auth_token');
+    const providerName = provider === 'github' ? 'github' : 'bitbucket';
     try {
-      const response = await fetch(`${API_BASE_URL}/github/scan-status/${analysisRunId}/`, {
+      const response = await fetch(`${API_BASE_URL}/${providerName}/scan-status/${analysisRunId}/`, {
         method: "GET",
         headers: token ? { 'Authorization': `Token ${token}` } : {},
       });
@@ -122,13 +219,14 @@ const CodeReviewRepos = () => {
       console.error("Error polling scan status:", error);
       return null;
     }
-  }, []);
+  }, [provider]);
 
   // Poll batch scan status
   const pollBatchScanStatus = useCallback(async (batchId: string) => {
     const token = localStorage.getItem('auth_token');
+    const providerName = provider === 'github' ? 'github' : 'bitbucket';
     try {
-      const response = await fetch(`${API_BASE_URL}/github/batch-scan-status/${batchId}/?platform_id=${selectedPlatformId}`, {
+      const response = await fetch(`${API_BASE_URL}/${providerName}/batch-scan-status/${batchId}/?platform_id=${selectedPlatformId}`, {
         method: "GET",
         headers: token ? { 'Authorization': `Token ${token}` } : {},
       });
@@ -150,38 +248,55 @@ const CodeReviewRepos = () => {
       console.error("Error polling batch scan status:", error);
       return null;
     }
-  }, [selectedPlatformId]);
+  }, [selectedPlatformId, provider]);
 
+  // Polling disabled - using manual scan alerts instead
   // Set up polling intervals
-  useEffect(() => {
-    const intervals: NodeJS.Timeout[] = [];
-    
-    // Poll individual scan jobs
-    activeScanJobs.forEach((_, analysisRunId) => {
-      const interval = setInterval(() => {
-        pollScanStatus(analysisRunId);
-      }, 3000); // Poll every 3 seconds
-      intervals.push(interval);
-    });
-    
-    // Poll batch scan if active
-    if (batchScan) {
-      const batchInterval = setInterval(() => {
-        pollBatchScanStatus(batchScan.scan_batch_id);
-      }, 5000); // Poll every 5 seconds
-      intervals.push(batchInterval);
-    }
-    
-    // Cleanup intervals
-    return () => {
-      intervals.forEach(interval => clearInterval(interval));
-    };
-  }, [activeScanJobs, batchScan, pollScanStatus, pollBatchScanStatus]);
+  // useEffect(() => {
+  //   const intervals: NodeJS.Timeout[] = [];
+  //   
+  //   // Poll individual scan jobs
+  //   activeScanJobs.forEach((_, analysisRunId) => {
+  //     const interval = setInterval(() => {
+  //       pollScanStatus(analysisRunId);
+  //     }, 3000); // Poll every 3 seconds
+  //     intervals.push(interval);
+  //   });
+  //   
+  //   // Poll batch scan if active
+  //   if (batchScan) {
+  //     const batchInterval = setInterval(() => {
+  //       pollBatchScanStatus(batchScan.scan_batch_id);
+  //     }, 5000); // Poll every 5 seconds
+  //     intervals.push(batchInterval);
+  //   }
+  //   
+  //   // Cleanup intervals
+  //   return () => {
+  //     intervals.forEach(interval => clearInterval(interval));
+  //   };
+  // }, [activeScanJobs, batchScan, pollScanStatus, pollBatchScanStatus]);
 
+  // Fetch workspaces when provider changes to Bitbucket
   useEffect(() => {
-    fetchRepos();
+    if (provider === 'bitbucket' && selectedPlatformId) {
+      fetchWorkspaces();
+    } else {
+      setWorkspaces([]);
+      setSelectedWorkspace("");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, selectedPlatformId]);
+  }, [provider, selectedPlatformId]);
+
+  // Fetch repos when dependencies change
+  useEffect(() => {
+    if (provider === 'bitbucket' && !selectedWorkspace) {
+      // Don't fetch repos if no workspace selected for Bitbucket
+      setRepos([]);
+      return;
+    }
+    fetchRepos();
+  }, [fetchRepos, provider, selectedWorkspace]);
 
   const getRiskBadge = (risk?: string) => {
     switch (risk) {
@@ -233,6 +348,43 @@ const CodeReviewRepos = () => {
     }
   };
 
+  const getRepoScanStatusBadge = (scanStatus?: string) => {
+    if (!scanStatus) return null;
+    
+    switch (scanStatus) {
+      case 'queued':
+        return (
+          <Badge variant="secondary" className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            Scan Queued
+          </Badge>
+        );
+      case 'in progress':
+        return (
+          <Badge variant="secondary" className="flex items-center gap-1">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Scanning
+          </Badge>
+        );
+      case 'completed':
+        return (
+          <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" />
+            Scan Complete
+          </Badge>
+        );
+      case 'failed':
+        return (
+          <Badge className="bg-red-100 text-red-800 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            Scan Failed
+          </Badge>
+        );
+      default:
+        return <Badge variant="secondary">{scanStatus}</Badge>;
+    }
+  };
+
   // Helper to persist and restore active scan jobs using analysis_run_id in localStorage
   const SCAN_JOBS_STORAGE_KEY = "active_scan_jobs";
 
@@ -250,44 +402,55 @@ const CodeReviewRepos = () => {
     }
   }
 
-  // On scan, persist analysis_run_id
+  // Manual scan alert - sends email notification for manual processing
   const handleScan = async (repo: Repository) => {
     setScanningRepos(prev => new Set(prev).add(repo.html_url));
     const token = localStorage.getItem('auth_token');
     try {
-      const response = await fetch(`${API_BASE_URL}/github/scan/?platform_id=${selectedPlatformId}`, {
+      if (!selectedPlatformId) {
+        throw new Error('No platform selected');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/admin/manual-scan-alert/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Token ${token}`
         },
-        body: JSON.stringify({ repo_url: repo.html_url })
+        body: JSON.stringify({ 
+          repo_urls: [repo.html_url],
+          platform_id: selectedPlatformId
+        })
       });
 
       if (!response.ok) {
-        throw new Error('Scan initiation failed');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || 'Scan initiation failed');
       }
 
       const result = await response.json();
+      
+      // Show success message
+      setError("");
+      setSuccessMessage(`Scan request submitted for ${repo.name}. You will receive an email notification when the scan is complete.`);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 5000);
+      
+      // Remove from scanning set after a short delay
+      setTimeout(() => {
+        setScanningRepos(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(repo.html_url);
+          return newSet;
+        });
+      }, 2000);
 
-      // Use the status returned by the backend (should be 'queued' or similar)
-      const scanJob: ScanJob = {
-        analysis_run_id: result.analysis_run_id,
-        status: result.status || 'queued', // fallback to 'queued'
-        repo_url: repo.html_url,
-        created_at: new Date().toISOString()
-      };
-
-      setActiveScanJobs(prev => {
-        const updated = new Map(prev);
-        updated.set(result.analysis_run_id, scanJob);
-        saveActiveScanJobIds(Array.from(updated.keys()));
-        return updated;
-      });
-
-    } catch (error) {
+    } catch (error: any) {
       console.error("Scan error:", error);
-      setError("Failed to initiate scan. Please try again.");
+      setError(error.message || "Failed to initiate scan. Please try again.");
       setScanningRepos(prev => {
         const newSet = new Set(prev);
         newSet.delete(repo.html_url);
@@ -299,8 +462,16 @@ const CodeReviewRepos = () => {
   const handleScanAll = async () => {
     setScanningAll(true);
     const token = localStorage.getItem('auth_token');
+    const providerName = provider === 'github' ? 'github' : 'bitbucket';
     try {
-      const response = await fetch(`${API_BASE_URL}/github/scan-all/?platform_id=${selectedPlatformId}`, {
+      let url = `${API_BASE_URL}/${providerName}/scan-all/?platform_id=${selectedPlatformId}`;
+      
+      // Add workspace parameter for Bitbucket (uses workspace slug)
+      if (provider === 'bitbucket' && selectedWorkspace) {
+        url += `&workspace=${encodeURIComponent(selectedWorkspace)}`;
+      }
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -347,62 +518,113 @@ const CodeReviewRepos = () => {
     statusCounts[job.status] = (statusCounts[job.status] || 0) + 1;
   });
 
+  // Restore scan jobs disabled - using manual scan alerts instead
   // Restore scan jobs on mount/page change using analysis_run_id from storage
-  useEffect(() => {
-    const restoreActiveScanJobs = async () => {
-      const ids = loadActiveScanJobIds();
-      if (!ids.length) return;
-      const token = localStorage.getItem('auth_token');
-      const scanJobsMap = new Map<string, ScanJob>();
-      const scanningReposSet = new Set<string>();
-      await Promise.all(
-        ids.map(async (analysisRunId) => {
-          try {
-            const resp = await fetch(`${API_BASE_URL}/github/scan-status/${analysisRunId}/`, {
-              method: "GET",
-              headers: token ? { 'Authorization': `Token ${token}` } : {},
-            });
-            if (!resp.ok) return;
-            const scanJob: ScanJob = await resp.json();
-            scanJobsMap.set(analysisRunId, scanJob);
-            if (scanJob.status === 'queued' || scanJob.status === 'in progress') {
-              scanningReposSet.add(scanJob.repo_url);
-            }
-          } catch {
-            // ignore errors
-          }
-        })
-      );
-      setActiveScanJobs(scanJobsMap);
-      setScanningRepos(scanningReposSet);
-    };
-    restoreActiveScanJobs();
-  }, [page, pageSize, selectedPlatformId]);
+  // useEffect(() => {
+  //   const restoreActiveScanJobs = async () => {
+  //     const ids = loadActiveScanJobIds();
+  //     if (!ids.length) return;
+  //     const token = localStorage.getItem('auth_token');
+  //     const providerName = provider === 'github' ? 'github' : 'bitbucket';
+  //     const scanJobsMap = new Map<string, ScanJob>();
+  //     const scanningReposSet = new Set<string>();
+  //     await Promise.all(
+  //       ids.map(async (analysisRunId) => {
+  //         try {
+  //           const resp = await fetch(`${API_BASE_URL}/${providerName}/scan-status/${analysisRunId}/`, {
+  //             method: "GET",
+  //             headers: token ? { 'Authorization': `Token ${token}` } : {},
+  //           });
+  //           if (!resp.ok) return;
+  //           const scanJob: ScanJob = await resp.json();
+  //           scanJobsMap.set(analysisRunId, scanJob);
+  //           if (scanJob.status === 'queued' || scanJob.status === 'in progress') {
+  //             scanningReposSet.add(scanJob.repo_url);
+  //           }
+  //         } catch {
+  //           // ignore errors
+  //         }
+  //       })
+  //     );
+  //     setActiveScanJobs(scanJobsMap);
+  //     setScanningRepos(scanningReposSet);
+  //   };
+  //   restoreActiveScanJobs();
+  // }, [page, pageSize, selectedPlatformId, provider]);
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Repositories</h1>
-          <p className="text-muted-foreground mt-2">View and manage all connected repositories for code review</p>
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Repositories</h1>
+            <p className="text-muted-foreground mt-2">View and manage all connected repositories for code review</p>
+          </div>
+          <Button 
+            onClick={handleScanAll}
+            disabled={true}
+            // disabled={scanningAll || batchScan !== null || (provider === 'bitbucket' && !selectedWorkspace)}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+          >
+            {scanningAll || batchScan ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Scanning All...
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4 mr-2" />
+                Scan All Repositories
+              </>
+            )}
+          </Button>
         </div>
-        <Button 
-          onClick={handleScanAll}
-          disabled={scanningAll || batchScan !== null}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-        >
-          {scanningAll || batchScan ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Scanning All...
-            </>
-          ) : (
-            <>
-              <Zap className="w-4 h-4 mr-2" />
-              Scan All Repositories
-            </>
-          )}
-        </Button>
+        
+        {/* Provider Selector Tabs */}
+        <Tabs value={provider} onValueChange={(value) => setProvider(value as Provider)} className="mb-4">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="github">GitHub</TabsTrigger>
+            <TabsTrigger value="bitbucket">Bitbucket</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* Bitbucket Workspace Selector */}
+        {provider === 'bitbucket' && (
+          <Card className="mb-4">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Workspace:</span>
+                </div>
+                {loadingWorkspaces ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm text-muted-foreground">Loading workspaces...</span>
+                  </div>
+                ) : workspaces.length > 0 ? (
+                  <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
+                    <SelectTrigger className="w-[300px]">
+                      <SelectValue placeholder="Select a workspace" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {workspaces.map((workspace) => (
+                        <SelectItem key={workspace.uuid || workspace.slug} value={workspace.slug || workspace.uuid}>
+                          {workspace.name || workspace.slug}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-sm text-muted-foreground">No workspaces available</span>
+                )}
+              </div>
+              {provider === 'bitbucket' && !selectedWorkspace && workspaces.length > 0 && (
+                <p className="text-xs text-yellow-600 mt-2">Please select a workspace to view repositories</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </motion.div>
 
       {/* Batch Scan Progress */}
@@ -451,6 +673,19 @@ const CodeReviewRepos = () => {
           </Card>
         </motion.div>
       )}
+
+      {successMessage && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <Card className="border-green-200 bg-green-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-green-800">
+                <CheckCircle className="w-4 h-4" />
+                {successMessage}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
      
       <motion.div initial="hidden" animate="visible" variants={{hidden:{opacity:0},visible:{opacity:1,transition:{staggerChildren:0.1}}}} className="space-y-4">
         {loading ? (
@@ -477,6 +712,10 @@ const CodeReviewRepos = () => {
             const repoScanJob = getRepoScanJob(repo.html_url);
             const isScanning = scanningRepos.has(repo.html_url) || repoScanJob !== undefined;
             
+            // Disable scan button if scan is queued or in progress (only allow when failed, completed, or no scan status)
+            const isScanInProgress = repo.scan_status === 'queued' || repo.scan_status === 'in progress';
+            const canScan = !isScanInProgress && !isScanning && batchScan === null;
+            
             return (
               <motion.div key={repo.id || repo.name} variants={{hidden:{y:20,opacity:0},visible:{y:0,opacity:1,transition:{duration:0.5}}}}>
                 <Card className="p-4">
@@ -491,17 +730,23 @@ const CodeReviewRepos = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {repoScanJob ? getScanStatusBadge(repoScanJob) : getRiskBadge(repo.risk)}
+                      {/* Show scan status badge if available, otherwise show risk badge */}
+                      {repo.scan_status ? getRepoScanStatusBadge(repo.scan_status) : (repoScanJob ? getScanStatusBadge(repoScanJob) : getRiskBadge(repo.risk))}
                       <div className="flex gap-2">
                         <Button 
                           variant="outline" 
                           onClick={() => handleScan(repo)}
-                          disabled={isScanning || batchScan !== null}
+                          disabled={!canScan}
                         >
                           {isScanning ? (
                             <>
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                               Scanning...
+                            </>
+                          ) : isScanInProgress ? (
+                            <>
+                              <Clock className="w-4 h-4 mr-2" />
+                              Scan In Progress
                             </>
                           ) : (
                             <>

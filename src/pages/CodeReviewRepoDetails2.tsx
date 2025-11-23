@@ -31,26 +31,85 @@ const SecurityDashboard = () => {
           return;
         }
 
-        // Fetch repository list to get full_name and html_url
-        const reposResponse = await fetch(
+        // Get repo_url from URL params if available
+        const urlParams = new URLSearchParams(window.location.search);
+        const repoUrlFromParams = urlParams.get('repo_url');
+
+        let repoDetails: any = null;
+        let repo_url = repoUrlFromParams || '';
+        let isBitbucket = false;
+
+        // If repo_url is provided in params, use it directly
+        if (repoUrlFromParams) {
+          repo_url = repoUrlFromParams;
+          isBitbucket = repoUrlFromParams.includes('bitbucket.org');
+        } else {
+          // Try to fetch from GitHub repos first
+          try {
+            const githubReposResponse = await fetch(
           `${API_BASE_URL}/github/repos/?page=1&page_size=100&platform_id=${platformId}`,
           { headers }
         );
         
-        if (!reposResponse.ok) {
-          console.log("Failed to fetch repository list:", reposResponse.status, reposResponse.statusText);
-          return;
-        }
-        
-        const repos = await reposResponse.json();
-        const repoDetails = repos.find((repo: { name: string; full_name: string }) => repo.name === repoName);
+            if (githubReposResponse.ok) {
+              const githubRepos = await githubReposResponse.json();
+              const reposList = Array.isArray(githubRepos) ? githubRepos : (githubRepos.results || []);
+              repoDetails = reposList.find((repo: { name: string; full_name: string }) => repo.name === repoName);
+              
+              if (repoDetails) {
+                repo_url = repoDetails.html_url;
+                isBitbucket = false;
+              }
+            }
+          } catch (error) {
+            console.log("Error fetching GitHub repos:", error);
+          }
+
+          // If not found in GitHub, try Bitbucket repos
+          if (!repoDetails) {
+            try {
+              const bitbucketReposResponse = await fetch(
+                `${API_BASE_URL}/bitbucket/repos/?page=1&page_size=100&platform_id=${platformId}`,
+                { headers }
+              );
+              
+              if (bitbucketReposResponse.ok) {
+                const bitbucketRepos = await bitbucketReposResponse.json();
+                const reposList = Array.isArray(bitbucketRepos) ? bitbucketRepos : (bitbucketRepos.results || []);
+                repoDetails = reposList.find((repo: { name: string; full_name: string }) => repo.name === repoName);
+                
+                if (repoDetails) {
+                  repo_url = repoDetails.html_url;
+                  isBitbucket = true;
+                }
+              }
+            } catch (error) {
+              console.log("Error fetching Bitbucket repos:", error);
+            }
+          }
         
         if (!repoDetails) {
           console.log(`Repository with name '${repoName}' not found in the list`);
           return;
+          }
+        }
+
+        // Determine if it's Bitbucket from repo_url if not already determined
+        if (!isBitbucket && repo_url) {
+          isBitbucket = repo_url.includes('bitbucket.org');
         }
         
-        const fullName = repoDetails.full_name;
+        // Fetch issues based on provider
+        let issuesResponse;
+        if (isBitbucket) {
+          // Bitbucket: Use the new unified endpoint
+          issuesResponse = await fetch(
+            `${API_BASE_URL}/github/repos/issues/?platform_id=${platformId}&repo_url=${encodeURIComponent(repo_url)}`,
+            { headers }
+          );
+        } else {
+          // GitHub: Use existing endpoint
+          const fullName = repoDetails?.full_name || '';
         const [owner, repo] = fullName.split("/");
         
         if (!owner || !repo) {
@@ -65,6 +124,7 @@ const SecurityDashboard = () => {
           `${API_BASE_URL}/github/repos/${owner}/${repo}/issues/?platform_id=${platformId}&repo_url=${repo_url}`,
           { headers }
         );
+        }
         
         if (!issuesResponse.ok) {
           console.log("Failed to fetch issues:", issuesResponse.status, issuesResponse.statusText);
@@ -90,13 +150,14 @@ const SecurityDashboard = () => {
   }, [repoName]);
 
   const getSeverityColor = (severity) => {
+    const sev = (severity || '').toUpperCase();
     const colors = {
       CRITICAL: 'bg-red-100 text-red-800 border-red-200',
       HIGH: 'bg-orange-100 text-orange-800 border-orange-200',
       MEDIUM: 'bg-yellow-100 text-yellow-800 border-yellow-200',
       LOW: 'bg-green-100 text-green-800 border-green-200'
     };
-    return colors[severity] || 'bg-gray-100 text-gray-800 border-gray-200';
+    return colors[sev] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
   const getSeverityIcon = (severity) => {
@@ -107,7 +168,8 @@ const SecurityDashboard = () => {
   };
 
   const filteredVulnerabilities = vulnerabilities.filter(vuln => {
-    const severityMatch = selectedSeverity === 'ALL' || vuln.severity === selectedSeverity;
+    const vulnSeverity = (vuln.severity || '').toUpperCase();
+    const severityMatch = selectedSeverity === 'ALL' || vulnSeverity === selectedSeverity;
     const frameworkMatch = selectedFramework === 'ALL' || 
       vuln.security_frameworks?.supplementary?.includes(selectedFramework) ||
       vuln.security_frameworks?.primary === selectedFramework;
@@ -117,6 +179,7 @@ const SecurityDashboard = () => {
   // Normalize severity for summary cards
   const severityCounts = vulnerabilities.reduce((acc, vuln) => {
     let sev = (vuln.severity || '').toUpperCase();
+    // Handle both uppercase and lowercase severity values
     if (sev === 'CRITICAL' || sev === 'HIGH' || sev === 'MEDIUM' || sev === 'LOW') {
       acc[sev] = (acc[sev] || 0) + 1;
     }
@@ -226,11 +289,11 @@ const SecurityDashboard = () => {
         {/* Vulnerability List */}
         <div className="space-y-4">
           {filteredVulnerabilities.map((vuln) => (
-            <div key={vuln.issue_id} className="bg-card rounded-lg shadow-sm border tech-glow">
+            <div key={vuln.issue_id || vuln.id} className="bg-card rounded-lg shadow-sm border tech-glow">
               {/* Vulnerability Header */}
               <div 
                 className="p-6 cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => setExpandedIssue(expandedIssue === vuln.issue_id ? null : vuln.issue_id)}
+                onClick={() => setExpandedIssue(expandedIssue === (vuln.issue_id || vuln.id) ? null : (vuln.issue_id || vuln.id))}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4 flex-1">
@@ -243,45 +306,85 @@ const SecurityDashboard = () => {
                     </div> */}
                     
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
                         <h3 className="text-base font-semibold text-foreground">{vuln.title}</h3>
                         <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getSeverityColor(vuln.severity)}`}>
-                          {vuln.severity}
+                          {(vuln.severity || '').toUpperCase()}
                         </span>
+                        {vuln.issue_score !== undefined && (
+                          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                            Score: {vuln.issue_score}
+                          </span>
+                        )}
                         <span className="px-2 py-1 text-xs font-medium bg-muted text-muted-foreground rounded">
-                          {vuln.issue_id}
+                          {vuln.issue_id || vuln.id}
                         </span>
-                        <span className="px-2 py-1 text-xs font-medium bg-muted text-muted-foreground rounded">
-                          {vuln.status}
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${
+                          vuln.status === 'open' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
+                        }`}>
+                          {vuln.status || 'open'}
                         </span>
+                        {vuln.category && (
+                          <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded">
+                            {vuln.category}
+                          </span>
+                        )}
                       </div>
                       
-                      <p className="text-muted-foreground mb-3 text-sm">{vuln.description}</p>
+                      <p className="text-muted-foreground mb-2 text-sm">{vuln.description}</p>
                       
-                      {/* Framework Tags - Only show if security_frameworks exists */}
-                      {vuln.security_frameworks && (
-                        <div className="flex flex-wrap gap-2">
-                          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-                            {vuln.owasp_category}
-                          </span>
-                          <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded">
-                            {vuln.cwe_id}
-                          </span>
-                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
-                            {vuln.security_frameworks.threat_model_category}
-                          </span>
-                          <span className="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded">
-                            {vuln.security_frameworks.sans_cwe_ranking?.split(' - ')[1]}
+                      {/* API Endpoint Info */}
+                      {(vuln.url_path || vuln.api_endpoint_path) && (
+                        <div className="mb-2">
+                          <span className="text-xs text-muted-foreground">API Endpoint: </span>
+                          <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">
+                            {vuln.api_endpoint_method || 'GET'} {vuln.url_path || vuln.api_endpoint_path}
                           </span>
                         </div>
                       )}
+                      
+                      {/* Risk Assessment */}
+                      {vuln.risk_assessment && (
+                        <p className="text-sm text-orange-600 mb-2 font-medium">
+                          Risk: {vuln.risk_assessment}
+                        </p>
+                      )}
+                      
+                      {/* Framework Tags */}
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {vuln.owasp_category && (
+                          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                            OWASP: {vuln.owasp_category}
+                          </span>
+                        )}
+                        {vuln.cwe_id && (
+                          <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded">
+                            CWE: {vuln.cwe_id}
+                          </span>
+                        )}
+                        {vuln.security_frameworks?.threat_model_category && (
+                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
+                            STRIDE: {vuln.security_frameworks.threat_model_category}
+                          </span>
+                        )}
+                        {vuln.security_frameworks?.sans_cwe_ranking && (
+                          <span className="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded">
+                            SANS: {vuln.security_frameworks.sans_cwe_ranking}
+                          </span>
+                        )}
+                        {vuln.cve_id && (
+                          <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded">
+                            CVE: {vuln.cve_id}
+                          </span>
+                        )}
+                        </div>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Expanded Details */}
-              {expandedIssue === vuln.issue_id && (
+              {expandedIssue === (vuln.issue_id || vuln.id) && (
                 <div className="border-t bg-muted/30 p-6">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Code Issues */}
@@ -295,28 +398,89 @@ const SecurityDashboard = () => {
                           <div key={index} className="bg-background border rounded-lg p-4">
                             <div className="flex items-center gap-2 mb-2">
                               <FileText className="w-4 h-4 text-muted-foreground" />
-                              <span className="font-medium text-foreground">{file.file_path}</span>
+                              <span className="font-medium text-foreground">{file.file_path || vuln.directory || vuln.file}</span>
+                              {file.line_number && (
                               <span className="text-sm text-muted-foreground">Line {file.line_number}</span>
+                              )}
+                              {vuln.line_range && !file.line_number && (
+                                <span className="text-sm text-muted-foreground">{vuln.line_range}</span>
+                              )}
                             </div>
-                            <div className="bg-gray-900 text-gray-100 p-3 rounded text-sm font-mono mb-2">
-                              {file.code_snippet}
+                            {(file.code_snippet || vuln.code_snippet_of_the_issue) && (
+                              <div className="mb-3">
+                                <div className="text-sm text-muted-foreground mb-1">Issue Code:</div>
+                                <div className="bg-red-900/20 border border-red-500/30 text-red-100 p-3 rounded text-sm font-mono">
+                                  {file.code_snippet || vuln.code_snippet_of_the_issue}
+                                </div>
+                              </div>
+                            )}
+                            {(file.solution_code || vuln.possible_code_snippet_to_fix_it) && (
+                              <div className="mb-3">
+                                <div className="text-sm text-muted-foreground mb-1">Suggested Fix:</div>
+                                <div className="bg-green-900/20 border border-green-500/30 text-green-100 p-3 rounded text-sm font-mono">
+                                  {file.solution_code || vuln.possible_code_snippet_to_fix_it}
                             </div>
-                            <div className="text-sm text-muted-foreground">Suggested Fix:</div>
-                            <div className="bg-gray-900 text-gray-100 p-3 rounded text-sm font-mono mb-2">
-                              {file.solution_code}
                             </div>
-                            <p className="text-sm text-muted-foreground">{file.context}</p>
+                            )}
+                            {file.context && (
+                              <p className="text-sm text-muted-foreground mt-2">{file.context}</p>
+                            )}
                           </div>
                         )) || (
                           <div className="bg-background border rounded-lg p-4">
+                            {(vuln.directory || vuln.file || vuln.code_snippet_of_the_issue) ? (
+                              <>
+                                {(vuln.directory || vuln.file) && (
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <FileText className="w-4 h-4 text-muted-foreground" />
+                                    <span className="font-medium text-foreground">{vuln.directory || vuln.file}</span>
+                                    {vuln.line_range && (
+                                      <span className="text-sm text-muted-foreground">{vuln.line_range}</span>
+                                    )}
+                                  </div>
+                                )}
+                                {vuln.code_snippet_of_the_issue && (
+                                  <div className="mb-3">
+                                    <div className="text-sm text-muted-foreground mb-1">Issue Code:</div>
+                                    <div className="bg-red-900/20 border border-red-500/30 text-red-100 p-3 rounded text-sm font-mono">
+                                      {vuln.code_snippet_of_the_issue}
+                                    </div>
+                                  </div>
+                                )}
+                                {vuln.possible_code_snippet_to_fix_it && (
+                                  <div className="mb-3">
+                                    <div className="text-sm text-muted-foreground mb-1">Suggested Fix:</div>
+                                    <div className="bg-green-900/20 border border-green-500/30 text-green-100 p-3 rounded text-sm font-mono">
+                                      {vuln.possible_code_snippet_to_fix_it}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
                             <p className="text-sm text-muted-foreground">No file issues available</p>
+                            )}
                           </div>
                         )}
                       </div>
+                      
+                      {/* Risks Associated */}
+                      {vuln.risks_associated_with_the_issue && vuln.risks_associated_with_the_issue.length > 0 && (
+                        <div className="mt-4">
+                          <h5 className="text-sm font-semibold text-foreground mb-2">Risks Associated:</h5>
+                          <div className="flex flex-wrap gap-2">
+                            {vuln.risks_associated_with_the_issue.map((risk: string, index: number) => (
+                              <span key={index} className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded">
+                                {risk}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Security Framework Details & Remediation */}
                     <div className="space-y-6">
+                      {/* Security Frameworks */}
                       {vuln.security_frameworks && (
                         <div>
                           <h4 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -324,42 +488,196 @@ const SecurityDashboard = () => {
                             Security Framework Analysis
                           </h4>
                           <div className="bg-background border rounded-lg p-4 space-y-3">
+                            {vuln.security_frameworks.primary && (
                             <div>
                               <span className="text-sm font-medium text-muted-foreground">Primary Framework:</span>
-                              <span className="ml-2 text-sm text-foreground">{vuln?.security_frameworks?.primary}</span>
+                                <span className="ml-2 text-sm text-foreground">{vuln.security_frameworks.primary}</span>
+                              </div>
+                            )}
+                            {vuln.security_frameworks.supplementary && vuln.security_frameworks.supplementary.length > 0 && (
+                              <div>
+                                <span className="text-sm font-medium text-muted-foreground">Supplementary Frameworks:</span>
+                                <div className="ml-2 mt-1 flex flex-wrap gap-1">
+                                  {vuln.security_frameworks.supplementary.map((framework: string, index: number) => (
+                                    <span key={index} className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                                      {framework}
+                                    </span>
+                                  ))}
+                                </div>
                             </div>
+                            )}
+                            {vuln.owasp_category && (
                             <div>
                               <span className="text-sm font-medium text-muted-foreground">OWASP Category:</span>
-                              <span className="ml-2 text-sm text-blue-600">{vuln?.owasp_category}</span>
+                                <span className="ml-2 text-sm text-blue-600">{vuln.owasp_category}</span>
                             </div>
+                            )}
+                            {vuln.cwe_id && (
                             <div>
                               <span className="text-sm font-medium text-muted-foreground">CWE Classification:</span>
                               <span className="ml-2 text-sm text-purple-600">
-                               <a href={`${vuln?.cwe_url}`} target="_blank" rel="noopener noreferrer">{vuln?.cwe_id}</a>
+                                  {vuln.cwe_url ? (
+                                    <a href={vuln.cwe_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                      {vuln.cwe_id} <ExternalLink className="w-3 h-3 inline" />
+                                    </a>
+                                  ) : (
+                                    vuln.cwe_id
+                                  )}
                               </span>
                             </div>
+                            )}
+                            {vuln.security_frameworks.threat_model_category && (
                             <div>
                               <span className="text-sm font-medium text-muted-foreground">STRIDE Category:</span>
-                              <span className="ml-2 text-sm text-green-600">{vuln?.security_frameworks?.threat_model_category}</span>
+                                <span className="ml-2 text-sm text-green-600">{vuln.security_frameworks.threat_model_category}</span>
                             </div>
+                            )}
+                            {vuln.security_frameworks.sans_cwe_ranking && (
                             <div>
                               <span className="text-sm font-medium text-muted-foreground">SANS Ranking:</span>
-                              <span className="ml-2 text-sm text-orange-600">{vuln?.security_frameworks?.sans_cwe_ranking}</span>
+                                <span className="ml-2 text-sm text-orange-600">{vuln.security_frameworks.sans_cwe_ranking}</span>
                             </div>
+                            )}
+                            {vuln.security_frameworks.nist_ssdf && (
                             <div>
                               <span className="text-sm font-medium text-muted-foreground">NIST SSDF References:</span>
-                              <span className="ml-2 text-sm text-orange-600">{vuln?.security_frameworks?.nist_ssdf}</span>
-                            </div>
+                                <span className="ml-2 text-sm text-orange-600">{vuln.security_frameworks.nist_ssdf}</span>
+                              </div>
+                            )}
+                            {vuln.sans && (
+                              <div>
+                                <span className="text-sm font-medium text-muted-foreground">SANS:</span>
+                                <span className="ml-2 text-sm text-orange-600">{vuln.sans}</span>
+                              </div>
+                            )}
+                            {vuln.sans_id && (
+                              <div>
+                                <span className="text-sm font-medium text-muted-foreground">SANS ID:</span>
+                                <span className="ml-2 text-sm text-orange-600">{vuln.sans_id}</span>
+                              </div>
+                            )}
+                            {vuln.stride && (
+                              <div>
+                                <span className="text-sm font-medium text-muted-foreground">STRIDE:</span>
+                                <span className="ml-2 text-sm text-green-600">{vuln.stride}</span>
+                              </div>
+                            )}
+                            {vuln.nist && (
+                              <div>
+                                <span className="text-sm font-medium text-muted-foreground">NIST:</span>
+                                <span className="ml-2 text-sm text-orange-600">{vuln.nist}</span>
+                              </div>
+                            )}
+                            {vuln.cve_id && (
+                              <div>
+                                <span className="text-sm font-medium text-muted-foreground">CVE ID:</span>
+                                <span className="ml-2 text-sm text-red-600">{vuln.cve_id}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
 
+                      {/* Affected Security Frameworks */}
+                      {vuln.affected_security_frameworks && vuln.affected_security_frameworks.length > 0 && (
+                        <div>
+                          <h4 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                            <Shield className="w-5 h-5" />
+                            Affected Security Frameworks
+                          </h4>
+                          <div className="bg-background border rounded-lg p-4 space-y-2">
+                            {vuln.affected_security_frameworks.map((framework: any, index: number) => (
+                              <div key={index} className="flex items-center gap-2">
+                                <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                                  {framework.framework}
+                                </span>
+                                {framework.category && (
+                                  <span className="text-sm text-muted-foreground">{framework.category}</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Affected Compliance Frameworks */}
+                      {vuln.affected_compliance_frameworks && vuln.affected_compliance_frameworks.length > 0 && (
+                        <div>
+                          <h4 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                            <FileText className="w-5 h-5" />
+                            Affected Compliance Frameworks
+                          </h4>
+                          <div className="bg-background border rounded-lg p-4 space-y-3">
+                            {vuln.affected_compliance_frameworks.map((framework: any, index: number) => (
+                              <div key={index} className="border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded">
+                                    {framework.framework}
+                                  </span>
+                                </div>
+                                {framework.affected_control && (
+                                  <div className="text-sm text-foreground mt-1">
+                                    <span className="font-medium">Control: </span>
+                                    {framework.control_link ? (
+                                      <a 
+                                        href={framework.control_link} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:underline"
+                                      >
+                                        {framework.affected_control} <ExternalLink className="w-3 h-3 inline" />
+                                      </a>
+                                    ) : (
+                                      <span>{framework.affected_control}</span>
+                                    )}
+                                  </div>
+                                )}
+                            </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Remediation */}
                       <div>
                         <h4 className="text-lg font-semibold text-foreground mb-3">Remediation</h4>
                         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                          <p className="text-sm text-green-800">{vuln.recommendation}</p>
+                          <p className="text-sm text-green-800">
+                            {vuln.remediation || vuln.recommendation || 'No remediation guidance available.'}
+                          </p>
                         </div>
                       </div>
+
+                      {/* Resolution Info */}
+                      {(vuln.resolution_comment || vuln.resolution_reason) && (
+                        <div>
+                          <h4 className="text-lg font-semibold text-foreground mb-3">Resolution Details</h4>
+                          <div className="bg-background border rounded-lg p-4 space-y-2">
+                            {vuln.resolution_reason && (
+                              <div>
+                                <span className="text-sm font-medium text-muted-foreground">Reason: </span>
+                                <span className="text-sm text-foreground">{vuln.resolution_reason}</span>
+                              </div>
+                            )}
+                            {vuln.resolution_comment && (
+                              <div>
+                                <span className="text-sm font-medium text-muted-foreground">Comment: </span>
+                                <span className="text-sm text-foreground">{vuln.resolution_comment}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Assignment Info */}
+                      {vuln.assignedTo && (
+                        <div>
+                          <h4 className="text-lg font-semibold text-foreground mb-3">Assignment</h4>
+                          <div className="bg-background border rounded-lg p-4">
+                            <span className="text-sm text-foreground">Assigned to: {vuln.assignedTo}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -45,6 +45,9 @@ const APIEndpoints = () => {
   const [endpointStatus, setEndpointStatus] = useState<EndpointStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [platformName, setPlatformName] = useState<string>('');
+  const [trafficData, setTrafficData] = useState<Array<{ hour: string; requests: number }>>([]);
+  const [endpointsAddedThisWeek, setEndpointsAddedThisWeek] = useState<number | null>(null);
+  const [responseTimeChange, setResponseTimeChange] = useState<number | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -88,17 +91,45 @@ const APIEndpoints = () => {
       }
     };
 
+    const fetchTrafficData = async () => {
+      try {
+        const traffic = await apiService.getTrafficData();
+        // Transform traffic data to match chart format
+        if (Array.isArray(traffic) && traffic.length > 0) {
+          const transformed = traffic.map((item: any) => ({
+            hour: item.name || item.hour || item.time || '',
+            requests: item.requests || 0,
+          }));
+          setTrafficData(transformed);
+        }
+      } catch (error) {
+        console.error("Error fetching traffic data:", error);
+        setTrafficData([]);
+      }
+    };
+
+    const fetchAnalytics = async () => {
+      try {
+        const analytics = await apiService.getAnalytics(platformId);
+        // Extract endpoints added this week and response time change if available
+        if (analytics) {
+          if (analytics.endpoints_added_this_week !== undefined) {
+            setEndpointsAddedThisWeek(analytics.endpoints_added_this_week);
+          }
+          if (analytics.response_time_change !== undefined) {
+            setResponseTimeChange(analytics.response_time_change);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching analytics:", error);
+      }
+    };
+
     fetchEndpoints();
+    fetchTrafficData();
+    fetchAnalytics();
   }, [toast, navigate]);
 
-  const trafficData = [
-    { hour: "00", requests: 1200 },
-    { hour: "04", requests: 800 },
-    { hour: "08", requests: 2400 },
-    { hour: "12", requests: 3200 },
-    { hour: "16", requests: 2800 },
-    { hour: "20", requests: 1800 },
-  ];
 
   const getStatusColor = (status: string) => {
     const colors = {
@@ -212,7 +243,11 @@ const APIEndpoints = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{endpoints.length}</div>
-            <p className="text-xs text-muted-foreground">12 added this week</p>
+            {endpointsAddedThisWeek !== null && (
+              <p className="text-xs text-muted-foreground">
+                {endpointsAddedThisWeek} added this week
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -264,7 +299,11 @@ const APIEndpoints = () => {
                 '0ms'
               }
             </div>
-            <p className="text-xs text-muted-foreground">-15ms from last week</p>
+            {responseTimeChange !== null && (
+              <p className="text-xs text-muted-foreground">
+                {responseTimeChange >= 0 ? '+' : ''}{responseTimeChange.toFixed(0)}ms from last week
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -278,21 +317,27 @@ const APIEndpoints = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={trafficData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="hour" />
-              <YAxis />
-              <Tooltip />
-              <Line 
-                type="monotone" 
-                dataKey="requests" 
-                stroke="hsl(217 91% 60%)" 
-                strokeWidth={2}
-                dot={{ fill: "hsl(217 91% 60%)" }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {trafficData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={trafficData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="hour" />
+                <YAxis />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey="requests" 
+                  stroke="hsl(217 91% 60%)" 
+                  strokeWidth={2}
+                  dot={{ fill: "hsl(217 91% 60%)" }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+              <p>No traffic data available</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -415,7 +460,11 @@ const APIEndpoints = () => {
                       <Label className="text-sm">Protection enabled</Label>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="sm">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => navigate(`/api-endpoints/${status.endpoint.id}/analytics`)}
+                      >
                         <BarChart3 className="h-4 w-4 mr-2" />
                         Analytics
                       </Button>

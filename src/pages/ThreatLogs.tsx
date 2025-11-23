@@ -32,10 +32,15 @@ import {
   Activity,
 } from "lucide-react";
 import { apiService } from "@/services/api";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 const ThreatLogs = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [methodFilter, setMethodFilter] = useState("all"); // Add this
+  const [statusCodeFilter, setStatusCodeFilter] = useState("all"); // Add this
+  const [threatLevelFilter, setThreatLevelFilter] = useState("all"); // Add this
+  const [wafBlockedFilter, setWafBlockedFilter] = useState("all"); // Add this
   const [searchTerm, setSearchTerm] = useState("");
   const [threatType, setThreatType] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
@@ -77,54 +82,24 @@ const ThreatLogs = () => {
     const fetchThreats = async () => {
       setLoading(true);
       try {
-        // Send range and page parameters to backend so it returns blocked logs (page present triggers that branch)
-        const params: any = {
-          page: String(page ?? 1), // always include page (even page=1) so backend returns paginated blocked logs
-        };
-        // send both 'range' (backend-friendly) and explicit start/end ISO strings (preferred)
-        if (timeRange && timeRange !== 'all') {
-          params.range = timeRange;
-          const dates = getRangeDates(timeRange);
-          if (dates) {
-            params.start = dates.start.toISOString();
-            params.end = dates.end.toISOString();
-          }
-        }
-        // Add endpoint filter to backend request
-        if (endpointFilter && endpointFilter.trim()) {
-          params.path = endpointFilter.trim();
+        const platformId = localStorage.getItem('selected_platform_id');
+        if (!platformId) {
+          navigate('/platforms');
+          return;
         }
 
-        // use threat-specific endpoint (returns raw parsed JSON)
-        const res = await apiService.getPlatformThreatLogs(platformId, params);
-
-        // normalize returned logs array from various shapes and apply client-side range filter
-        let rawLogs: any[] = [];
-        if (Array.isArray(res)) {
-          rawLogs = res;
-          setTotalPages(null);
-        } else if (res && Array.isArray((res as any).logs)) {
-          rawLogs = (res as any).logs;
-          setPage(Number((res as any).page) || page);
-          setPageSize(Number((res as any).page_size) || pageSize);
-          setTotalPages(Number((res as any).total_pages) || null);
-        } else if (res && Array.isArray((res as any).results)) {
-          rawLogs = (res as any).results;
-          setTotalPages(null);
+        // Fetch last 100 blocked logs
+        const response = await apiService.getPlatformRequestLogs(platformId, { num: '100', blocked: 'true' });
+        if (Array.isArray(response)) {
+          setAllLogs(response); // Set logs directly if response is an array
+        } else if (response && Array.isArray(response.logs)) {
+          setAllLogs(response.logs); // Extract logs if nested in `logs`
         } else {
-          rawLogs = [];
-          setTotalPages(null);
-          toast({
-            title: "Error loading threat logs",
-            description: "Invalid data format received",
-            variant: "destructive",
-          });
+          console.error('Unexpected response format for threat logs:', response);
+          setAllLogs([]); // Fallback to an empty array
         }
-
-        // Apply client-side filtering by selected time range so UI matches the selected range even if backend doesn't
-        const filteredByRange = applyClientRangeFilter(rawLogs, timeRange);
-        setAllLogs(filteredByRange);
       } catch (error) {
+        console.error('Error fetching threat logs:', error);
         setAllLogs([]);
         toast({
           title: "Error loading threat logs",
@@ -317,8 +292,72 @@ const ThreatLogs = () => {
     });
   };
 
+  // Update query parameters in the URL
+  const updateQueryParam = (key: string, value: string | null) => {
+    const params = new URLSearchParams(searchParams);
+    if (value) {
+      if (key === "num" && value === "100") {
+        params.delete("num"); // Remove `num=100` if it's the default
+      } else {
+        params.set(key, value);
+      }
+    } else {
+      params.delete(key);
+    }
+    setSearchParams(params);
+
+    // Log the updated query parameters
+    console.log("Updated query parameters:", params.toString());
+  };
+
+  // Handle filter changes
+  const handleFilterChange = (key: string, value: string) => {
+    if (key === "blocked") {
+      updateQueryParam(key, value); // Allow `blocked` to coexist with other filters
+    } else {
+      const params = new URLSearchParams(searchParams);
+      params.delete("method");
+      params.delete("status_code");
+      params.delete("threat_level");
+      params.delete("ip");
+      params.delete("country");
+      params.delete("endpoint");
+      if (key !== "num" || value !== "100") {
+        params.set(key, value); // Only set `num` if it's not the default
+      }
+      setSearchParams(params);
+    }
+  };
+
+  // Clear a specific filter
+  const clearFilter = (key: string) => {
+    updateQueryParam(key, null);
+  };
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("num"); // Ensure `num=100` is removed when clearing filters
+    setSearchParams(params);
+  };
+
+  // Example: Apply filters based on query parameters
+  useEffect(() => {
+    const method = searchParams.get("method") || "all";
+    const statusCode = searchParams.get("status_code") || "all";
+    const threatLevel = searchParams.get("threat_level") || "all";
+    const blocked = searchParams.get("blocked") || "all";
+    const num = searchParams.get("num") || "100";
+
+    setMethodFilter(method);
+    setStatusCodeFilter(statusCode);
+    setThreatLevelFilter(threatLevel);
+    setWafBlockedFilter(blocked);
+    // ...other filters...
+  }, [searchParams]);
+
   return (
-    <div className="space-y-6 w-full max-w-full overflow-x-hidden min-w-0">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

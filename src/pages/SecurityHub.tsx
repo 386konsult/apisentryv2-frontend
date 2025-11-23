@@ -71,7 +71,7 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 import { apiService } from "@/services/api";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import countriesData from "@/data/countries.json";
 import { cn } from "@/lib/utils";
@@ -100,6 +100,7 @@ interface RequestLog {
 }
 
 const SecurityHub = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [allLogs, setAllLogs] = useState<any[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<RequestLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,10 +144,16 @@ const SecurityHub = () => {
   const fetchLogs = async (platformId: string) => {
     setLoading(true);
     try {
-      // Get latest 100 request logs (all types - blocked and allowed) using num parameter
+      // Fetch last 100 logs
       const response = await apiService.getPlatformRequestLogs(platformId, { num: '100' });
-      const logsData = Array.isArray(response) ? response : (response as any)?.logs || [];
-      setAllLogs(logsData);
+      if (Array.isArray(response)) {
+        setAllLogs(response); // Set logs directly if response is an array
+      } else if (response && Array.isArray(response.logs)) {
+        setAllLogs(response.logs); // Extract logs if nested in `logs`
+      } else {
+        console.error('Unexpected response format for security hub logs:', response);
+        setAllLogs([]); // Fallback to an empty array
+      }
     } catch (error) {
       console.error("Error fetching logs:", error);
       toast({
@@ -154,6 +161,7 @@ const SecurityHub = () => {
         description: "Failed to fetch request logs",
         variant: "destructive",
       });
+      setAllLogs([]);
     } finally {
       setLoading(false);
     }
@@ -185,6 +193,55 @@ const SecurityHub = () => {
       new Set(allLogs.map((log) => log.threat_level).filter(Boolean))
     ).sort();
   }, [allLogs]);
+
+  // Update query parameters in the URL
+  const updateQueryParam = (key: string, value: string | null) => {
+    const params = new URLSearchParams(searchParams);
+    if (value) {
+      if (key === "num" && value === "100") {
+        params.delete("num"); // Remove `num=100` if it's the default
+      } else {
+        params.set(key, value);
+      }
+    } else {
+      params.delete(key);
+    }
+    setSearchParams(params);
+
+    // Log the updated query parameters
+    console.log("Updated query parameters:", params.toString());
+  };
+
+  // Handle filter changes
+  const handleFilterChange = (key: string, value: string) => {
+    if (key === "blocked") {
+      updateQueryParam(key, value); // Allow `blocked` to coexist with other filters
+    } else {
+      const params = new URLSearchParams(searchParams);
+      params.delete("method");
+      params.delete("status_code");
+      params.delete("threat_level");
+      params.delete("ip");
+      params.delete("country");
+      params.delete("endpoint");
+      if (key !== "num" || value !== "100") {
+        params.set(key, value); // Only set `num` if it's not the default
+      }
+      setSearchParams(params);
+    }
+  };
+
+  // Clear a specific filter
+  const clearFilter = (key: string) => {
+    updateQueryParam(key, null);
+  };
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("num"); // Ensure `num=100` is removed when clearing filters
+    setSearchParams(params);
+  };
 
   // Apply filters
   useEffect(() => {
@@ -270,6 +327,7 @@ const SecurityHub = () => {
     statusCodeFilter,
     threatLevelFilter,
     wafBlockedFilter,
+    searchParams,
   ]);
 
   // Analytics
@@ -455,6 +513,20 @@ const SecurityHub = () => {
     window.URL.revokeObjectURL(url);
   };
 
+  useEffect(() => {
+    const method = searchParams.get("method") || "all";
+    const statusCode = searchParams.get("status_code") || "all";
+    const threatLevel = searchParams.get("threat_level") || "all";
+    const blocked = searchParams.get("blocked") || "all";
+    const num = searchParams.get("num") || "100";
+
+    setMethodFilter(method);
+    setStatusCodeFilter(statusCode);
+    setThreatLevelFilter(threatLevel);
+    setWafBlockedFilter(blocked);
+    // ...other filters...
+  }, [searchParams]);
+
   return (
     <div className="space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
@@ -596,204 +668,137 @@ const SecurityHub = () => {
               <Input
                 placeholder="Search logs..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  updateQueryParam("search", e.target.value);
+                }}
                 className="pl-8 w-full min-w-0"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full min-w-0">
-            <div className="relative w-full min-w-0">
-              <MapPin className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Filter by IP address..."
-                value={ipFilter}
-                onChange={(e) => setIpFilter(e.target.value)}
-                className="pl-8 w-full min-w-0"
-              />
-            </div>
-
-            <Popover open={countryFilterOpen} onOpenChange={setCountryFilterOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={countryFilterOpen}
-                  className="w-full justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <Flag className="h-4 w-4 text-muted-foreground" />
-                    <span className={cn("truncate", !countryFilter && "text-muted-foreground")}>
-                      {countryFilter
-                        ? countriesData.find((country) => country.name === countryFilter)?.name
-                        : "Filter by country..."}
-                    </span>
-                  </div>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search country..." />
-                  <CommandList>
-                    <CommandEmpty>No country found.</CommandEmpty>
-                    <CommandGroup>
-                      {countriesData.map((country) => (
-                        <CommandItem
-                          key={country.code}
-                          value={country.name}
-                          onSelect={() => {
-                            setCountryFilter(
-                              countryFilter === country.name ? null : country.name
-                            );
-                            setCountryFilterOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              countryFilter === country.name
-                                ? "opacity-100"
-                                : "opacity-0"
-                            )}
-                          />
-                          <Flag className="mr-2 h-4 w-4" />
-                          {country.name}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-
-            <Select value={endpointFilter} onValueChange={setEndpointFilter}>
-              <SelectTrigger>
-                <Code className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Endpoint" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Endpoints</SelectItem>
-                {uniqueEndpoints.map((endpoint) => (
-                  <SelectItem key={endpoint} value={endpoint}>
-                    {endpoint}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={methodFilter} onValueChange={setMethodFilter}>
+            <Select
+              value={methodFilter}
+              onValueChange={(value) => handleFilterChange("method", value)}
+            >
               <SelectTrigger>
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Method" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Methods</SelectItem>
-                {uniqueMethods.map((method) => (
-                  <SelectItem key={method} value={method}>
-                    {method}
-                  </SelectItem>
-                ))}
+                <SelectItem value="GET">GET</SelectItem>
+                <SelectItem value="POST">POST</SelectItem>
+                <SelectItem value="PUT">PUT</SelectItem>
+                <SelectItem value="DELETE">DELETE</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select value={statusCodeFilter} onValueChange={setStatusCodeFilter}>
+            <Select
+              value={statusCodeFilter}
+              onValueChange={(value) => handleFilterChange("status_code", value)}
+            >
               <SelectTrigger>
                 <AlertTriangle className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Status Code" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status Codes</SelectItem>
-                {uniqueStatusCodes.map((code) => (
-                  <SelectItem key={code} value={code.toString()}>
-                    {code}
-                  </SelectItem>
-                ))}
+                <SelectItem value="200">200</SelectItem>
+                <SelectItem value="404">404</SelectItem>
+                <SelectItem value="500">500</SelectItem>
               </SelectContent>
             </Select>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Select value={threatLevelFilter} onValueChange={setThreatLevelFilter}>
+            <Select
+              value={threatLevelFilter}
+              onValueChange={(value) => handleFilterChange("threat_level", value)}
+            >
               <SelectTrigger>
                 <Shield className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Threat Level" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Threat Levels</SelectItem>
-                {uniqueThreatLevels.map((level) => (
-                  <SelectItem key={level} value={level}>
-                    {level.charAt(0).toUpperCase() + level.slice(1)}
-                  </SelectItem>
-                ))}
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select value={wafBlockedFilter} onValueChange={setWafBlockedFilter}>
+            <Select
+              value={wafBlockedFilter}
+              onValueChange={(value) => handleFilterChange("blocked", value)}
+            >
               <SelectTrigger>
                 <Shield className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="WAF Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Requests</SelectItem>
-                <SelectItem value="blocked">Blocked Only</SelectItem>
-                <SelectItem value="allowed">Allowed Only</SelectItem>
+                <SelectItem value="true">Blocked Only</SelectItem>
+                <SelectItem value="false">Allowed Only</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap w-full min-w-0">
-            <span className="text-sm text-muted-foreground w-full sm:w-auto flex-shrink-0">Active filters:</span>
+            <span className="text-sm text-muted-foreground w-full sm:w-auto flex-shrink-0">
+              Active filters:
+            </span>
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto min-w-0">
-              {searchTerm && (
-                <Badge variant="secondary" className="text-xs">Search: {searchTerm.length > 15 ? searchTerm.substring(0, 15) + '...' : searchTerm}</Badge>
-              )}
-              {ipFilter && (
-                <Badge variant="secondary" className="text-xs truncate max-w-[150px]" title={ipFilter}>IP: {ipFilter.length > 12 ? ipFilter.substring(0, 12) + '...' : ipFilter}</Badge>
-              )}
-              {countryFilter && (
-                <Badge variant="secondary" className="text-xs truncate max-w-[150px]" title={countryFilter}>
-                  <Flag className="h-3 w-3 mr-1 inline" />
-                  Country: {countryFilter.length > 15 ? countryFilter.substring(0, 15) + '...' : countryFilter}
+              {searchParams.get("search") && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs"
+                  onClick={() => clearFilter("search")}
+                >
+                  Search: {searchParams.get("search")}
                 </Badge>
               )}
-              {endpointFilter !== "all" && (
-                <Badge variant="secondary" className="text-xs truncate max-w-[200px]" title={endpointFilter}>Endpoint: {endpointFilter.length > 20 ? endpointFilter.substring(0, 20) + '...' : endpointFilter}</Badge>
+              {searchParams.get("method") && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs"
+                  onClick={() => clearFilter("method")}
+                >
+                  Method: {searchParams.get("method")}
+                </Badge>
               )}
-              {methodFilter !== "all" && (
-                <Badge variant="secondary" className="text-xs">Method: {methodFilter}</Badge>
+              {searchParams.get("status_code") && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs"
+                  onClick={() => clearFilter("status_code")}
+                >
+                  Status: {searchParams.get("status_code")}
+                </Badge>
               )}
-              {statusCodeFilter !== "all" && (
-                <Badge variant="secondary" className="text-xs">Status: {statusCodeFilter}</Badge>
+              {searchParams.get("threat_level") && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs"
+                  onClick={() => clearFilter("threat_level")}
+                >
+                  Threat: {searchParams.get("threat_level")}
+                </Badge>
               )}
-              {threatLevelFilter !== "all" && (
-                <Badge variant="secondary" className="text-xs">Threat: {threatLevelFilter}</Badge>
+              {searchParams.get("blocked") && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs"
+                  onClick={() => clearFilter("blocked")}
+                >
+                  WAF: {searchParams.get("blocked")}
+                </Badge>
               )}
-              {wafBlockedFilter !== "all" && (
-                <Badge variant="secondary" className="text-xs">WAF: {wafBlockedFilter}</Badge>
-              )}
-              {(searchTerm ||
-                ipFilter ||
-                countryFilter ||
-                endpointFilter !== "all" ||
-                methodFilter !== "all" ||
-                statusCodeFilter !== "all" ||
-                threatLevelFilter !== "all" ||
-                wafBlockedFilter !== "all") && (
+              {Array.from(searchParams.keys()).length > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="text-xs"
-                  onClick={() => {
-                    setSearchTerm("");
-                    setIpFilter("");
-                    setCountryFilter(null);
-                    setEndpointFilter("all");
-                    setMethodFilter("all");
-                    setStatusCodeFilter("all");
-                    setThreatLevelFilter("all");
-                    setWafBlockedFilter("all");
-                  }}
+                  onClick={clearAllFilters}
                 >
                   Clear all
                 </Button>

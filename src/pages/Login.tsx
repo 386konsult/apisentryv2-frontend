@@ -46,20 +46,14 @@ const Login = () => {
         login(data.token, data.user);
       }
       
-      // Check for first login
-      if (data.is_first_login === true) {
-        console.log("First login detected, redirecting to password reset");
-        navigate("/force-password-reset", { replace: true });
-      } else {
-        console.log("Normal login, redirecting to dashboard");
-        toast({
-          title: "Login successful",
-          description: "Welcome to APISentry!",
-        });
-        
-        // Force a page reload to ensure the auth state is properly updated
-        window.location.href = '/';
-      }
+      // Handle successful login
+      toast({
+        title: "Login successful",
+        description: "Welcome to APISentry!",
+      });
+
+      // Force a page reload to ensure the auth state is properly updated
+      window.location.href = '/';
     } catch (error) {
       console.error("Login error:", error);
       toast({
@@ -141,9 +135,9 @@ const Login = () => {
                 Sign up
               </Link>
             </p>
-            <Button variant="link" className="text-sm text-muted-foreground">
+            <Link to="/forgot-password" className="text-sm text-muted-foreground hover:underline">
               Forgot your password?
-            </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>

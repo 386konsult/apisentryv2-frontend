@@ -163,6 +163,39 @@ const CodeReviewDashboard = () => {
       }
 
       const result = await response.json();
+      
+      // Call manual scan alert endpoint for GitHub (same as Bitbucket)
+      try {
+        // Fetch repos to get repo URLs for the alert
+        const reposResponse = await fetch(`${API_BASE_URL}/github/repos/?platform_id=${selectedPlatformId}`, {
+          method: "GET",
+          headers: token ? { Authorization: `Token ${token}` } : {},
+        });
+        
+        if (reposResponse.ok) {
+          const reposData = await reposResponse.json();
+          const repos = Array.isArray(reposData) ? reposData : (reposData.results || []);
+          const repoUrls = repos.map((repo: any) => repo.html_url || repo.url).filter(Boolean);
+          
+          if (repoUrls.length > 0) {
+            await fetch(`${API_BASE_URL}/admin/manual-scan-alert/`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Token ${token}`
+              },
+              body: JSON.stringify({ 
+                repo_urls: repoUrls,
+                platform_id: selectedPlatformId
+              })
+            });
+          }
+        }
+      } catch (alertError) {
+        // Log but don't fail the scan if alert fails
+        console.error("Manual scan alert error:", alertError);
+      }
+      
       toast({
         title: "Scan Started",
         description: `Code review scan started successfully. Scan ID: ${result.scanId || "N/A"}`,

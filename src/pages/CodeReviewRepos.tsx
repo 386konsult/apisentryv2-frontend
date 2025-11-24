@@ -464,6 +464,10 @@ const CodeReviewRepos = () => {
     const token = localStorage.getItem('auth_token');
     const providerName = provider === 'github' ? 'github' : 'bitbucket';
     try {
+      if (!selectedPlatformId) {
+        throw new Error('No platform selected');
+      }
+
       let url = `${API_BASE_URL}/${providerName}/scan-all/?platform_id=${selectedPlatformId}`;
       
       // Add workspace parameter for Bitbucket (uses workspace slug)
@@ -484,6 +488,27 @@ const CodeReviewRepos = () => {
       }
       
       const result = await response.json();
+      
+      // Call manual scan alert endpoint for both GitHub and Bitbucket
+      const repoUrls = repos.map(repo => repo.html_url);
+      if (repoUrls.length > 0) {
+        try {
+          await fetch(`${API_BASE_URL}/admin/manual-scan-alert/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Token ${token}`
+            },
+            body: JSON.stringify({ 
+              repo_urls: repoUrls,
+              platform_id: selectedPlatformId
+            })
+          });
+        } catch (alertError) {
+          // Log but don't fail the scan if alert fails
+          console.error("Manual scan alert error:", alertError);
+        }
+      }
       
       // Set up batch scan tracking
       setBatchScan({

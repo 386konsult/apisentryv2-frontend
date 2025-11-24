@@ -133,15 +133,31 @@ const AppContent = () => {
                           <Dashboard />
                         </ProtectedPlatformRoute>
                       } />
-                      <Route path="/waf-rules" element={<WAFRules />} />
-                      <Route path="/threat-logs" element={<ThreatLogs />} />
-                      <Route path="/api-endpoints" element={<APIEndpoints />} />
+                      <Route path="/waf-rules" element={
+                        <ProtectedPlatformRoute>
+                          <WAFRules />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/threat-logs" element={
+                        <ProtectedPlatformRoute>
+                          <ThreatLogs />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/api-endpoints" element={
+                        <ProtectedPlatformRoute>
+                          <APIEndpoints />
+                        </ProtectedPlatformRoute>
+                      } />
                       <Route path="/api-endpoints/:endpointId/analytics" element={
                         <ProtectedPlatformRoute>
                           <EndpointAnalytics />
                         </ProtectedPlatformRoute>
                       } />
-                      <Route path="/integrations" element={<Integrations />} />
+                      <Route path="/integrations" element={
+                        <ProtectedPlatformRoute>
+                          <Integrations />
+                        </ProtectedPlatformRoute>
+                      } />
                       <Route path="/users" element={<Users />} />
                       <Route path="/settings" element={
                         <ProtectedPlatformRoute>
@@ -153,10 +169,26 @@ const AppContent = () => {
                           <Playground />
                         </ProtectedPlatformRoute>
                       } />
-                      <Route path="/vulnerability-dashboard" element={<VulnerabilityDashboard />} />
-                      <Route path="/vulnerability-scan" element={<VulnerabilityScan />} />
-                      <Route path="/vulnerability-reports" element={<VulnerabilityReports />} />
-                      <Route path="/vulnerability-settings" element={<VulnerabilitySettings />} />
+                      <Route path="/vulnerability-dashboard" element={
+                        <ProtectedPlatformRoute>
+                          <VulnerabilityDashboard />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/vulnerability-scan" element={
+                        <ProtectedPlatformRoute>
+                          <VulnerabilityScan />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/vulnerability-reports" element={
+                        <ProtectedPlatformRoute>
+                          <VulnerabilityReports />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/vulnerability-settings" element={
+                        <ProtectedPlatformRoute>
+                          <VulnerabilitySettings />
+                        </ProtectedPlatformRoute>
+                      } />
                       <Route path="/code-review-dashboard" element={
                         <ProtectedPlatformRoute>
                           <CodeReviewDashboard />
@@ -194,24 +226,32 @@ const AppContent = () => {
                       } />
                       <Route path="/platforms" element={<Platforms />} />
                       <Route path="/platforms/:id" element={<PlatformDetails />} />
-                      <Route path="/create-alert" element={<CreateAlert />} />
-                      <Route path="/security-alerts" element={<SecurityAlerts />} />
+                      <Route path="/create-alert" element={
+                        <ProtectedPlatformRoute>
+                          <CreateAlert />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/security-alerts" element={
+                        <ProtectedPlatformRoute>
+                          <SecurityAlerts />
+                        </ProtectedPlatformRoute>
+                      } />
                       <Route path="/security-hub" element={
                         <ProtectedPlatformRoute>
                           <SecurityHub />
                         </ProtectedPlatformRoute>
                       } />
-                      <Route path="/ip-blacklist" element={<IPBlacklist />} />
+                      <Route path="/ip-blacklist" element={
+                        <ProtectedPlatformRoute>
+                          <IPBlacklist />
+                        </ProtectedPlatformRoute>
+                      } />
                       <Route path="/incidents" element={
                         <ProtectedPlatformRoute>
                           <Incidents />
                         </ProtectedPlatformRoute>
                       } />
-                      <Route path="/audit-logs" element={
-                        <ProtectedPlatformRoute>
-                          <AuditLogs />
-                        </ProtectedPlatformRoute>
-                      } />
+                      <Route path="/audit-logs" element={<AuditLogs />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>

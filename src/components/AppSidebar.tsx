@@ -36,7 +36,7 @@ import { usePlatform } from "@/contexts/PlatformContext";
 import { Button } from "@/components/ui/button";
 
 const securityPlatformItems = [
-  { title: "Dashboard", url: "/", icon: BarChart3 },
+  { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Security Hub", url: "/security-hub", icon: Search },
   { title: "Threat Logs", url: "/threat-logs", icon: AlertTriangle },
   { title: "Security Alerts", url: "/security-alerts", icon: Bell },
@@ -103,38 +103,35 @@ const AppSidebar = () => {
       </div>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-            Security Platform
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {securityPlatformItems.map((item) => {
-                // Hide settings and playground if no platform is selected
-                if (!hasSelectedPlatform && (item.url === "/settings" || item.url === "/playground")) {
-                  return null;
-                }
-                
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        end={item.url === "/"}
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${getNavCls(item.url)}`}
-                      >
-                        <item.icon className="h-4 w-4 flex-shrink-0" />
-                        {!collapsed && (
-                          <span className="font-medium">{item.title}</span>
-                        )}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {hasSelectedPlatform && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+              Security Platform
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {securityPlatformItems.map((item) => {
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={item.url}
+                          end={item.url === "/"}
+                          className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${getNavCls(item.url)}`}
+                        >
+                          <item.icon className="h-4 w-4 flex-shrink-0" />
+                          {!collapsed && (
+                            <span className="font-medium">{item.title}</span>
+                          )}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
@@ -190,12 +187,27 @@ const AppSidebar = () => {
 
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-            Settings
+            {hasSelectedPlatform ? 'Settings' : 'Platform Management'}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              {!hasSelectedPlatform && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/platforms"
+                      end
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${getNavCls("/platforms")}`}
+                    >
+                      <Shield className="h-4 w-4 flex-shrink-0" />
+                      {!collapsed && (
+                        <span className="font-medium">Platforms</span>
+                      )}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {settingItems.map((item) => {
-                
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>

@@ -419,7 +419,14 @@ const Register = () => {
               </Link>
             </p>
             <p className="text-xs text-muted-foreground">
-              By creating an account, you agree to our Terms of Service and Privacy Policy
+              By creating an account, you agree to our{' '}
+              <Link to="/terms" className="text-primary hover:underline font-medium">
+                Terms of Service
+              </Link>
+              {' '}and{' '}
+              <Link to="/privacy" className="text-primary hover:underline font-medium">
+                Privacy Policy
+              </Link>
             </p>
           </div>
         </CardContent>

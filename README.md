@@ -1,73 +1,86 @@
-# Welcome to your Lovable project
+# APISentry - All-in-one API Security Platform
 
-## Project info
+APISentry is a comprehensive API security platform that provides enterprise-grade protection for your APIs with WAF (Web Application Firewall), threat detection, vulnerability scanning, code review, and real-time monitoring.
 
-**URL**: https://lovable.dev/projects/13806bdd-53f3-4060-8d7f-9e6fe0bed25a
+## Features
 
-## How can I edit this code?
+- **WAF Protection**: Advanced web application firewall rules and threat blocking
+- **Threat Detection**: Real-time threat detection and blocking capabilities
+- **API Monitoring**: Comprehensive API endpoint monitoring and analytics
+- **Vulnerability Scanning**: Automated vulnerability scanning and reporting
+- **Code Review**: Security-focused code review with GitHub/Bitbucket integration
+- **Security Alerts**: Real-time security alerts and incident management
+- **IP Blacklist**: Manage IP blacklists for enhanced security
+- **Audit Logs**: Complete audit trail for compliance and security
 
-There are several ways of editing your application.
+## Getting Started
 
-**Use Lovable**
+### Prerequisites
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/13806bdd-53f3-4060-8d7f-9e6fe0bed25a) and start prompting.
+- Node.js & npm (or yarn) - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Installation
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Step 1: Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Step 2: Navigate to the project directory
+cd apisentryv2-frontend
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Step 3: Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The application will be available at `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
+## Technologies
 
 This project is built with:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- **Vite** - Next generation frontend tooling
+- **TypeScript** - Type-safe JavaScript
+- **React** - UI library
+- **shadcn-ui** - High-quality component library
+- **Tailwind CSS** - Utility-first CSS framework
+- **React Router** - Client-side routing
+- **TanStack Query** - Data fetching and caching
 
-## How can I deploy this project?
+## Development
 
-Simply open [Lovable](https://lovable.dev/projects/13806bdd-53f3-4060-8d7f-9e6fe0bed25a) and click on Share -> Publish.
+### Available Scripts
 
-## Can I connect a custom domain to my Lovable project?
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
 
-Yes, you can!
+### Project Structure
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```
+src/
+├── components/     # Reusable UI components
+├── pages/         # Page components
+├── contexts/      # React contexts (Auth, Platform)
+├── services/      # API services
+├── hooks/         # Custom React hooks
+├── lib/           # Utility functions
+└── data/          # Static data files
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## Deployment
+
+Build the project for production:
+
+```sh
+npm run build
+```
+
+The `dist` folder will contain the production-ready files that can be deployed to any static hosting service.
+
+## License
+
+Copyright © APISentry. All rights reserved.

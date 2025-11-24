@@ -20,6 +20,8 @@ import OTPVerification from "./pages/OTPVerification";
 import Onboarding from "./pages/Onboarding";
 import ForgotPassword from "./pages/ForgotPassword";
 import PasswordReset from "./pages/PasswordReset";
+import TermsAndConditions from "./pages/TermsAndConditions";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 // Main Pages
 import Dashboard from "./pages/Dashboard";
@@ -90,6 +92,9 @@ const AppContent = () => {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public Routes - Must be before protected routes */}
+        <Route path="/terms" element={<TermsAndConditions />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />

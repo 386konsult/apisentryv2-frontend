@@ -1,5 +1,5 @@
 // export const API_BASE_URL = 'http://16.16.182.74/api/v1';
-export const API_BASE_URL = 'https://api.apisentry.com/api/v1';
+export const API_BASE_URL = 'https://api.apisentry.ai/api/v1';
 // export const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 

@@ -117,7 +117,7 @@ const CodeReviewDashboard = () => {
         throw new Error("No platform selected. Please select a platform first.");
       }
 
-      const response = await fetch(`${API_BASE_URL}/codereview/dashboard/?platform_id=${selectedPlatformId}`, { headers });
+      const response = await fetch(`${API_BASE_URL}/dashboard/?platform_id=${selectedPlatformId}`, { headers });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch dashboard data: ${response.status} ${response.statusText}`);

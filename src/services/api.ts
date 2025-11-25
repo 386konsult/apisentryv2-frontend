@@ -160,9 +160,9 @@ class APIService {
   async getDashboardStats(): Promise<any> {
     const platformId = localStorage.getItem('selected_platform_id');
     if (!platformId) throw new Error('No platform selected');
-    // /platforms/<uuid:pk>/analytics/
-    const response = await this.request<{success: boolean; analytics: any}>(`/platforms/${platformId}/analytics/`);
-    return response.analytics;
+    // /dashboard/?platform_id=<uuid>
+    const response = await this.request<any>(`/dashboard/?platform_id=${platformId}`);
+    return response;
   }
 
   // Threat logs for selected platform
@@ -628,7 +628,7 @@ private getCSRFToken = () => {
   }
 
   async getGitHubRepos(page: number = 1, pageSize: number = 20): Promise<any> {
-    return await this.request(`/github/repos/basic/?page=${page}&page_size=${pageSize}`);
+    return await this.request(this.addPlatformQuery(`/github/repos/basic/?page=${page}&page_size=${pageSize}`));
   }
 
   async disconnectGitHub(): Promise<void> {

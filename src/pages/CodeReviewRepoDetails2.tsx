@@ -480,11 +480,10 @@ const SecurityDashboard = () => {
                           <div className="mt-4">
                             <h5 className="text-sm font-semibold text-foreground mb-2">Risks Associated:</h5>
                             <div className="flex flex-wrap gap-2">
-                              {riskValues}
-                              {/* {riskValues.map((risk: string, index: number) => (
+                              {riskValues.map((risk: string, index: number) => (
                                 <span key={index} className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded">
                                   {risk}
-                                </span> */}
+                                </span>
                               ))}
                             </div>
                           </div>

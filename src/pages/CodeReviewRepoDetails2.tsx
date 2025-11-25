@@ -35,63 +35,84 @@ const SecurityDashboard = () => {
         const urlParams = new URLSearchParams(window.location.search);
         const repoUrlFromParams = urlParams.get('repo_url');
 
-        let repoDetails: any = null;
-        let repo_url = repoUrlFromParams || '';
-        let isBitbucket = false;
-
-        // If repo_url is provided in params, use it directly
+        let repo_url = '';
+        
+        // If repo_url is provided in params, use it directly to call the unified endpoint
         if (repoUrlFromParams) {
           repo_url = repoUrlFromParams;
-          isBitbucket = repoUrlFromParams.includes('bitbucket.org');
-        } else {
-          // Try to fetch from GitHub repos first
-          try {
-            const githubReposResponse = await fetch(
-          `${API_BASE_URL}/github/repos/?page=1&page_size=100&platform_id=${platformId}`,
-          { headers }
-        );
+          
+          // Call the unified codereview/repos/issues/ endpoint
+          const issuesResponse = await fetch(
+            `${API_BASE_URL}/repos/issues/?platform_id=${platformId}&repo_url=${encodeURIComponent(repo_url)}`,
+            { headers }
+          );
+          
+          if (!issuesResponse.ok) {
+            console.log("Failed to fetch issues:", issuesResponse.status, issuesResponse.statusText);
+            return;
+          }
+          
+          const issuesData = await issuesResponse.json();
+          const backendIssues = issuesData.issues || issuesData || [];
+          
+          console.log("Backend vulnerabilities response:", issuesData);
+          console.log("Parsed vulnerabilities:", backendIssues);
+          
+          setBackendVulnerabilities(backendIssues);
+          return;
+        }
+
+        // If repo_url is not in params, try to find repo from the list
+        let repoDetails: any = null;
+        let isBitbucket = false;
+
+        // Try to fetch from GitHub repos first
+        try {
+          const githubReposResponse = await fetch(
+            `${API_BASE_URL}/github/repos/?page=1&page_size=100&platform_id=${platformId}`,
+            { headers }
+          );
         
-            if (githubReposResponse.ok) {
-              const githubRepos = await githubReposResponse.json();
-              const reposList = Array.isArray(githubRepos) ? githubRepos : (githubRepos.results || []);
+          if (githubReposResponse.ok) {
+            const githubRepos = await githubReposResponse.json();
+            const reposList = Array.isArray(githubRepos) ? githubRepos : (githubRepos.results || []);
+            repoDetails = reposList.find((repo: { name: string; full_name: string }) => repo.name === repoName);
+            
+            if (repoDetails) {
+              repo_url = repoDetails.html_url;
+              isBitbucket = false;
+            }
+          }
+        } catch (error) {
+          console.log("Error fetching GitHub repos:", error);
+        }
+
+        // If not found in GitHub, try Bitbucket repos
+        if (!repoDetails) {
+          try {
+            const bitbucketReposResponse = await fetch(
+              `${API_BASE_URL}/bitbucket/repos/?page=1&page_size=100&platform_id=${platformId}`,
+              { headers }
+            );
+            
+            if (bitbucketReposResponse.ok) {
+              const bitbucketRepos = await bitbucketReposResponse.json();
+              const reposList = Array.isArray(bitbucketRepos) ? bitbucketRepos : (bitbucketRepos.results || []);
               repoDetails = reposList.find((repo: { name: string; full_name: string }) => repo.name === repoName);
               
               if (repoDetails) {
                 repo_url = repoDetails.html_url;
-                isBitbucket = false;
+                isBitbucket = true;
               }
             }
           } catch (error) {
-            console.log("Error fetching GitHub repos:", error);
+            console.log("Error fetching Bitbucket repos:", error);
           }
-
-          // If not found in GitHub, try Bitbucket repos
-          if (!repoDetails) {
-            try {
-              const bitbucketReposResponse = await fetch(
-                `${API_BASE_URL}/bitbucket/repos/?page=1&page_size=100&platform_id=${platformId}`,
-                { headers }
-              );
-              
-              if (bitbucketReposResponse.ok) {
-                const bitbucketRepos = await bitbucketReposResponse.json();
-                const reposList = Array.isArray(bitbucketRepos) ? bitbucketRepos : (bitbucketRepos.results || []);
-                repoDetails = reposList.find((repo: { name: string; full_name: string }) => repo.name === repoName);
-                
-                if (repoDetails) {
-                  repo_url = repoDetails.html_url;
-                  isBitbucket = true;
-                }
-              }
-            } catch (error) {
-              console.log("Error fetching Bitbucket repos:", error);
-            }
-          }
+        }
         
-        if (!repoDetails) {
+        if (!repoDetails || !repo_url) {
           console.log(`Repository with name '${repoName}' not found in the list`);
           return;
-          }
         }
 
         // Determine if it's Bitbucket from repo_url if not already determined
@@ -99,32 +120,11 @@ const SecurityDashboard = () => {
           isBitbucket = repo_url.includes('bitbucket.org');
         }
         
-        // Fetch issues based on provider
-        let issuesResponse;
-        if (isBitbucket) {
-          // Bitbucket: Use the new unified endpoint
-          issuesResponse = await fetch(
-            `${API_BASE_URL}/github/repos/issues/?platform_id=${platformId}&repo_url=${encodeURIComponent(repo_url)}`,
-            { headers }
-          );
-        } else {
-          // GitHub: Use existing endpoint
-          const fullName = repoDetails?.full_name || '';
-        const [owner, repo] = fullName.split("/");
-        
-        if (!owner || !repo) {
-          console.log("Invalid repository full_name format:", fullName);
-          return;
-        }
-        
-        const repo_url = repoDetails.html_url;
-        
-        // Fetch vulnerabilities from backend
+        // Use the unified endpoint for both GitHub and Bitbucket
         const issuesResponse = await fetch(
-          `${API_BASE_URL}/github/repos/${owner}/${repo}/issues/?platform_id=${platformId}&repo_url=${repo_url}`,
+          `${API_BASE_URL}/codereview/repos/issues/?platform_id=${platformId}&repo_url=${encodeURIComponent(repo_url)}`,
           { headers }
         );
-        }
         
         if (!issuesResponse.ok) {
           console.log("Failed to fetch issues:", issuesResponse.status, issuesResponse.statusText);
@@ -410,7 +410,8 @@ const SecurityDashboard = () => {
                               <div className="mb-3">
                                 <div className="text-sm text-muted-foreground mb-1">Issue Code:</div>
                                 <div className="bg-red-900/20 border border-red-500/30 text-red-100 p-3 rounded text-sm font-mono">
-                                  {file.code_snippet || vuln.code_snippet_of_the_issue}
+                                  {/* {file.code_snippet || vuln.code_snippet_of_the_issue} */}
+                                  ******************
                                 </div>
                               </div>
                             )}
@@ -418,7 +419,8 @@ const SecurityDashboard = () => {
                               <div className="mb-3">
                                 <div className="text-sm text-muted-foreground mb-1">Suggested Fix:</div>
                                 <div className="bg-green-900/20 border border-green-500/30 text-green-100 p-3 rounded text-sm font-mono">
-                                  {file.solution_code || vuln.possible_code_snippet_to_fix_it}
+                                  {/* {file.solution_code || vuln.possible_code_snippet_to_fix_it} */}
+                                  ******************
                             </div>
                             </div>
                             )}
@@ -464,18 +466,30 @@ const SecurityDashboard = () => {
                       </div>
                       
                       {/* Risks Associated */}
-                      {vuln.risks_associated_with_the_issue && vuln.risks_associated_with_the_issue.length > 0 && (
-                        <div className="mt-4">
-                          <h5 className="text-sm font-semibold text-foreground mb-2">Risks Associated:</h5>
-                          <div className="flex flex-wrap gap-2">
-                            {vuln.risks_associated_with_the_issue.map((risk: string, index: number) => (
-                              <span key={index} className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded">
-                                {risk}
-                              </span>
-                            ))}
+                      {(() => {
+                        const riskValues = Array.isArray(vuln.risks_associated_with_the_issue)
+                          ? vuln.risks_associated_with_the_issue
+                          : typeof vuln.risks_associated_with_the_issue === 'string'
+                            ? vuln.risks_associated_with_the_issue
+                                .split(/[,\\n]/)
+                                .map(risk => risk.trim())
+                                .filter(Boolean)
+                            : [];
+                        if (riskValues.length === 0) return null;
+                        return (
+                          <div className="mt-4">
+                            <h5 className="text-sm font-semibold text-foreground mb-2">Risks Associated:</h5>
+                            <div className="flex flex-wrap gap-2">
+                              {riskValues}
+                              {/* {riskValues.map((risk: string, index: number) => (
+                                <span key={index} className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded">
+                                  {risk}
+                                </span> */}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
 
                     {/* Security Framework Details & Remediation */}

@@ -178,6 +178,16 @@ const CodeReviewDashboard = () => {
           const repoUrls = repos.map((repo: any) => repo.html_url || repo.url).filter(Boolean);
           
           if (repoUrls.length > 0) {
+            // Build branches parameter: map each repo_url to its default branch
+            const branches: Record<string, string> = {};
+            repos.forEach((repo: any) => {
+              const repoUrl = repo.html_url || repo.url;
+              if (repoUrl) {
+                const defaultBranch = repo.default_branch || (repo.branches && repo.branches.length > 0 ? repo.branches[0] : 'main');
+                branches[repoUrl] = defaultBranch;
+              }
+            });
+            
             await fetch(`${API_BASE_URL}/admin/manual-scan-alert/`, {
               method: 'POST',
               headers: {
@@ -186,7 +196,8 @@ const CodeReviewDashboard = () => {
               },
               body: JSON.stringify({ 
                 repo_urls: repoUrls,
-                platform_id: selectedPlatformId
+                platform_id: selectedPlatformId,
+                branches: branches
               })
             });
           }
@@ -722,13 +733,23 @@ const CodeReviewDashboard = () => {
             <CardDescription className="text-xs font-light">Most common OWASP Top 10 categories found in scans</CardDescription>
           </CardHeader>
           <CardContent className="pt-2">
-            <ResponsiveContainer width="100%" height={150}>
-              <BarChart data={owaspData} layout="vertical">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart 
+                data={owaspData} 
+                layout="vertical"
+                margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis type="number" tick={{ fontSize: 10 }} />
-                <YAxis dataKey="name" type="category" width={60} tick={{ fontSize: 10 }} />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  width={120} 
+                  tick={{ fontSize: 11 }}
+                  interval={0}
+                />
                 <Tooltip contentStyle={{ fontSize: '11px', padding: '4px 8px' }} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={30}>
                   {owaspData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}

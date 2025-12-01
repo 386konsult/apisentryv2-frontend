@@ -1,6 +1,6 @@
 // export const API_BASE_URL = 'http://16.16.182.74/api/v1';
-export const API_BASE_URL = 'https://api.apisentry.ai/api/v1';
-// export const API_BASE_URL = 'http://localhost:8000/api/v1';
+// export const API_BASE_URL = 'https://api.apisentry.ai/api/v1';
+export const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 
 // Types for API responses
@@ -11,11 +11,42 @@ export interface User {
   first_name: string;
   last_name: string;
   phone_number?: string;
-  company_name?: string;
+  company?: string | null;
+  company_display_name?: string | null;
   is_verified: boolean;
   role: 'admin' | 'user' | 'viewer';
   created_at: string;
   updated_at: string;
+}
+
+export interface Invitation {
+  id: number;
+  email: string;
+  message?: string;
+  status: 'pending' | 'accepted' | 'cancelled';
+  invited_by: string;
+  created_at: string;
+  expires_at?: string;
+}
+
+export interface PlatformMember {
+  id: string | number;
+  user: number; // User ID
+  user_email: string;
+  user_name: string;
+  platform: string;
+  platform_name: string;
+  invited_by?: number | null;
+  invited_by_email?: string | null;
+  created_at: string;
+  updated_at: string;
+  is_owner: boolean;
+  role?: 'admin' | 'analyst' | 'viewer'; // Optional, may not be in response
+}
+
+export interface InviteRequest {
+  email: string;
+  message?: string;
 }
 
 export interface LoginRequest {
@@ -631,6 +662,11 @@ private getCSRFToken = () => {
     return await this.request(this.addPlatformQuery(`/github/repos/basic/?page=${page}&page_size=${pageSize}`));
   }
 
+  // Get branches for a specific repository
+  async getRepositoryBranches(repoUrl: string, platformId: string): Promise<{ branches: string[]; default_branch: string; count: number }> {
+    return await this.request(`/repos/branches/?repo_url=${encodeURIComponent(repoUrl)}&platform_id=${platformId}`);
+  }
+
   async disconnectGitHub(): Promise<void> {
     await this.request('/github/disconnect/', {
       method: 'DELETE',
@@ -860,6 +896,64 @@ private getCSRFToken = () => {
   // Fetch the last 100 blocked logs for threat logs
   async getBlockedThreatLogs(platformId: string): Promise<any[]> {
     return await this.request<any[]>(`/platforms/${platformId}/request-logs/?blocked=true`);
+  }
+
+  // Invitation Management
+  // Send invitation to join platform
+  async sendInvitation(platformId: string, invitationData: InviteRequest): Promise<Invitation> {
+    return await this.request<Invitation>(`/platforms/${platformId}/invitations/`, {
+      method: 'POST',
+      body: JSON.stringify(invitationData),
+    });
+  }
+
+  // List invitations for a platform
+  async getInvitations(platformId: string): Promise<Invitation[]> {
+    return await this.request<Invitation[]>(`/platforms/${platformId}/invitations/`);
+  }
+
+  // Cancel an invitation
+  async cancelInvitation(invitationId: number): Promise<void> {
+    return await this.request<void>(`/invitations/${invitationId}/cancel/`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Get invitation details by token (GET request to view invitation before accepting)
+  async getInvitationByToken(token: string): Promise<any> {
+    return await this.request<any>(`/invitations/accept/${token}/`, {
+      method: 'GET',
+    });
+  }
+
+  // Accept an invitation (usually called from email link)
+  async acceptInvitation(token: string): Promise<any> {
+    return await this.request<any>(`/invitations/accept/${token}/`, {
+      method: 'POST',
+    });
+  }
+
+  // Platform Member Management
+  // List platform members
+  async getPlatformMembers(platformId: string): Promise<PlatformMember[]> {
+    const response = await this.request<any>(`/platforms/${platformId}/members/`);
+    // Handle paginated response (like users endpoint)
+    if (response && typeof response === 'object' && 'results' in response) {
+      return response.results;
+    }
+    // Handle array response
+    if (Array.isArray(response)) {
+      return response;
+    }
+    // Fallback to empty array
+    return [];
+  }
+
+  // Remove a member from platform
+  async removeMember(platformId: string, memberId: number): Promise<void> {
+    return await this.request<void>(`/platforms/${platformId}/members/${memberId}/`, {
+      method: 'DELETE',
+    });
   }
 }
 

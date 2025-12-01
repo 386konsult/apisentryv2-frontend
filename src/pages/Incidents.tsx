@@ -567,7 +567,13 @@ const Incidents = () => {
       autoTable(doc, {
         startY: yPos,
         head: [["Endpoint"]],
-        body: incident.impactedEndpoints.map((ep) => [ep]),
+        body: incident.impactedEndpoints.map((ep) => {
+          // Handle both string and object formats
+          const endpointDisplay = typeof ep === 'string' 
+            ? ep 
+            : (ep?.path || ep?.name || `${ep?.method || ''} ${ep?.path || ''}`).trim();
+          return [endpointDisplay];
+        }),
         theme: "striped",
         headStyles: { 
           fillColor: [30, 41, 59],
@@ -1267,11 +1273,21 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
             <div>
               <Label className="text-xs text-muted-foreground">Impacted Endpoints</Label>
               <div className="flex flex-wrap gap-2 mt-1">
-                {incident.impactedEndpoints.map((ep, i) => (
-                  <Badge key={`${ep}-${i}`} variant="secondary">
-                    {ep}
-                  </Badge>
-                ))}
+                {incident.impactedEndpoints.map((ep, i) => {
+                  // Handle both string and object formats
+                  const endpointDisplay = typeof ep === 'string' 
+                    ? ep 
+                    : (ep?.path || ep?.name || `${ep?.method || ''} ${ep?.path || ''}`).trim();
+                  const endpointKey = typeof ep === 'string' 
+                    ? `${ep}-${i}` 
+                    : (ep?.path || ep?.name || `endpoint-${i}`);
+                  
+                  return (
+                    <Badge key={endpointKey} variant="secondary">
+                      {endpointDisplay}
+                    </Badge>
+                  );
+                })}
               </div>
             </div>
           )}

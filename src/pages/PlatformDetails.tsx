@@ -29,7 +29,6 @@ import {
   Settings,
   Eye,
   Plus,
-  Flag,
   Clock,
   Ban,
   FileText,
@@ -69,16 +68,8 @@ const PlatformDetails = () => {
   const [threatLogs, setThreatLogs] = useState<any[]>([]); // Ensure it's initialized as an empty array
   const [trafficData, setTrafficData] = useState([]);
   const [threatTypes, setThreatTypes] = useState([]);
-  // New charts data - initialized with dummy data
-  const [threatTypesByCategory, setThreatTypesByCategory] = useState([
-    { name: 'SQL Injection', value: 45, color: '#ef4444' },
-    { name: 'XSS', value: 32, color: '#f59e0b' },
-    { name: 'Path Traversal', value: 28, color: '#8b5cf6' },
-    { name: 'Brute Force', value: 22, color: '#dc2626' },
-    { name: 'Command Injection', value: 15, color: '#ec4899' },
-    { name: 'CSRF', value: 12, color: '#06b6d4' },
-    { name: 'XXE', value: 8, color: '#10b981' },
-  ]);
+  // New charts data - initialized with empty arrays
+  const [threatTypesByCategory, setThreatTypesByCategory] = useState([]);
   const [owaspThreats, setOwaspThreats] = useState<OWASPThreat[]>([
     { name: 'Broken Access Control', category: 'Access Control', count: 0, severity: 'critical' },
     { name: 'Cryptographic Failures', category: 'Cryptography', count: 0, severity: 'high' },
@@ -91,20 +82,7 @@ const PlatformDetails = () => {
     { name: 'Security Logging Failures', category: 'Logging', count: 0, severity: 'medium' },
     { name: 'Server-Side Request Forgery', category: 'SSRF', count: 0, severity: 'high' },
   ]);
-  const [countryData, setCountryData] = useState<CountryData[]>([
-    { code: 'US', name: 'United States', count: 1245 },
-    { code: 'CN', name: 'China', count: 892 },
-    { code: 'RU', name: 'Russia', count: 678 },
-    { code: 'GB', name: 'United Kingdom', count: 543 },
-    { code: 'DE', name: 'Germany', count: 412 },
-    { code: 'FR', name: 'France', count: 356 },
-    { code: 'IN', name: 'India', count: 789 },
-    { code: 'BR', name: 'Brazil', count: 445 },
-    { code: 'JP', name: 'Japan', count: 321 },
-    { code: 'CA', name: 'Canada', count: 298 },
-    { code: 'AU', name: 'Australia', count: 234 },
-    { code: 'KR', name: 'South Korea', count: 189 },
-  ]);
+  const [countryData, setCountryData] = useState<CountryData[]>([]);
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState('7d');
   const [customRange, setCustomRange] = useState({ start: null, end: null });
@@ -237,7 +215,7 @@ const PlatformDetails = () => {
             analyticsData = data.analytics;
           }
 
-          // Threat types pie chart
+          // Response Code Breakdown - use status_code_breakdown
           if (analyticsData.status_code_breakdown) {
             const colors = {
               '200': '#22c55e', // green
@@ -248,18 +226,204 @@ const PlatformDetails = () => {
               '400': '#dc2626', // dark red
               'other': '#9ca3af', // gray (default for other)
             };
-            const threatArr = Object.entries(analyticsData.status_code_breakdown).map(([name, value]) => ({
+            const responseCodeArr = Object.entries(analyticsData.status_code_breakdown).map(([name, value]) => ({
               name,
               value: Number(value),
               color: colors[name] || colors['other'],
             }));
-            setThreatTypes(threatArr);
+            setThreatTypes(responseCodeArr);
           } else {
             setThreatTypes([]);
           }
+
+          // Threats by Type - use threat_type_summary
+          if (analyticsData.threat_type_summary && typeof analyticsData.threat_type_summary === 'object') {
+            const threatTypeColors: Record<string, string> = {
+              'Malicious Payload': '#ef4444',
+              'XSS Attack Detected': '#f59e0b',
+              'Suspicious User Agent': '#8b5cf6',
+              'Brute Force Attempt': '#dc2626',
+              'SQL Injection Detection': '#ec4899',
+              'Command Injection': '#06b6d4',
+              'Path Traversal': '#10b981',
+              'Rate Limit Exceeded': '#3b82f6',
+              'Security Misconfiguration': '#f97316',
+              'Insecure Direct Object Reference': '#eab308',
+              'Broken Authentication': '#14b8a6',
+              'SQL Injection': '#ef4444',
+              'XSS': '#f59e0b',
+              'Brute Force': '#dc2626',
+              'CSRF': '#06b6d4',
+              'XXE': '#10b981',
+              'SSRF': '#3b82f6',
+              'LFI': '#f97316',
+              'RFI': '#eab308',
+            };
+            const threatTypeArr = Object.entries(analyticsData.threat_type_summary)
+              .map(([name, value]) => ({
+                name,
+                value: Number(value),
+                color: threatTypeColors[name] || '#9ca3af',
+              }))
+              .filter(item => item.value > 0) // Only show threats with counts > 0
+              .sort((a, b) => b.value - a.value); // Sort by value descending
+            setThreatTypesByCategory(threatTypeArr);
+          } else if (analyticsData.threat_types && typeof analyticsData.threat_types === 'object') {
+            // Fallback to old threat_types format
+            const threatTypeColors: Record<string, string> = {
+              'SQL Injection': '#ef4444',
+              'XSS': '#f59e0b',
+              'Path Traversal': '#8b5cf6',
+              'Brute Force': '#dc2626',
+              'Command Injection': '#ec4899',
+              'CSRF': '#06b6d4',
+              'XXE': '#10b981',
+              'SSRF': '#3b82f6',
+              'LFI': '#f97316',
+              'RFI': '#eab308',
+            };
+            const threatTypeArr = Object.entries(analyticsData.threat_types)
+              .map(([name, value]) => ({
+                name,
+                value: Number(value),
+                color: threatTypeColors[name] || '#9ca3af',
+              }))
+              .filter(item => item.value > 0)
+              .sort((a, b) => b.value - a.value);
+            setThreatTypesByCategory(threatTypeArr);
+          } else {
+            setThreatTypesByCategory([]);
+          }
+
+          // Country Data - use country_summary (new format) or country_breakdown (old format)
+          if (analyticsData.country_summary && Array.isArray(analyticsData.country_summary)) {
+            // New format: array of objects with country_code, country_name, total_requests
+            const countryArr = analyticsData.country_summary
+              .map((item: any) => ({
+                code: item.country_code?.toUpperCase() || '',
+                name: item.country_name || item.country_code || '',
+                count: Number(item.total_requests || 0),
+              }))
+              .filter(item => item.count > 0 && item.code) // Only show countries with counts > 0 and valid code
+              .sort((a, b) => b.count - a.count); // Sort by count descending
+            setCountryData(countryArr);
+          } else if (analyticsData.country_breakdown || analyticsData.geographic_breakdown) {
+            // Fallback to old format: object with country codes as keys
+            const countryBreakdown = analyticsData.country_breakdown || analyticsData.geographic_breakdown;
+            const countryCodeToName: Record<string, string> = {
+              'US': 'United States',
+              'CN': 'China',
+              'RU': 'Russia',
+              'GB': 'United Kingdom',
+              'DE': 'Germany',
+              'FR': 'France',
+              'IN': 'India',
+              'BR': 'Brazil',
+              'JP': 'Japan',
+              'CA': 'Canada',
+              'AU': 'Australia',
+              'KR': 'South Korea',
+              'IT': 'Italy',
+              'ES': 'Spain',
+              'NL': 'Netherlands',
+              'MX': 'Mexico',
+              'ID': 'Indonesia',
+              'TR': 'Turkey',
+              'SA': 'Saudi Arabia',
+              'PL': 'Poland',
+              'EG': 'Egypt',
+              'CH': 'Switzerland',
+            };
+            const countryArr = Object.entries(countryBreakdown)
+              .map(([code, count]) => ({
+                code: code.toUpperCase(),
+                name: countryCodeToName[code.toUpperCase()] || code,
+                count: Number(count),
+              }))
+              .filter(item => item.count > 0) // Only show countries with counts > 0
+              .sort((a, b) => b.count - a.count); // Sort by count descending
+            setCountryData(countryArr);
+          } else {
+            setCountryData([]);
+          }
+
+          // OWASP Top 10 - use owasp_top10_summary
+          if (analyticsData.owasp_top10_summary && Array.isArray(analyticsData.owasp_top10_summary)) {
+            // Map OWASP categories to the expected format
+            const owaspCategoryMap: Record<string, { name: string; category: string; severity: 'critical' | 'high' | 'medium' | 'low' }> = {
+              'A01:2021 – Broken Access Control': { name: 'Broken Access Control', category: 'Access Control', severity: 'critical' },
+              'A02:2021 – Cryptographic Failures': { name: 'Cryptographic Failures', category: 'Cryptography', severity: 'high' },
+              'A03:2021 – Injection': { name: 'Injection', category: 'Injection', severity: 'critical' },
+              'A04:2021 – Insecure Design': { name: 'Insecure Design', category: 'Design', severity: 'high' },
+              'A05:2021 – Security Misconfiguration': { name: 'Security Misconfiguration', category: 'Configuration', severity: 'medium' },
+              'A06:2021 – Vulnerable Components': { name: 'Vulnerable Components', category: 'Components', severity: 'high' },
+              'A07:2021 – Identification and Authentication Failures': { name: 'Authentication Failures', category: 'Authentication', severity: 'critical' },
+              'A08:2021 – Software and Data Integrity Failures': { name: 'Software & Data Integrity', category: 'Integrity', severity: 'high' },
+              'A09:2021 – Security Logging and Monitoring Failures': { name: 'Security Logging Failures', category: 'Logging', severity: 'medium' },
+              'A10:2021 – Server-Side Request Forgery': { name: 'Server-Side Request Forgery', category: 'SSRF', severity: 'high' },
+            };
+
+            const owaspArr = analyticsData.owasp_top10_summary
+              .map((item: any) => {
+                const categoryInfo = owaspCategoryMap[item.category] || {
+                  name: item.category,
+                  category: item.category.split(':')[0] || item.category,
+                  severity: 'medium' as const,
+                };
+                return {
+                  name: categoryInfo.name,
+                  category: categoryInfo.category,
+                  count: Number(item.threat_count || 0),
+                  severity: categoryInfo.severity,
+                };
+              })
+              .filter(item => item.count > 0) // Only show categories with counts > 0
+              .sort((a, b) => b.count - a.count); // Sort by count descending
+
+            // Ensure all OWASP Top 10 items are present (with 0 counts if not in data)
+            const allOwaspItems = [
+              { name: 'Broken Access Control', category: 'Access Control', count: 0, severity: 'critical' as const },
+              { name: 'Cryptographic Failures', category: 'Cryptography', count: 0, severity: 'high' as const },
+              { name: 'Injection', category: 'Injection', count: 0, severity: 'critical' as const },
+              { name: 'Insecure Design', category: 'Design', count: 0, severity: 'high' as const },
+              { name: 'Security Misconfiguration', category: 'Configuration', count: 0, severity: 'medium' as const },
+              { name: 'Vulnerable Components', category: 'Components', count: 0, severity: 'high' as const },
+              { name: 'Authentication Failures', category: 'Authentication', count: 0, severity: 'critical' as const },
+              { name: 'Software & Data Integrity', category: 'Integrity', count: 0, severity: 'high' as const },
+              { name: 'Security Logging Failures', category: 'Logging', count: 0, severity: 'medium' as const },
+              { name: 'Server-Side Request Forgery', category: 'SSRF', count: 0, severity: 'high' as const },
+            ];
+
+            // Merge API data with default items
+            const mergedOwasp = allOwaspItems.map(defaultItem => {
+              const apiItem = owaspArr.find(item => item.name === defaultItem.name);
+              return apiItem || defaultItem;
+            });
+
+            setOwaspThreats(mergedOwasp);
+          } else {
+            // Reset to default OWASP threats with 0 counts if no data
+            const defaultOwasp = [
+              { name: 'Broken Access Control', category: 'Access Control', count: 0, severity: 'critical' as const },
+              { name: 'Cryptographic Failures', category: 'Cryptography', count: 0, severity: 'high' as const },
+              { name: 'Injection', category: 'Injection', count: 0, severity: 'critical' as const },
+              { name: 'Insecure Design', category: 'Design', count: 0, severity: 'high' as const },
+              { name: 'Security Misconfiguration', category: 'Configuration', count: 0, severity: 'medium' as const },
+              { name: 'Vulnerable Components', category: 'Components', count: 0, severity: 'high' as const },
+              { name: 'Authentication Failures', category: 'Authentication', count: 0, severity: 'critical' as const },
+              { name: 'Software & Data Integrity', category: 'Integrity', count: 0, severity: 'high' as const },
+              { name: 'Security Logging Failures', category: 'Logging', count: 0, severity: 'medium' as const },
+              { name: 'Server-Side Request Forgery', category: 'SSRF', count: 0, severity: 'high' as const },
+            ];
+            setOwaspThreats(defaultOwasp);
+          }
         }
       })
-      .catch(() => setThreatTypes([]));
+      .catch(() => {
+        setThreatTypes([]);
+        setThreatTypesByCategory([]);
+        setCountryData([]);
+      });
   };
 
   // --- Add helper to compute "other" requests (failed / non-200 excluding blocked) ---
@@ -444,9 +608,9 @@ const PlatformDetails = () => {
       </div>
 
       {/* Charts Row */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
         {/* Traffic Overview */}
-        <Card className="lg:col-span-2 min-w-0">
+        <Card className="min-w-0">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -516,6 +680,132 @@ const PlatformDetails = () => {
           </CardContent>
         </Card>
 
+        {/* Requests by Countries - Table */}
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>Requests by Countries</CardTitle>
+            <CardDescription>
+              Geographic distribution of API requests
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            {countryData.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground">Country</th>
+                      <th className="text-right py-2 px-3 font-medium text-muted-foreground">Requests</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {countryData.map((country) => {
+                      // Convert country code to flag emoji
+                      const getCountryFlag = (code: string) => {
+                        if (!code || code.length !== 2) return '🌍';
+                        const codePoints = code
+                          .toUpperCase()
+                          .split('')
+                          .map(char => 127397 + char.charCodeAt(0));
+                        return String.fromCodePoint(...codePoints);
+                      };
+
+                      return (
+                        <tr 
+                          key={country.code}
+                          className="border-b border-border/50 hover:bg-muted/30 transition-colors"
+                          onMouseEnter={() => setHoveredCountry(country.code)}
+                          onMouseLeave={() => setHoveredCountry(null)}
+                        >
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{getCountryFlag(country.code)}</span>
+                              <span className="font-medium">{country.name}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-right font-semibold">
+                            {country.count.toLocaleString()}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                <div className="text-center">
+                  <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No country data available</p>
+                  <p className="text-sm">Country data will appear here once requests are received</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Threats by Type - Full Width Landscape Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Threats by Type</CardTitle>
+          <CardDescription>
+            Distribution of detected threat categories (SQL Injection, XSS, etc.)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-2">
+          {threatTypesByCategory.length > 0 ? (
+            <div style={{ width: '100%', height: '400px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={threatTypesByCategory}
+                  layout="vertical"
+                  margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    width={90}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip 
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload as any;
+                        return (
+                          <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                            <p className="font-semibold text-sm">{data.name}</p>
+                            <p className="text-xs">Count: <span className="font-bold">{data.value}</span></p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="value" fill="#8884d8" radius={[0, 4, 4, 0]}>
+                    {threatTypesByCategory.map((entry, index) => (
+                      <Cell key={`cell-threat-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-[400px] text-muted-foreground">
+              <div className="text-center">
+                <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No threat type data available</p>
+                <p className="text-sm">Threat data will appear here once threats are detected</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Charts Row 2 - Response Code Breakdown and OWASP Top 10 */}
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
         {/* Threat Types by Response Code */}
         <Card className="min-w-0">
           <CardHeader>
@@ -560,11 +850,12 @@ const PlatformDetails = () => {
             </div>
           </CardHeader>
           <CardContent className="pt-2">
+            {threatTypes.length > 0 ? (
             <div style={{ width: '100%', height: '300px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={threatTypes.length > 0 ? threatTypes : threatTypesByCategory}
+                      data={threatTypes}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
@@ -573,7 +864,7 @@ const PlatformDetails = () => {
                     dataKey="value"
                     label={({ name, percent }) => `${name.substring(0, 12)}${name.length > 12 ? '...' : ''} ${(percent * 100).toFixed(0)}%`}
                   >
-                    {(threatTypes.length > 0 ? threatTypes : threatTypesByCategory).map((entry, index) => (
+                      {threatTypes.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -581,42 +872,15 @@ const PlatformDetails = () => {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          </CardContent>
-        </Card>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                <div className="text-center">
+                  <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No response code data available</p>
+                  <p className="text-sm">Analytics data will appear here once requests are received</p>
       </div>
-
-      {/* Charts Row 2 - Threats by Type, OWASP Top 10, and Countries */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
-        {/* Threats by Type (SQL Injection, XSS, etc.) */}
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>Threats by Type</CardTitle>
-            <CardDescription>
-              Distribution of detected threat categories (SQL Injection, XSS, etc.)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-2">
-            <div style={{ width: '100%', height: '300px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={threatTypesByCategory}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name.substring(0, 12)}${name.length > 12 ? '...' : ''} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {threatTypesByCategory.map((entry, index) => (
-                      <Cell key={`cell-threat-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
             </div>
+            )}
           </CardContent>
         </Card>
 
@@ -629,9 +893,10 @@ const PlatformDetails = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-2">
+            {owaspThreats.some(item => item.count > 0) ? (
             <div style={{ width: '100%', height: '300px' }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={owaspThreats}>
+                  <AreaChart data={owaspThreats.filter(item => item.count > 0)}>
                   <defs>
                     <linearGradient id="colorSeverity" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
@@ -678,96 +943,19 @@ const PlatformDetails = () => {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Requests by Countries - World Map */}
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>Requests by Countries</CardTitle>
-            <CardDescription>
-              Geographic distribution of API requests
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-2">
-            <div className="space-y-4">
-              {/* Simplified World Map Visualization */}
-              <div className="relative w-full h-[200px] border border-border rounded-lg bg-muted/20 p-4 overflow-hidden">
-                <div className="grid grid-cols-4 gap-2 h-full">
-                  {countryData.slice(0, 12).map((country) => {
-                    const maxCount = Math.max(...countryData.map(c => c.count), 1);
-                    const intensity = country.count / maxCount;
-                    const isHovered = hoveredCountry === country.code;
-                    
-                    return (
-                      <div
-                        key={country.code}
-                        className="relative group cursor-pointer"
-                        onMouseEnter={() => setHoveredCountry(country.code)}
-                        onMouseLeave={() => setHoveredCountry(null)}
-                      >
-                        <div
-                          className={`w-full h-full rounded-lg border-2 transition-all ${
-                            isHovered 
-                              ? 'border-primary shadow-lg scale-105' 
-                              : 'border-border'
-                          }`}
-                          style={{
-                            backgroundColor: `rgba(239, 68, 68, ${0.3 + intensity * 0.7})`,
-                            minHeight: '40px',
-                          }}
-                        >
-                          <div className="absolute inset-0 flex flex-col items-center justify-center p-1">
-                            <span className="text-[10px] font-bold text-foreground">
-                              {country.code}
-                            </span>
-                            <span className="text-[8px] text-muted-foreground mt-0.5">
-                              {country.count}
-                            </span>
-                          </div>
-                        </div>
-                        {/* Tooltip */}
-                        {isHovered && (
-                          <div className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-background border border-border rounded-lg p-2 shadow-xl min-w-[120px]">
-                            <p className="font-semibold text-xs">{country.name}</p>
-                            <p className="text-[10px] text-muted-foreground mt-1">
-                              Requests: <span className="font-bold text-primary">{country.count.toLocaleString()}</span>
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                <div className="text-center">
+                  <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No OWASP threat data available</p>
+                  <p className="text-sm">OWASP threat data will appear here once threats are detected</p>
                 </div>
-                {countryData.length === 0 && (
-                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                    No country data available
-                  </div>
-                )}
               </div>
-              
-              {/* Country List */}
-              <div className="space-y-1 max-h-[60px] overflow-y-auto">
-                {countryData.slice(0, 5).map((country) => (
-                  <div
-                    key={country.code}
-                    className="flex items-center justify-between p-1.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
-                    onMouseEnter={() => setHoveredCountry(country.code)}
-                    onMouseLeave={() => setHoveredCountry(null)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Flag className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs font-mono font-bold">{country.code}</span>
-                      <span className="text-xs">{country.name}</span>
-                    </div>
-                    <span className="text-xs font-semibold">{country.count.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
 
       {/* Live Threat Activity Table */}
       <Card className="min-w-0">

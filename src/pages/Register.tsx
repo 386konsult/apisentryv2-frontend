@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Shield, Eye, EyeOff, Mail, User, Building, Lock, CheckCircle, XCircle } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { apiService } from '@/services/api';
 
@@ -23,7 +23,10 @@ const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  
+  const returnUrl = searchParams.get('returnUrl');
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -103,14 +106,15 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      const username = `${formData.firstName.trim().toLowerCase()}_${formData.lastName.trim().toLowerCase()}`;
+      // Use email as username since it's guaranteed to be unique
+      const username = formData.email;
       const userData = {
         email: formData.email,
         password: formData.password,
         password_confirm: formData.confirmPassword,
         first_name: formData.firstName,
         last_name: formData.lastName,
-        username, // Add the generated username
+        username, // Use email as username for uniqueness
         phone_number: formData.phoneNumber || undefined,
         company_name: formData.companyName || undefined,
       };
@@ -122,9 +126,12 @@ const Register = () => {
         description: response.message || "Your account has been created successfully",
       });
 
-      // Redirect to login page
+      // Redirect to login page with returnUrl if present
       setTimeout(() => {
-        navigate('/login', { replace: true });
+        const loginUrl = returnUrl 
+          ? `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+          : '/login';
+        navigate(loginUrl, { replace: true });
       }, 1500);
     } catch (error: any) {
       console.error("Registration error:", error);
@@ -414,7 +421,10 @@ const Register = () => {
           <div className="mt-6 text-center space-y-2">
             <p className="text-sm text-muted-foreground">
               Already have an account?{' '}
-              <Link to="/login" className="text-primary hover:underline font-medium">
+              <Link 
+                to={returnUrl ? `/login?returnUrl=${encodeURIComponent(returnUrl)}` : '/login'} 
+                className="text-primary hover:underline font-medium"
+              >
                 Sign in
               </Link>
             </p>

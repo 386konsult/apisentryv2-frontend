@@ -24,7 +24,6 @@ import TermsAndConditions from "./pages/TermsAndConditions";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 // Main Pages
-import Dashboard from "./pages/Dashboard";
 import WAFRules from "./pages/WAFRules";
 import ThreatLogs from "./pages/ThreatLogs";
 import APIEndpoints from "./pages/APIEndpoints";
@@ -56,6 +55,7 @@ import IPBlacklist from "./pages/IPBlacklist";
 import SecurityHub from "./pages/SecurityHub";
 import Incidents from "./pages/Incidents";
 import AuditLogs from "./pages/AuditLogs";
+import AcceptInvitation from "./pages/AcceptInvitation";
 
 const queryClient = new QueryClient();
 
@@ -95,6 +95,7 @@ const AppContent = () => {
         {/* Public Routes - Must be before protected routes */}
         <Route path="/terms" element={<TermsAndConditions />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/invitations/accept/:token" element={<AcceptInvitation />} />
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -133,11 +134,6 @@ const AppContent = () => {
                   <main className="p-6 overflow-x-hidden overflow-y-auto flex-1 min-w-0">
                     <Routes>
                       <Route path="/" element={<Platforms />} />
-                      <Route path="/dashboard" element={
-                        <ProtectedPlatformRoute>
-                          <Dashboard />
-                        </ProtectedPlatformRoute>
-                      } />
                       <Route path="/waf-rules" element={
                         <ProtectedPlatformRoute>
                           <WAFRules />

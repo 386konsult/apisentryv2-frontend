@@ -1,7 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Shield,
-  BarChart3,
   AlertTriangle,
   Globe,
   Settings,
@@ -18,6 +17,7 @@ import {
   Link2,
   BookOpen,
   Bell,
+  BarChart3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -36,7 +36,7 @@ import { usePlatform } from "@/contexts/PlatformContext";
 import { Button } from "@/components/ui/button";
 
 const securityPlatformItems = [
-  { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
+  { title: "Dashboard", url: null, icon: BarChart3, isDynamic: true }, // Dynamic URL based on platform ID
   { title: "Security Hub", url: "/security-hub", icon: Search },
   { title: "Threat Logs", url: "/threat-logs", icon: AlertTriangle },
   { title: "Security Alerts", url: "/security-alerts", icon: Bell },
@@ -72,7 +72,7 @@ const AppSidebar = () => {
   const { state } = useSidebar();
   const location = useLocation();
   const { logout, user } = useAuth();
-  const { hasSelectedPlatform } = usePlatform();
+  const { hasSelectedPlatform, selectedPlatformId } = usePlatform();
   const collapsed = state === "collapsed";
 
   const isActive = (path: string) => {
@@ -111,13 +111,30 @@ const AppSidebar = () => {
             <SidebarGroupContent>
               <SidebarMenu>
                 {securityPlatformItems.map((item) => {
+                  // Handle dynamic URL for Dashboard
+                  const url = item.isDynamic && selectedPlatformId 
+                    ? `/platforms/${selectedPlatformId}` 
+                    : item.url;
+                  
+                  // For Dashboard, check if we're on the platform details page
+                  const isDashboardActive = item.isDynamic && selectedPlatformId
+                    ? location.pathname === `/platforms/${selectedPlatformId}`
+                    : false;
+                  
+                  // Get the appropriate class based on whether it's Dashboard or regular item
+                  const navClass = item.isDynamic && selectedPlatformId
+                    ? (isDashboardActive 
+                        ? "bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-600 dark:text-blue-400 border-r-2 border-blue-500"
+                        : "hover:bg-muted/50 text-muted-foreground hover:text-foreground")
+                    : getNavCls(item.url || '');
+                  
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild>
                         <NavLink
-                          to={item.url}
-                          end={item.url === "/"}
-                          className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${getNavCls(item.url)}`}
+                          to={url || '#'}
+                          end={url === "/"}
+                          className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${navClass}`}
                         >
                           <item.icon className="h-4 w-4 flex-shrink-0" />
                           {!collapsed && (

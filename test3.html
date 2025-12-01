@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>APISentry Code Review – Repository Security Report</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --bg-alt: #ffffff;
+      --border: #e5e7eb;
+      --accent: #2563eb;
+      --accent-soft: #eff6ff;
+      --accent-soft-strong: #dbeafe;
+      --text: #111827;
+      --muted: #6b7280;
+      --danger: #b91c1c;
+      --warning: #d97706;
+      --success: #15803d;
+      --info: #0ea5e9;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .report {
+      max-width: 1040px;
+      margin: 0 auto;
+      background: var(--bg-alt);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 24px 50px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }
+
+    header {
+      padding: 24px 32px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #2563eb, #22c55e);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .brand-text h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .brand-text p {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: var(--accent-soft);
+      color: #1d4ed8;
+      margin-bottom: 4px;
+    }
+
+    .meta {
+      text-align: right;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    main {
+      padding: 20px 32px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    section {
+      padding: 16px 0;
+      border-bottom: 1px solid #e5e7eb;
+      page-break-inside: avoid;
+    }
+
+    section:last-of-type {
+      border-bottom: none;
+    }
+
+    .section-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+
+    .section-heading h2 {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .section-heading span {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .section-intro {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 16px;
+    }
+
+    .grid-2-balanced {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      padding: 14px 16px 16px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .card-subtitle {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .kpi {
+      text-align: right;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .kpi-main {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .kpi-trend {
+      color: var(--success);
+    }
+
+    .kpi-trend.negative {
+      color: var(--danger);
+    }
+
+    .chart-wrapper {
+      margin-top: 6px;
+      height: 150px;
+    }
+
+    .small-text {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      font-size: 10px;
+      color: var(--muted);
+      margin-right: 6px;
+      margin-top: 4px;
+    }
+
+    .pill strong {
+      color: var(--text);
+      margin-left: 4px;
+    }
+
+    .list {
+      list-style: none;
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+    }
+
+    .list-label {
+      max-width: 70%;
+    }
+
+    .list-value {
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-top: 6px;
+    }
+
+    .summary-table th,
+    .summary-table td {
+      border: 1px solid #e5e7eb;
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .summary-table th {
+      background: #f9fafb;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    .summary-table td.status-positive {
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    .summary-table td.status-warning {
+      color: var(--warning);
+      font-weight: 600;
+    }
+
+    .summary-table td.status-bad {
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    .badge-soft {
+      display: inline-flex;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .badge-soft.crit { color: var(--danger); font-weight: 600; }
+    .badge-soft.high { color: #c05621; font-weight: 600; }
+    .badge-soft.med  { color: var(--warning); font-weight: 600; }
+    .badge-soft.low  { color: var(--success); font-weight: 600; }
+
+    .compliance-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+      font-size: 11px;
+    }
+
+    .compliance-card {
+      border-radius: 10px;
+      border: 1px solid #e5e7eb;
+      padding: 8px 10px;
+      background: #f9fafb;
+    }
+
+    .compliance-title {
+      font-weight: 600;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    .compliance-score {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .compliance-score.ok {
+      color: var(--success);
+    }
+
+    .compliance-score.warn {
+      color: var(--warning);
+    }
+
+    .compliance-score.bad {
+      color: var(--danger);
+    }
+
+    .compliance-note {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .code-block {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+      background: #f9fafb;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+      padding: 8px 10px;
+      margin-top: 6px;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .two-col-flex {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    .two-col-flex div {
+      flex: 1;
+    }
+
+    footer {
+      padding: 10px 32px 16px;
+      border-top: 1px solid #e5e7eb;
+      font-size: 10px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Print */
+    @media print {
+      body {
+        padding: 0;
+        background: #ffffff;
+      }
+
+      .report {
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      header {
+        page-break-after: avoid;
+      }
+
+      section {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="report">
+    <header>
+      <div class="brand">
+        <div class="brand-logo">AS</div>
+        <div class="brand-text">
+          <div class="badge">APISentry · Code Review AI</div>
+          <h1>Source Code Security Report</h1>
+          <p>Repository-level analysis mapped to OWASP Top 10 and compliance frameworks.</p>
+        </div>
+      </div>
+      <div class="meta">
+        <div>Repository: <strong>backend-api-service</strong></div>
+        <div>Branch: <strong>main</strong></div>
+        <div>Scan ID: <strong>CR-2025-11-24-001</strong></div>
+        <div>Generated: <strong>2025-11-24 13:00 UTC</strong></div>
+      </div>
+    </header>
+
+    <main>
+      <!-- 1. EXECUTIVE SUMMARY -->
+      <section>
+        <div class="section-heading">
+          <h2>1. Executive Summary</h2>
+          <span>High-level risk & remediation priorities</span>
+        </div>
+        <p class="section-intro">
+          APISentry Code Review AI analyzed the <strong>backend-api-service</strong> repository for security weaknesses, bad patterns,
+          and compliance gaps. This report is intended for engineering leadership, security teams, and compliance stakeholders.
+        </p>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Key Risk Indicators</div>
+                <div class="card-subtitle">Summary of overall repository risk posture.</div>
+              </div>
+            </div>
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th>Dimension</th>
+                  <th>Status</th>
+                  <th>Summary</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Security Posture</td>
+                  <td class="status-warning">Elevated</td>
+                  <td>
+                    3 critical and 7 high-severity issues focusing on authentication, access control, and
+                    input validation logic.
+                  </td>
+                </tr>
+                <tr>
+                  <td>OWASP Top 10 Alignment</td>
+                  <td class="status-warning">Partial</td>
+                  <td>
+                    Strong in logging and error handling; gaps observed in A01 (Broken Access Control) and
+                    A03 (Injection).
+                  </td>
+                </tr>
+                <tr>
+                  <td>Secret Management</td>
+                  <td class="status-positive">Good</td>
+                  <td>
+                    No active credentials detected in the current revision; some legacy references in history
+                    should be reviewed.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Compliance Support</td>
+                  <td class="status-warning">In Progress</td>
+                  <td>
+                    Mapping to SOC 2 and ISO 27001 is emerging but incomplete. Additional controls required for
+                    PCI DSS and GDPR alignment.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Quantitative Snapshot</div>
+                <div class="card-subtitle">Core metrics for this scan.</div>
+              </div>
+            </div>
+            <p class="small-text">Scan summary:</p>
+            <div class="small-text">
+              <div class="pill">Total Files Scanned <strong>1,248</strong></div>
+              <div class="pill">Findings (All Severities) <strong>76</strong></div>
+              <div class="pill">Critical <strong>3</strong></div>
+              <div class="pill">High <strong>7</strong></div>
+              <div class="pill">Medium <strong>21</strong></div>
+              <div class="pill">Low / Info <strong>45</strong></div>
+            </div>
+            <p class="small-text" style="margin-top:12px;">
+              Recommended: prioritize remediation of critical and high findings within the next one to two sprint cycles, and
+              incorporate automated APISentry checks into your CI pipeline to prevent regression.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. REPOSITORY & SCAN OVERVIEW -->
+      <section>
+        <div class="section-heading">
+          <h2>2. Repository & Scan Overview</h2>
+          <span>Context for this analysis</span>
+        </div>
+        <p class="section-intro">
+          This section outlines how APISentry Code Review AI was configured for this repository, including scan scope, languages,
+          and the types of checks applied.
+        </p>
+
+        <div class="grid-2 grid-2-balanced">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Repository Details</div>
+              </div>
+            </div>
+            <ul class="list">
+              <li>
+                <span class="list-label">Repository</span>
+                <span class="list-value">backend-api-service</span>
+              </li>
+              <li>
+                <span class="list-label">Primary Owner</span>
+                <span class="list-value">payments-platform</span>
+              </li>
+              <li>
+                <span class="list-label">Languages</span>
+                <span class="list-value">TypeScript, Node.js, YAML</span>
+              </li>
+              <li>
+                <span class="list-label">CI Integration</span>
+                <span class="list-value">Bitbucket Pipelines</span>
+              </li>
+              <li>
+                <span class="list-label">Scan Trigger</span>
+                <span class="list-value">On PR merge to main</span>
+              </li>
+            </ul>
+            <p class="small-text">
+              All changes merged into <strong>main</strong> during the reporting period were analyzed using APISentry’s rules
+              and ML-based detections.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Scan Configuration</div>
+              </div>
+            </div>
+            <ul class="list">
+              <li>
+                <span class="list-label">Check Types</span>
+                <span class="list-value">SAST, secrets scanning, config checks</span>
+              </li>
+              <li>
+                <span class="list-label">Policy Profile</span>
+                <span class="list-value">APISentry Default + Custom Auth Rules</span>
+              </li>
+              <li>
+                <span class="list-label">Exclusions</span>
+                <span class="list-value">/dist, /node_modules, test snapshots</span>
+              </li>
+              <li>
+                <span class="list-label">Compliance Mapping</span>
+                <span class="list-value">OWASP Top 10, SOC 2, ISO 27001, PCI DSS</span>
+              </li>
+            </ul>
+            <p class="small-text">
+              Configuration can be adjusted to align with your internal secure coding guidelines and risk appetite.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. OWASP TOP 10 MAPPING -->
+      <section>
+        <div class="section-heading">
+          <h2>3. OWASP Top 10 Mapping</h2>
+          <span>Findings categorized by OWASP Top 10 (latest)</span>
+        </div>
+        <p class="section-intro">
+          APISentry maps detected vulnerabilities to the OWASP Top 10, providing a common language for security, development,
+          and compliance teams.
+        </p>
+
+        <div class="grid-2 grid-2-balanced">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Findings by OWASP Category</div>
+                <div class="card-subtitle">Count of findings per category.</div>
+              </div>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="owaspBarChart"></canvas>
+            </div>
+            <p class="small-text">
+              A01 (Broken Access Control), A03 (Injection), and A05 (Security Misconfiguration) are the highest-density categories in
+              this repository.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Category Highlights</div>
+                <div class="card-subtitle">Narrative, executive-friendly summary.</div>
+              </div>
+            </div>
+            <ul class="list">
+              <li>
+                <span class="list-label">
+                  <strong>A01 – Broken Access Control</strong><br/>
+                  Inconsistent permission checks on administrative API endpoints and missing ownership validation.
+                </span>
+                <span class="list-value">11</span>
+              </li>
+              <li>
+                <span class="list-label">
+                  <strong>A03 – Injection</strong><br/>
+                  Unsafe query composition in legacy reporting module; partial migration to parameterized queries.
+                </span>
+                <span class="list-value">7</span>
+              </li>
+              <li>
+                <span class="list-label">
+                  <strong>A05 – Security Misconfiguration</strong><br/>
+                  Verbose error messages and excessive debug logging in production build.
+                </span>
+                <span class="list-value">9</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. SEVERITY DISTRIBUTION & TRENDS -->
+      <section>
+        <div class="section-heading">
+          <h2>4. Severity Distribution & Trends</h2>
+          <span>Risk level and evolution over time</span>
+        </div>
+        <p class="section-intro">
+          This section highlights the severity profile of findings and trends across scans to help understand whether
+          risk is increasing, stable, or decreasing.
+        </p>
+
+        <div class="grid-2 grid-2-balanced">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Severity Distribution</div>
+                <div class="card-subtitle">Across all findings in this scan.</div>
+              </div>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="severityDonutChart"></canvas>
+            </div>
+            <p class="small-text">
+              Critical and high findings represent the subset of issues that can lead to immediate compromise or regulatory impact.
+              Medium and low findings relate to defense-in-depth and hygiene.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Code Commits Over Time</div>
+                <div class="card-subtitle">Last several code commits to this repository.</div>
+              </div>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="trendLineChart"></canvas>
+            </div>
+            <p class="small-text">
+              While total findings are trending downward, the density of critical and high findings has remained steady, indicating
+              that remediation efforts should be targeted at structural design and authorization logic.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. SECRETS & CONFIGURATION RISKS -->
+      <section>
+        <div class="section-heading">
+          <h2>5. Security & Performance Risks</h2>
+          <span>Secret detection, config files, and hardening</span>
+        </div>
+        <p class="section-intro">
+          APISentry analyzes code and configuration to identify embedded secrets, misconfigurations, and high-risk defaults that may
+          expose the environment.
+        </p>
+
+        <div class="grid-2 grid-2-balanced">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Security Risks</div>
+              </div>
+            </div>
+            <ul class="list">
+              <li>
+                <span class="list-label">Active secrets in code</span>
+                <span class="list-value">0</span>
+              </li>
+              <li>
+                <span class="list-label">Historical / legacy references detected</span>
+                <span class="list-value">3</span>
+              </li>
+              <li>
+                <span class="list-label">Secret patterns (API keys, tokens, credentials)</span>
+                <span class="list-value">API keys, JWT secrets, DB connection strings</span>
+              </li>
+              <li>
+                <span class="list-label">Secret management practice</span>
+                <span class="list-value">Environment variables & secret manager</span>
+              </li>
+            </ul>
+            <p class="small-text">
+              No active secrets were found in the current commit, but several historical references were detected.
+              Consider ensuring those keys are rotated and deprecated.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Performance Risks</div>
+              </div>
+            </div>
+            <div class="two-col-flex">
+              <div>
+                <strong>Risky Patterns</strong>
+                <ul class="list" style="margin-top:4px;">
+                  <li>
+                    <span class="list-label">Debug logging enabled for production builds</span>
+                  </li>
+                  <li>
+                    <span class="list-label">Overly permissive CORS configuration on /api/v1/*</span>
+                  </li>
+                  <li>
+                    <span class="list-label">Default timeouts not aligned with upstream SLAs</span>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <strong>Recommended Practices</strong>
+                <ul class="list" style="margin-top:4px;">
+                  <li>
+                    <span class="list-label">Use environment-specific configs checked in as templates only.</span>
+                  </li>
+                  <li>
+                    <span class="list-label">Harden CORS origins and methods for sensitive endpoints.</span>
+                  </li>
+                  <li>
+                    <span class="list-label">Leverage centralized config and secret storage (e.g., vault).</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. DEPENDENCY & LIBRARY RISK -->
+      <section>
+        <div class="section-heading">
+          <h2>6. Dependency & Library Risk</h2>
+          <span>Third-party components and SBOM-style summary</span>
+        </div>
+        <p class="section-intro">
+          Dependencies can introduce vulnerabilities even when first-party code is well-designed. APISentry highlights known issues
+          in libraries and frameworks referenced by this repository.
+        </p>
+
+        <div class="grid-2 grid-2-balanced">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Dependency Overview</div>
+            </div>
+            <ul class="list">
+              <li>
+                <span class="list-label">Total dependencies (direct + transitive)</span>
+                <span class="list-value">134</span>
+              </li>
+              <li>
+                <span class="list-label">Dependencies with known CVEs</span>
+                <span class="list-value">9</span>
+              </li>
+              <li>
+                <span class="list-label">Outdated major versions</span>
+                <span class="list-value">4</span>
+              </li>
+              <li>
+                <span class="list-label">Security support status</span>
+                <span class="list-value">Node 18 LTS (supported)</span>
+              </li>
+            </ul>
+            <p class="small-text">
+              Identify a maintenance window to upgrade or replace packages with known vulnerabilities, particularly in networking and
+              serialization layers.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Example Library Risk</div>
+            </div>
+            <div class="code-block">
+              Package: express-session@1.17.0<br/>
+              Risk: Older version with weaker default cookie settings.<br/>
+              Recommended: Upgrade to latest version; enforce secure, httpOnly, and SameSite attributes.
+            </div>
+            <div class="code-block">
+              Package: lodash@4.17.19<br/>
+              Risk: Known prototype pollution CVEs.<br/>
+              Recommended: Upgrade to 4.17.21 or the latest patched version.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. COMPLIANCE MAPPING & FRAMEWORK ALIGNMENT -->
+      <section>
+        <div class="section-heading">
+          <h2>7. Compliance Mapping & Framework Alignment</h2>
+          <span>How findings relate to SOC 2, ISO 27001, PCI DSS, OWASP ASVS</span>
+        </div>
+        <p class="section-intro">
+          While APISentry does not replace a full audit, it provides mappings to common frameworks to support audit readiness and
+          gap analysis.
+        </p>
+        <p class="section-intro">APISentry maps findings to 8 core global compliance frameworks: SOC 2, ISO 27001, PCI DSS, GDPR, NIST CSF, CIS Controls, OWASP ASVS, and OWASP Top 10</p>
+
+        <div class="compliance-grid">
+          <div class="compliance-card">
+            <div class="compliance-title">OWASP ASVS</div>
+            <div class="compliance-score ok">82%</div>
+            <div class="compliance-note">
+              Strong for authentication and session management; improvements required for input validation and output encoding.
+            </div>
+          </div>
+          <div class="compliance-card">
+            <div class="compliance-title">SOC 2 (Security)</div>
+            <div class="compliance-score warn">74%</div>
+            <div class="compliance-note">
+              Logging and monitoring align well; change management and secure SDLC controls need better documentation.
+            </div>
+          </div>
+          <div class="compliance-card">
+            <div class="compliance-title">ISO 27001</div>
+            <div class="compliance-score warn">69%</div>
+            <div class="compliance-note">
+              Policies defined; technical enforcement around secure coding and deployment controls is partially implemented.
+            </div>
+          </div>
+          <div class="compliance-card">
+            <div class="compliance-title">PCI DSS</div>
+            <div class="compliance-score warn">63%</div>
+            <div class="compliance-note">
+              Some requirements around secure coding and vulnerability management are met; cardholder data flows must be validated.
+            </div>
+          </div>
+          <div class="compliance-card">
+            <div class="compliance-title">GDPR (Code Aspects)</div>
+            <div class="compliance-score ok">76%</div>
+            <div class="compliance-note">
+              PII not logged in clear text; retention and deletion workflows should be verified at system level.
+            </div>
+          </div>
+          <div class="compliance-card">
+            <div class="compliance-title">Custom Policy</div>
+            <div class="compliance-score warn">64%</div>
+            <div class="compliance-note">
+              Internal secure coding guidelines partially enforced; additional automated checks recommended.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8. RISK PRIORITIZATION & REMEDIATION PLAN -->
+      <section>
+        <div class="section-heading">
+          <h2>8. Risk Prioritization & Remediation Plan</h2>
+          <span>What to fix first and how</span>
+        </div>
+        <p class="section-intro">
+          This section provides a prioritized remediation plan focusing on issues most likely to result in compromise or
+          regulatory exposure.
+        </p>
+
+        <div class="grid-2 grid-2-balanced">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Top 5 Risks</div>
+            </div>
+            <ol class="list" style="margin-left:16px;">
+              <li>
+                <span class="list-label">
+                  Inconsistent authorization checks on administrative APIs (OWASP A01, SOC2 CC7.x).
+                </span>
+              </li>
+              <li>
+                <span class="list-label">
+                  Unsafe query building in reporting module, susceptible to injection (OWASP A03, PCI 6.x).
+                </span>
+              </li>
+              <li>
+                <span class="list-label">
+                  Overly permissive CORS configuration for sensitive endpoints (OWASP A05).
+                </span>
+              </li>
+              <li>
+                <span class="list-label">
+                  Dependencies with known CVEs in core request handling path.
+                </span>
+              </li>
+              <li>
+                <span class="list-label">
+                  Verbose error messages leaking internal implementation details in production.
+                </span>
+              </li>
+            </ol>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Suggested Remediation Timeline</div>
+            </div>
+            <ul class="list">
+              <li>
+                <span class="list-label">
+                  <strong>Immediate (0–2 weeks)</strong><br/>
+                  Fix critical auth and injection issues; tighten CORS configuration.
+                </span>
+              </li>
+              <li>
+                <span class="list-label">
+                  <strong>Short-term (2–6 weeks)</strong><br/>
+                  Upgrade vulnerable dependencies, reduce error verbosity, and finalize secret rotation.
+                </span>
+              </li>
+              <li>
+                <span class="list-label">
+                  <strong>Medium-term (6–12 weeks)</strong><br/>
+                  Align repository with OWASP ASVS controls; embed APISentry checks into CI to block risky merges.
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 9. APPENDIX – DETAILED FINDINGS (SAMPLE) -->
+      <section>
+        <div class="section-heading">
+          <h2>9. Appendix – Sample Detailed Findings</h2>
+          <span>Illustrative examples (not full list)</span>
+        </div>
+        <p class="section-intro">
+          Full finding exports are available in APISentry. This appendix provides a small subset of issues to illustrate the level
+          of detail captured and to support audit or engineering review.
+        </p>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              Finding #CRIT-001 – Missing authorization check on admin endpoint
+            </div>
+            <div class="kpi">
+              <span class="badge-soft crit">Critical</span>
+            </div>
+          </div>
+          <div class="small-text">
+            <strong>Location:</strong> src/controllers/adminUsers.ts:142<br/>
+            <strong>Category:</strong> OWASP A01 – Broken Access Control<br/>
+            <strong>Description:</strong> Endpoint allows user role escalation without verifying current user’s admin privileges.
+          </div>
+          <div class="code-block">
+            // Example snippet (sanitized)
+            router.post("/admin/users/promote", async (req, res) =&gt; {
+              const { userId } = req.body;
+              // TODO: add permission checks
+              await userService.promoteToAdmin(userId);
+              return res.json({ ok: true });
+            });
+          </div>
+          <div class="small-text">
+            <strong>Recommendation:</strong> Enforce role-based access control (RBAC) checks before performing admin actions.
+            Ensure that only authorized identities can invoke this endpoint by validating JWT claims and server-side permissions.
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <div class="card-header">
+            <div class="card-title">
+              Finding #HIGH-004 – Potential injection via string concatenated query
+            </div>
+            <div class="kpi">
+              <span class="badge-soft high">High</span>
+            </div>
+          </div>
+          <div class="small-text">
+            <strong>Location:</strong> src/services/reporting.ts:88<br/>
+            <strong>Category:</strong> OWASP A03 – Injection<br/>
+            <strong>Description:</strong> User-controlled input is concatenated directly into a query string.
+          </div>
+          <div class="code-block">
+            // Example snippet (sanitized)
+            const query = "SELECT * FROM reports WHERE owner = '" + userId + "'";
+            return db.query(query);
+          </div>
+          <div class="small-text">
+            <strong>Recommendation:</strong> Use parameterized queries or an ORM that automatically parameterizes input. Avoid
+            building SQL strings with direct concatenation of untrusted data.
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>APISentry · Example Source Code Security Report</span>
+      <span>Page 1 of 1</span>
+    </footer>
+  </div>
+
+  <script>
+    // OWASP Bar Chart
+    const owaspCtx = document.getElementById('owaspBarChart').getContext('2d');
+    new Chart(owaspCtx, {
+      type: 'bar',
+      data: {
+        labels: ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10'],
+        datasets: [{
+          label: 'Findings',
+          data: [11, 4, 7, 3, 9, 5, 6, 4, 3, 2],
+          backgroundColor: '#93c5fd',
+          borderColor: '#2563eb',
+          borderWidth: 1,
+          borderRadius: 4,
+          maxBarThickness: 22
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: '#6b7280', font: { size: 10 } }
+          },
+          y: {
+            grid: { color: '#e5e7eb' },
+            ticks: { color: '#6b7280', font: { size: 10 }, precision: 0 }
+          }
+        },
+        animation: {
+          duration: 800,
+          easing: 'easeOutCubic'
+        }
+      }
+    });
+
+    // Severity Donut Chart
+    const sevCtx = document.getElementById('severityDonutChart').getContext('2d');
+    new Chart(sevCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Critical', 'High', 'Medium', 'Low / Info'],
+        datasets: [{
+          data: [3, 7, 21, 45],
+          backgroundColor: ['#b91c1c', '#ea580c', '#eab308', '#22c55e'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        cutout: '55%',
+        plugins: {
+          legend: {
+            display: true,
+            labels: { color: '#6b7280', font: { size: 10 }, boxWidth: 10 }
+          }
+        },
+        animation: {
+          animateRotate: true,
+          animateScale: true,
+          duration: 900
+        }
+      }
+    });
+
+    // Trend Line Chart
+    const trendCtx = document.getElementById('trendLineChart').getContext('2d');
+    new Chart(trendCtx, {
+      type: 'line',
+      data: {
+        labels: ['Scan -4', 'Scan -3', 'Scan -2', 'Scan -1', 'Current'],
+        datasets: [
+          {
+            label: 'Critical + High',
+            data: [16, 15, 13, 12, 10],
+            borderColor: '#b91c1c',
+            backgroundColor: 'rgba(239,68,68,0.10)',
+            fill: true,
+            tension: 0.35,
+            pointRadius: 2.5,
+            pointHoverRadius: 4
+          },
+          {
+            label: 'Medium + Low',
+            data: [80, 72, 69, 62, 66],
+            borderColor: '#0ea5e9',
+            backgroundColor: 'rgba(59,130,246,0.08)',
+            fill: true,
+            tension: 0.35,
+            pointRadius: 2.5,
+            pointHoverRadius: 4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            labels: { color: '#6b7280', font: { size: 10 }, boxWidth: 12 }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: '#6b7280', font: { size: 10 } }
+          },
+          y: {
+            grid: { color: '#e5e7eb' },
+            ticks: { color: '#6b7280', font: { size: 10 }, precision: 0 }
+          }
+        },
+        animation: {
+          duration: 900,
+          easing: 'easeOutQuart'
+        }
+      }
+    });
+  </script>
+</body>
+</html>

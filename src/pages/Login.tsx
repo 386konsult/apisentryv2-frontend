@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Shield, Eye, EyeOff } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { API_BASE_URL } from "@/services/api";
@@ -15,8 +15,11 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const { toast } = useToast();
+  
+  const returnUrl = searchParams.get('returnUrl');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +46,7 @@ const Login = () => {
       
       // Update auth context
       if (login) {
-        login(data.token, data.user);
+        await login(email, password);
       }
       
       // Handle successful login
@@ -52,8 +55,13 @@ const Login = () => {
         description: "Welcome to APISentry!",
       });
 
-      // Force a page reload to ensure the auth state is properly updated
-      window.location.href = '/';
+      // Redirect to returnUrl if provided, otherwise to home
+      if (returnUrl) {
+        window.location.href = returnUrl;
+      } else {
+        // Force a page reload to ensure the auth state is properly updated
+        window.location.href = '/';
+      }
     } catch (error) {
       console.error("Login error:", error);
       toast({

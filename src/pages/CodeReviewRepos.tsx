@@ -33,6 +33,8 @@ interface Repository {
   totalSuggestions?: number;
   openSuggestions?: number;
   resolvedSuggestions?: number;
+  branches?: string[]; // List of branch names
+  default_branch?: string; // Default branch name
 }
 
 interface ScanJob {
@@ -74,6 +76,9 @@ const CodeReviewRepos = () => {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>("");
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
+  
+  // Branch selection state: map of repo URL to selected branch
+  const [selectedBranches, setSelectedBranches] = useState<Map<string, string>>(new Map());
 
   // Fetch Bitbucket workspaces
   const fetchWorkspaces = async () => {
@@ -159,13 +164,27 @@ const CodeReviewRepos = () => {
       
       const data = await response.json();
       // Handle both array and paginated responses
+      let reposList: Repository[] = [];
       if (Array.isArray(data)) {
-        setRepos(data);
+        reposList = data;
       } else if (data.results && Array.isArray(data.results)) {
-        setRepos(data.results);
+        reposList = data.results;
       } else {
-        setRepos([]);
+        reposList = [];
       }
+      
+      // Initialize branch selections with default branches
+      const newSelectedBranches = new Map(selectedBranches);
+      reposList.forEach((repo: Repository) => {
+        if (repo.html_url && !newSelectedBranches.has(repo.html_url)) {
+          // Use default_branch if available, otherwise use first branch, otherwise 'main'
+          const defaultBranch = repo.default_branch || (repo.branches && repo.branches.length > 0 ? repo.branches[0] : 'main');
+          newSelectedBranches.set(repo.html_url, defaultBranch);
+        }
+      });
+      setSelectedBranches(newSelectedBranches);
+      
+      setRepos(reposList);
       setError("");
     } catch (error) {
       console.error("Error fetching repos:", error);
@@ -411,6 +430,13 @@ const CodeReviewRepos = () => {
         throw new Error('No platform selected');
       }
       
+      // Get selected branch for this repo, or use default
+      const selectedBranch = selectedBranches.get(repo.html_url) || repo.default_branch || 'main';
+      
+      // Build branches parameter: map repo_url to branch name
+      const branches: Record<string, string> = {};
+      branches[repo.html_url] = selectedBranch;
+      
       const response = await fetch(`${API_BASE_URL}/admin/manual-scan-alert/`, {
         method: 'POST',
         headers: {
@@ -419,7 +445,8 @@ const CodeReviewRepos = () => {
         },
         body: JSON.stringify({ 
           repo_urls: [repo.html_url],
-          platform_id: selectedPlatformId
+          platform_id: selectedPlatformId,
+          branches: branches
         })
       });
 
@@ -493,6 +520,13 @@ const CodeReviewRepos = () => {
       const repoUrls = repos.map(repo => repo.html_url);
       if (repoUrls.length > 0) {
         try {
+          // Build branches parameter: map each repo_url to its selected branch
+          const branches: Record<string, string> = {};
+          repos.forEach(repo => {
+            const selectedBranch = selectedBranches.get(repo.html_url) || repo.default_branch || 'main';
+            branches[repo.html_url] = selectedBranch;
+          });
+          
           await fetch(`${API_BASE_URL}/admin/manual-scan-alert/`, {
             method: 'POST',
             headers: {
@@ -501,7 +535,8 @@ const CodeReviewRepos = () => {
             },
             body: JSON.stringify({ 
               repo_urls: repoUrls,
-              platform_id: selectedPlatformId
+              platform_id: selectedPlatformId,
+              branches: branches
             })
           });
         } catch (alertError) {
@@ -757,7 +792,32 @@ const CodeReviewRepos = () => {
                     <div className="flex items-center gap-3">
                       {/* Show scan status badge if available, otherwise show risk badge */}
                       {repo.scan_status ? getRepoScanStatusBadge(repo.scan_status) : (repoScanJob ? getScanStatusBadge(repoScanJob) : getRiskBadge(repo.risk))}
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 items-center">
+                        {/* Branch Selection */}
+                        {repo.branches && repo.branches.length > 0 && (
+                          <Select
+                            value={selectedBranches.get(repo.html_url) || repo.default_branch || repo.branches[0]}
+                            onValueChange={(value) => {
+                              const newSelectedBranches = new Map(selectedBranches);
+                              newSelectedBranches.set(repo.html_url, value);
+                              setSelectedBranches(newSelectedBranches);
+                            }}
+                            disabled={isScanInProgress}
+                          >
+                            <SelectTrigger className="w-[140px]">
+                              <GitBranch className="w-4 h-4 mr-2" />
+                              <SelectValue placeholder="Select branch" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {repo.branches.map((branch) => (
+                                <SelectItem key={branch} value={branch}>
+                                  {branch}
+                                  {branch === repo.default_branch && ' (default)'}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                         <Button 
                           variant="outline" 
                           onClick={() => handleScan(repo)}

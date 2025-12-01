@@ -46,6 +46,7 @@ interface RepositoryScan {
   html_url?: string;
   repo_url?: string;
   full_name?: string;
+  analysis_run_id?: string;
 }
 
 const CodeReviewScanReports = () => {
@@ -528,6 +529,9 @@ const CodeReviewScanReports = () => {
                     report.repositories.length > 0 
                       ? report.repositories.map((repo, repoIndex) => {
                           const repoUrl = repo.html_url || repo.repo_url || repo.url || '';
+                          // Get analysis_run_id from repo, report, or use report.id as fallback
+                          const analysisRunId = repo.analysis_run_id || report.analysis_run_id || report.id;
+                          
                           return (
                             <TableRow key={`${report.id}-${repoIndex}`}>
                               <TableCell>
@@ -562,7 +566,13 @@ const CodeReviewScanReports = () => {
                                     variant="outline"
                                     onClick={() => {
                                       if (repoUrl) {
-                                        navigate(`/code-review-repos/${repo.name}?repo_url=${encodeURIComponent(repoUrl)}`);
+                                        // Build URL with both repo_url and analysis_run_id
+                                        const params = new URLSearchParams();
+                                        params.set('repo_url', repoUrl);
+                                        if (analysisRunId) {
+                                          params.set('analysis_run_id', analysisRunId);
+                                        }
+                                        navigate(`/code-review-repos/${repo.name}?${params.toString()}`);
                                       }
                                     }}
                                     disabled={!repoUrl}

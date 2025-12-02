@@ -70,6 +70,10 @@ interface SecurityReportData {
     total: number;
     withCVEs: number;
     outdated: number;
+    critical: number;
+    high: number;
+    medium: number;
+    sample_dependencies: { package_name: string; associated_risks: string; recommended_version: string }[];
   };
   compliance: {
     owaspAsvs: number;
@@ -88,8 +92,8 @@ interface SecurityReportData {
   custom_compliance_mapping?: string;
   owasp_top3_mapping: OwaspTop3MappingItem[];
   security_risks?: { title: string; count: number }[];
-  performance_risks?: { title: string }[];
-  good_practices?: string[];
+  performance_risks?: { title: string; count?: number }[];
+  good_practices?: { title: string, comment: string }[];
   commit_trend_description?: string;
   issues_by_category?: { 
     title: string; 
@@ -102,8 +106,9 @@ interface SecurityReportData {
     code?: string;
     recommendation?: string;
   }[];
-  top_5_risks?: { title: string }[];
-  immediate_remediation_timeline?: { title: string }[];
+  top_5_risks?: { title: string, description: string }[];
+  immediate_remediation_timeline?: { title: string, description: string, severity: string }[];
+  sample_detailed_findings?: { title: string, description: string, severity: string, recommendation: string, code: string, file: string, line: number }[];
 }
 
 interface SecurityReportViewProps {
@@ -133,6 +138,31 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
     return isNaN(num) || num < 0 ? fallback : num;
   };
 
+  // Calculate security posture status based on weighted severity model
+  const calculateSecurityPosture = (
+    critical: number,
+    high: number,
+    medium: number,
+    low: number
+  ): { status: string; color: string } => {
+    // Calculate weighted risk score
+    // Critical: weight 5, High: weight 4, Medium: weight 3, Low: weight 1
+    const riskScore = (critical * 5) + (high * 4) + (medium * 3) + (low * 1);
+
+    // Classify based on score ranges
+    if (riskScore >= 351) {
+      return { status: 'Critical / Severe', color: '#b91c1c' }; // red
+    } else if (riskScore >= 251) {
+      return { status: 'Elevated', color: '#d97706' }; // orange
+    } else if (riskScore >= 151) {
+      return { status: 'Moderate', color: '#eab308' }; // yellow
+    } else if (riskScore >= 51) {
+      return { status: 'Low', color: '#22c55e' }; // green
+    } else {
+      return { status: 'Healthy / Secure', color: '#15803d' }; // dark green
+    }
+  };
+
   // Validate and extract OWASP findings with fallbacks
   const owaspValues = {
     A01: ensureNumber(reportData?.owaspFindings?.A01, 11),
@@ -155,15 +185,87 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
     low: ensureNumber(reportData?.lowFindings, 45),
   };
 
+  // Calculate security posture status
+  const securityPosture = calculateSecurityPosture(
+    severityValues.critical,
+    severityValues.high,
+    severityValues.medium,
+    severityValues.low
+  );
+
+  // Calculate OWASP Top 10 Risks status based on total count
+  const calculateOWASPStatus = (owaspFindings: typeof owaspValues): { status: string; color: string } => {
+    // Sum all OWASP findings
+    const totalCount = Object.values(owaspFindings).reduce((sum, count) => sum + count, 0);
+
+    // Classify based on count ranges
+    if (totalCount === 0) {
+      return { status: 'None', color: '#15803d' }; // dark green
+    } else if (totalCount >= 1 && totalCount <= 5) {
+      return { status: 'Low', color: '#22c55e' }; // green
+    } else if (totalCount >= 6 && totalCount <= 15) {
+      return { status: 'Moderate', color: '#eab308' }; // yellow
+    } else if (totalCount >= 16 && totalCount <= 30) {
+      return { status: 'Elevated', color: '#d97706' }; // orange
+    } else {
+      return { status: 'Critical', color: '#b91c1c' }; // red
+    }
+  };
+
+  // Calculate OWASP Top 10 Risks status
+  const owaspStatus = calculateOWASPStatus(owaspValues);
+
+  // Calculate compliance status based on average compliance score
+  const calculateComplianceStatus = (compliance: SecurityReportData['compliance']): { status: string; color: string } => {
+    // Get all compliance scores
+    const scores = [
+      compliance.owaspAsvs,
+      compliance.soc2,
+      compliance.iso27001,
+      compliance.gdpr,
+    ]
+    // Calculate average
+    const averageScore = scores.length > 0
+      ? scores.reduce((sum, score) => sum + score, 0) / scores.length
+      : 0;
+
+    // Classify based on average score ranges
+    if (averageScore >= 90) {
+      return { status: 'Strong', color: '#15803d' }; // dark green
+    } else if (averageScore >= 70) {
+      return { status: 'Good', color: '#22c55e' }; // green
+    } else if (averageScore >= 50) {
+      return { status: 'Medium', color: '#d97706' }; // orange
+    } else if (averageScore >= 30) {
+      return { status: 'Needs Improvement', color: '#eab308' }; // yellow
+    } else {
+      return { status: 'Poor', color: '#b91c1c' }; // red
+    }
+  };
+
+  // Calculate compliance status
+  const complianceStatus = calculateComplianceStatus(reportData.compliance);
+
+  // Calculate individual framework status based on score
+  const calculateFrameworkStatus = (score: number): 'ok' | 'warn' | 'error' => {
+    if (score >= 80) {
+      return 'ok';
+    } else if (score >= 50) {
+      return 'warn';
+    } else {
+      return 'error';
+    }
+  };
+
   // Safely handle OWASP Top 3 mapping data
   const owaspTop3 = Array.isArray(reportData?.owasp_top3_mapping)
     ? reportData.owasp_top3_mapping
     : [];
 
   // Debug logging
-  console.log('SecurityReportView - reportData:', reportData);
-  console.log('SecurityReportView - owaspValues:', owaspValues);
-  console.log('SecurityReportView - severityValues:', severityValues);
+//   console.log('SecurityReportView - reportData:', reportData);
+//   console.log('SecurityReportView - owaspValues:', owaspValues);
+//   console.log('SecurityReportView - severityValues:', severityValues);
 
   // Chart data
   const owaspChartData = {
@@ -325,116 +427,164 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
       // Wait a bit for charts to render fully
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Capture the report as canvas
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        width: reportRef.current.scrollWidth,
-        height: reportRef.current.scrollHeight,
-      });
-
-      // Calculate PDF dimensions - Landscape A4
+      // PDF dimensions - Landscape A4
       const pdfWidth = 297; // A4 landscape width in mm
       const pdfHeight = 210; // A4 landscape height in mm
       const margin = 10; // 10mm margin on each side
       const maxContentWidth = pdfWidth - (margin * 2); // Maximum content width with margins (277mm)
-      
-      // Calculate aspect ratio of the canvas
-      const canvasAspectRatio = canvas.width / canvas.height;
-      
-      // Calculate dimensions that fit within the page width
-      // html2canvas at scale 2: convert pixels to mm (96 DPI: 96px = 25.4mm, so 1px ≈ 0.264mm)
-      // But at scale 2, we have 2x pixels, so: 1px at scale 2 = 0.132mm
-      // Simplified: use a direct calculation
-      const pixelsPerMm = 3.7795; // Approximate conversion factor (96 DPI scaled)
-      
-      // Calculate what width the canvas would be in mm
-      const canvasWidthMm = canvas.width / pixelsPerMm;
-      
-      // Scale factor to fit within maxContentWidth
-      const scaleFactor = Math.min(1, maxContentWidth / canvasWidthMm);
-      
-      // Final dimensions in mm (scaled to fit width)
-      const actualImgWidth = canvasWidthMm * scaleFactor;
-      const actualImgHeight = (canvas.height / pixelsPerMm) * scaleFactor;
-      
+      const maxContentHeight = pdfHeight - (margin * 2); // Maximum content height per page
+      const pixelsPerMm = 3.7795; // Conversion factor (96 DPI scaled)
+
       // Create PDF in landscape orientation
       const pdf = new jsPDF('l', 'mm', 'a4');
+      let currentY = margin; // Track current Y position on the page
+
+      // Find all major sections (sections with border-b class or section elements)
+      const reportContainer = reportRef.current;
+      const header = reportContainer?.querySelector('header');
+      const mainContent = reportContainer?.querySelector('main');
+      const footer = reportContainer?.querySelector('footer');
       
-      // Calculate how many pages we need
-      const totalPages = Math.ceil(actualImgHeight / (pdfHeight - margin));
+      // Get all sections from main content
+      const sections = mainContent?.querySelectorAll('section') || [];
       
-      // Calculate position to center horizontally
-      const xPosition = margin + (maxContentWidth - actualImgWidth) / 2;
-      
-      if (totalPages === 1) {
-        // Single page - simple case
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', xPosition, margin, actualImgWidth, actualImgHeight);
-      } else {
-        // Multiple pages - split the canvas
-        const canvasWidth = canvas.width;
-        const canvasHeight = canvas.height;
-        
-        // Height per page in canvas pixels
-        const heightPerPageInPixels = canvasHeight / totalPages;
-        
-        // Height per page in PDF mm
-        const heightPerPageInMm = actualImgHeight / totalPages;
-        
-        for (let pageNum = 0; pageNum < totalPages; pageNum++) {
-          if (pageNum > 0) {
-            pdf.addPage();
-          }
-          
-          // Calculate source Y position and height for this slice
-          const sourceY = Math.floor(pageNum * heightPerPageInPixels);
-          const remainingHeight = canvasHeight - sourceY;
-          const sliceSourceHeight = Math.min(Math.ceil(heightPerPageInPixels), remainingHeight);
-          
-          // Skip if we've already processed all content
-          if (sliceSourceHeight <= 0 || sourceY >= canvasHeight) {
-            break;
-          }
-          
-          // Create a temporary canvas for this page's slice
-          const pageCanvas = document.createElement('canvas');
-          pageCanvas.width = canvasWidth;
-          pageCanvas.height = sliceSourceHeight;
-          const pageCtx = pageCanvas.getContext('2d');
-          
-          if (!pageCtx) {
-            continue;
-          }
-          
-          // Fill with white background
-          pageCtx.fillStyle = '#ffffff';
-          pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-          
-          // Draw the slice from the original canvas
-          pageCtx.drawImage(
-            canvas,
-            0, sourceY, canvasWidth, sliceSourceHeight, // Source: x, y, width, height
-            0, 0, canvasWidth, sliceSourceHeight // Destination: x, y, width, height
-          );
-          
-          // Calculate PDF dimensions for this slice
-          const slicePdfHeight = (sliceSourceHeight / canvasHeight) * actualImgHeight;
-          
-          // Y position: first page has top margin, others start at 0
-          const yPosition = pageNum === 0 ? margin : 0;
-          
-          // Add to PDF (position with margin)
-          pdf.addImage(
-            pageCanvas.toDataURL('image/png'),
-            'PNG',
-            xPosition,
-            yPosition,
-            actualImgWidth,
-            slicePdfHeight
-          );
+      // Function to get element dimensions without rendering
+      const getElementDimensions = async (element: HTMLElement) => {
+        const elementCanvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          width: element.scrollWidth,
+          height: element.scrollHeight,
+        });
+
+        const elementWidthMm = elementCanvas.width / pixelsPerMm;
+        const scaleFactor = Math.min(1, maxContentWidth / elementWidthMm);
+        const actualImgWidth = elementWidthMm * scaleFactor;
+        const actualImgHeight = (elementCanvas.height / pixelsPerMm) * scaleFactor;
+
+        return { elementCanvas, actualImgWidth, actualImgHeight };
+      };
+
+      // Function to render an element to PDF at a specific Y position
+      const renderElementAtPosition = (
+        elementCanvas: HTMLCanvasElement,
+        actualImgWidth: number,
+        actualImgHeight: number,
+        yPosition: number
+      ) => {
+        const xPosition = margin + (maxContentWidth - actualImgWidth) / 2;
+        pdf.addImage(
+          elementCanvas.toDataURL('image/png'),
+          'PNG',
+          xPosition,
+          yPosition,
+          actualImgWidth,
+          actualImgHeight
+        );
+      };
+
+      // Function to render an element, checking if it fits on current page
+      const renderElementToPDF = async (element: HTMLElement, isFirstElement: boolean = false) => {
+        if (!element) return false;
+
+        // Get element dimensions
+        const { elementCanvas, actualImgWidth, actualImgHeight } = await getElementDimensions(element);
+
+        // Calculate available space on current page
+        const availableHeight = pdfHeight - currentY - margin;
+        const needsNewPage = actualImgHeight > availableHeight;
+
+        // If element doesn't fit on current page and it's not the first element, start new page
+        if (needsNewPage && !isFirstElement) {
+          pdf.addPage();
+          currentY = margin;
         }
+
+        // Check if element fits on one page (even after starting new page if needed)
+        if (actualImgHeight <= maxContentHeight) {
+          // Element fits on one page - render it
+          renderElementAtPosition(elementCanvas, actualImgWidth, actualImgHeight, currentY);
+          currentY += actualImgHeight;
+          return true;
+        } else {
+          // Element is too tall for one page - must split it
+          const canvasWidth = elementCanvas.width;
+          const canvasHeight = elementCanvas.height;
+          const totalPages = Math.ceil(actualImgHeight / maxContentHeight);
+          const heightPerPageInPixels = canvasHeight / totalPages;
+          const heightPerPageInMm = actualImgHeight / totalPages;
+
+          for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+            if (pageNum > 0) {
+              pdf.addPage();
+              currentY = margin;
+            }
+
+            const sourceY = Math.floor(pageNum * heightPerPageInPixels);
+            const remainingHeight = canvasHeight - sourceY;
+            const sliceSourceHeight = Math.min(Math.ceil(heightPerPageInPixels), remainingHeight);
+
+            if (sliceSourceHeight <= 0 || sourceY >= canvasHeight) {
+              break;
+            }
+
+            // Create temporary canvas for this slice
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = canvasWidth;
+            pageCanvas.height = sliceSourceHeight;
+            const pageCtx = pageCanvas.getContext('2d');
+
+            if (!pageCtx) continue;
+
+            // Fill with white background
+            pageCtx.fillStyle = '#ffffff';
+            pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+
+            // Draw the slice
+            pageCtx.drawImage(
+              elementCanvas,
+              0, sourceY, canvasWidth, sliceSourceHeight,
+              0, 0, canvasWidth, sliceSourceHeight
+            );
+
+            const slicePdfHeight = (sliceSourceHeight / canvasHeight) * actualImgHeight;
+            const xPosition = margin + (maxContentWidth - actualImgWidth) / 2;
+            const yPosition = pageNum === 0 ? currentY : margin;
+
+            pdf.addImage(
+              pageCanvas.toDataURL('image/png'),
+              'PNG',
+              xPosition,
+              yPosition,
+              actualImgWidth,
+              slicePdfHeight
+            );
+
+            if (pageNum === 0) {
+              currentY += slicePdfHeight;
+            } else {
+              currentY = margin + slicePdfHeight;
+            }
+          }
+          return true;
+        }
+      };
+
+      // Render header
+      if (header) {
+        await renderElementToPDF(header as HTMLElement, true);
+      }
+
+      // Render each section, fitting multiple on a page when possible
+      for (let i = 0; i < sections.length; i++) {
+        await renderElementToPDF(sections[i] as HTMLElement, i === 0 && !header);
+      }
+
+      // Render footer on last page (footer is small, so it should fit)
+      if (footer) {
+        await renderElementToPDF(footer as HTMLElement, false);
       }
 
       // Save PDF
@@ -447,6 +597,8 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
       alert('Failed to generate PDF. Please try again.');
     }
   };
+
+  console.log('SecurityReportView - reportData:', reportData);
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] p-6 w-full">
@@ -536,32 +688,33 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
                       <td className="border border-[#e5e7eb] p-1.5">Security Posture</td>
                       <td className="border border-[#e5e7eb] p-1.5 text-[#d97706] font-semibold">Elevated</td>
                       <td className="border border-[#e5e7eb] p-1.5">
-                        {severityValues.critical} critical and {severityValues.high} high-severity issues focusing on authentication, access control, and
-                        input validation logic.
-                      </td>
+                        {severityValues.critical} critical and {severityValues.high} high-severity issues focusing on {reportData?.issues_by_category?.map((item) => item.category).join(', ')}
+                    </td>
                     </tr>
+                      <tr>
+                        <td className="border border-[#e5e7eb] p-1.5">OWASP Top 10 Risks</td>
+                        <td className="border border-[#e5e7eb] p-1.5 font-semibold" style={{ color: owaspStatus.color }}>
+                          {owaspStatus.status}
+                        </td>
+                        <td className="border border-[#e5e7eb] p-1.5">
+                          Gaps observed in {reportData?.owasp_top3_mapping?.map((item) => item.title).join(', ')} and others.
+                        </td>
+                      </tr>
                     <tr>
-                      <td className="border border-[#e5e7eb] p-1.5">OWASP Top 10 Alignment</td>
-                      <td className="border border-[#e5e7eb] p-1.5 text-[#d97706] font-semibold">Partial</td>
-                      <td className="border border-[#e5e7eb] p-1.5">
-                        Strong in logging and error handling; gaps observed in A01 (Broken Access Control) and
-                        A03 (Injection).
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="border border-[#e5e7eb] p-1.5">Secret Management</td>
+                      <td className="border border-[#e5e7eb] p-1.5">Best Practices</td>
                       <td className="border border-[#e5e7eb] p-1.5 text-[#15803d] font-semibold">Good</td>
                       <td className="border border-[#e5e7eb] p-1.5">
-                        No active credentials detected in the current revision; some legacy references in history
-                        should be reviewed.
+                        Good practices observed in {reportData?.good_practices?.map((practices) => practices.title).join(', ')} and others.
                       </td>
                     </tr>
                     <tr>
                       <td className="border border-[#e5e7eb] p-1.5">Compliance Support</td>
-                      <td className="border border-[#e5e7eb] p-1.5 text-[#d97706] font-semibold">In Progress</td>
+                      <td className="border border-[#e5e7eb] p-1.5 font-semibold" style={{ color: complianceStatus.color }}>
+                        {complianceStatus.status}
+                      </td>
                       <td className="border border-[#e5e7eb] p-1.5">
-                        Mapping to SOC 2 and ISO 27001 is emerging but incomplete. Additional controls required for
-                        PCI DSS and GDPR alignment.
+                        Mapping to OWASP ASVS {reportData?.compliance?.owaspAsvs}%, ISO 27001 {reportData?.compliance?.iso27001}%, SOC 2 {reportData?.compliance?.soc2}%, and GDPR {reportData?.compliance?.gdpr}%. Additional controls required for
+                        other compliance frameworks and specific alignment.
                       </td>
                     </tr>
                   </tbody>
@@ -667,10 +820,10 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
                   </li>
                   <li className="flex justify-between py-0.75">
                     <span className="max-w-[70%]">Exclusions</span>
-                    <span className="font-medium text-[#111827]">{reportData.exclusions}</span>
+                    <span className="font-medium text-[#111827]">{(reportData.exclusions?.length > 0 ? reportData.exclusions.length : 0)} exclusions applied</span>
                   </li>
                   <li className="flex justify-between py-0.75">
-                    <span className="max-w-[70%]">CustomCompliance Mapping</span>
+                    <span className="max-w-[70%]">General Compliance Mapping</span>
                     <span className="font-medium text-[#111827]">{reportData.custom_compliance_mapping}</span>
                   </li>
                 </ul>
@@ -729,7 +882,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
                 </div>
                 <ul className="list-none mt-1 text-[11px] text-[#6b7280]">
                   {owaspTop3.map((item) => (
-                    <li className="flex justify-between py-0.75" key={item.title}>
+                    <li className="flex justify-between py-0.75 mb-1" key={item.title}>
                       <span className="max-w-[70%]">
                         <strong>{item.code} – {item.title}</strong><br/>
                         {item.description}
@@ -804,12 +957,12 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
               <div className="bg-white rounded-xl border border-[#e5e7eb] p-4">
                 <div className="flex justify-between items-baseline mb-2">
                   <div>
-                    <div className="text-[13px] font-semibold">Security Risks</div>
+                    <div className="text-[13px] font-semibold">Top 5 Security Risks</div>
                   </div>
                 </div>
                 <ul className="list-none mt-1 text-[11px] text-[#6b7280]">
                   {reportData?.security_risks?.map((risk) => (
-                    <li className="flex justify-between py-0.75" key={risk.title}>
+                    <li className="flex justify-between py-0.5" key={risk.title}>
                       <span className="max-w-[70%]">{risk.title}</span>
                       <span className="font-medium text-[#111827]">{risk.count}</span>
                     </li>
@@ -824,7 +977,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
               <div className="bg-white rounded-xl border border-[#e5e7eb] p-4">
                 <div className="flex justify-between items-baseline mb-2">
                   <div>
-                    <div className="text-[13px] font-semibold">Performance Risks</div>
+                    <div className="text-[13px] font-semibold">Top 5 Performance Risks</div>
                   </div>
                 </div>
                 <div className="flex gap-3 text-[11px] text-[#6b7280] mt-1.5">
@@ -832,8 +985,11 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
                     {/* <strong className="text-[#111827]">Risky Patterns</strong> */}
                     <ul className="list-none mt-1">
                       {reportData?.performance_risks?.map((risk) => (
-                        <li className="py-0.5" key={risk.title}>
-                          <span>{risk.title}</span>
+                        <li className="py-0.5 flex justify-between" key={risk.title}>
+                          <span className="max-w-[70%]">{risk.title}</span>
+                          {risk.count !== undefined && (
+                            <span className="font-medium text-[#111827]">{risk.count}</span>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -860,22 +1016,34 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
                   <div className="text-[13px] font-semibold">Dependency Overview</div>
                 </div>
                 <ul className="list-none mt-1 text-[11px] text-[#6b7280]">
-                  <li className="flex justify-between py-0.75">
+                  <li className="flex justify-between py-0.5">
                     <span className="max-w-[70%]">Total dependencies (direct + transitive)</span>
                     <span className="font-medium text-[#111827]">{reportData.dependencies.total}</span>
                   </li>
-                  <li className="flex justify-between py-0.75">
+                  <li className="flex justify-between py-0.5">
                     <span className="max-w-[70%]">Dependencies with known CVEs</span>
                     <span className="font-medium text-[#111827]">{reportData.dependencies.withCVEs}</span>
                   </li>
-                  <li className="flex justify-between py-0.75">
+                  <li className="flex justify-between py-0.5">
                     <span className="max-w-[70%]">Outdated major versions</span>
                     <span className="font-medium text-[#111827]">{reportData.dependencies.outdated}</span>
                   </li>
-                  <li className="flex justify-between py-0.75">
+                  <li className="flex justify-between py-0.5">
+                    <span className="max-w-[70%]">Critical vulnerabilities</span>
+                    <span className="font-medium text-[#111827]">{reportData.dependencies?.critical}</span>
+                  </li>
+                  <li className="flex justify-between py-0.5">
+                    <span className="max-w-[70%]">High vulnerabilities</span>
+                    <span className="font-medium text-[#111827]">{reportData.dependencies.high}</span>
+                  </li>
+                  <li className="flex justify-between py-0.5">
+                    <span className="max-w-[70%]">Medium vulnerabilities</span>
+                    <span className="font-medium text-[#111827]">{reportData.dependencies.medium}</span>
+                  </li>
+                  {/* <li className="flex justify-between py-0.75">
                     <span className="max-w-[70%]">Security support status</span>
                     <span className="font-medium text-[#111827]">Node 18 LTS (supported)</span>
-                  </li>
+                  </li> */}
                 </ul>
                 <p className="text-[11px] text-[#6b7280] mt-2">
                   Identify a maintenance window to upgrade or replace packages with known vulnerabilities, particularly in networking and
@@ -885,18 +1053,15 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
 
               <div className="bg-white rounded-xl border border-[#e5e7eb] p-4">
                 <div className="flex justify-between items-baseline mb-2">
-                  <div className="text-[13px] font-semibold">Example Library Risk</div>
+                  <div className="text-[13px] font-semibold">Sample Risky Dependencies</div>
                 </div>
-                <div className="font-mono text-[11px] bg-[#f9fafb] rounded-md border border-[#e5e7eb] p-2 mt-1.5 overflow-x-auto whitespace-pre">
-                  Package: express-session@1.17.0<br/>
-                  Risk: Older version with weaker default cookie settings.<br/>
-                  Recommended: Upgrade to latest version; enforce secure, httpOnly, and SameSite attributes.
-                </div>
-                <div className="font-mono text-[11px] bg-[#f9fafb] rounded-md border border-[#e5e7eb] p-2 mt-1.5 overflow-x-auto whitespace-pre">
-                  Package: lodash@4.17.19<br/>
-                  Risk: Known prototype pollution CVEs.<br/>
-                  Recommended: Upgrade to 4.17.21 or the latest patched version.
-                </div>
+                {reportData?.dependencies?.sample_dependencies?.map((dependency) => (
+                  <div className="font-mono text-[11px] bg-[#f9fafb] rounded-md border border-[#e5e7eb] p-2 mt-1.5 overflow-x-auto whitespace-pre">
+                    Package: {dependency.package_name}<br/>
+                    Risk: {dependency.associated_risks}<br/>
+                    Recommended: {dependency.recommended_version}
+                  </div>
+                ))}
               </div>
             </div>
           </section>
@@ -917,13 +1082,16 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
 
             <div className="grid grid-cols-3 gap-3 mt-2 text-[11px]">
               {[
-                { name: 'OWASP ASVS', score: reportData.compliance.owaspAsvs, status: 'ok' },
-                { name: 'SOC 2 (Security)', score: reportData.compliance.soc2, status: 'warn' },
-                { name: 'ISO 27001', score: reportData.compliance.iso27001, status: 'warn' },
-                { name: 'PCI DSS', score: reportData.compliance.pciDss, status: 'warn' },
-                { name: 'GDPR (Code Aspects)', score: reportData.compliance.gdpr, status: 'ok' },
-                { name: 'Custom Policy', score: reportData.compliance.custom, status: 'warn' },
-              ].map((framework) => (
+                { name: 'OWASP ASVS', score: reportData.compliance.owaspAsvs },
+                { name: 'SOC 2 (Security)', score: reportData.compliance.soc2 },
+                { name: 'ISO 27001', score: reportData.compliance.iso27001 },
+                { name: 'GDPR (Code Aspects)', score: reportData.compliance.gdpr },
+                { name: 'Custom Policy', score:0 },
+                { name: 'Custom Policy', score: 0 },
+              ].map((framework) => {
+                const status = calculateFrameworkStatus(framework.score);
+                return { ...framework, status };
+              }).map((framework) => (
                 <div key={framework.name} className="rounded-lg border border-[#e5e7eb] p-2 bg-[#f9fafb]">
                   <div className="font-semibold text-[11px] mb-1">{framework.name}</div>
                   <div className={`text-base font-semibold ${
@@ -954,12 +1122,13 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white rounded-xl border border-[#e5e7eb] p-4">
                 <div className="flex justify-between items-baseline mb-2">
-                  <div className="text-[13px] font-semibold">Top 5 Risks</div>
+                  <div className="text-[13px] font-semibold">Sample Top Risks</div>
                 </div>
                 <ol className="list-none ml-4 mt-1 text-[11px] text-[#6b7280]" style={{ listStyleType: 'decimal' }}>
                   {reportData?.top_5_risks?.map((risk) => (
-                    <li className="py-0.75" key={risk.title}>
-                      <span>{risk.title}</span>
+                    <li className="py-0.5" key={risk.title}>
+                      <span className="max-w-[70%]">{risk.title}: </span>
+                      <span className="font-medium text-[#111827]">{risk.description}</span>
                     </li>
                   ))}
                 </ol>
@@ -969,21 +1138,23 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
                 <div className="flex justify-between items-baseline mb-2">
                   <div className="text-[13px] font-semibold">Suggested Remediation Timeline</div>
                 </div>
-                <ul className="list-none mt-1 text-[11px] text-[#6b7280]">
-                  <li className="flex justify-between py-0.75">
-                    <span className="max-w-[70%]">
-                      <strong className="text-[#111827]">Immediate (0–2 weeks)</strong><br/>
-                      <ul className="list-none ml-4 mt-1 text-[11px] text-[#6b7280]" style={{ listStyleType: 'decimal' }}>
+                {/* <ul className="list-none mt-1 text-[11px] text-[#6b7280]"> */}
+                  {/* <li className="flex justify-between py-0.75"> */}
+                    {/* <span className="max-w-[70%]"> */}
+                      <strong className="text-[#111827] text-[13px]">Immediate (0–2 weeks)</strong><br/>
+                      <ul className="list-none ml-4 mt-1 text-[11px] text-[#6b7280]">
                         {reportData?.immediate_remediation_timeline?.map((risk) => (
-                          <li className="py-0.75" key={risk.title}>
-                            <span>{risk.title}</span>
+                          <li className="py-0.5 flex justify-between mt-1" key={risk.title}>
+                            <span className="max-w-[70%]">{risk.title} </span>
+                            {/* <span className="font-medium text-[#111827]">{risk.description}</span> */}
+                            <span className="font-medium text-[#111827]">{risk.severity}</span>
                           </li>
                         ))}
                       </ul>
-                    </span>
-                  </li>
+                    {/* </span> */}
+                  {/* </li> */}
                 
-                </ul>
+                {/* </ul> */}
               </div>
             </div>
           </section>
@@ -1002,44 +1173,44 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
             <div className="bg-white rounded-xl border border-[#e5e7eb] p-4">
               <div className="flex justify-between items-baseline mb-2">
                 <div className="text-[13px] font-semibold">
-                     {reportData?.issues_by_category?.[0]?.title}
+                     {reportData?.sample_detailed_findings?.[0]?.title}
                 </div>
                 <div className="inline-flex px-1.5 py-0.5 rounded-full bg-[#f3f4f6] text-[10px] text-[#b91c1c] font-semibold">
-                  {reportData?.issues_by_category?.[0]?.severity}
+                  {reportData?.sample_detailed_findings?.[0]?.severity}
                 </div>
               </div>
               <div className="text-[11px] text-[#6b7280]">
-                <strong>Location:</strong> {reportData?.issues_by_category?.[0]?.file}:{reportData?.issues_by_category?.[0]?.line}<br/>
-                <strong>Category:</strong> {reportData?.issues_by_category?.[0]?.category}<br/>
-                <strong>Description:</strong> {reportData?.issues_by_category?.[0]?.description}
+                {/* <strong>Location:</strong> {reportData?.sample_detailed_findings?.[0]?.file}:{reportData?.sample_detailed_findings?.[0]?.line}<br/> */}
+                {/* <strong>Category:</strong> {reportData?.sample_detailed_findings?.[0]?.category}<br/> */}
+                <strong>Description:</strong> {reportData?.sample_detailed_findings?.[0]?.description}
               </div>
               <div className="font-mono text-[11px] bg-[#f9fafb] rounded-md border border-[#e5e7eb] p-2 mt-1.5 overflow-x-auto whitespace-pre">
-                {reportData?.issues_by_category?.[0]?.code}
+                {reportData?.sample_detailed_findings?.[0]?.code}
               </div>
               <div className="text-[11px] text-[#6b7280] mt-1.5">
-                <strong>Recommendation:</strong> {reportData?.issues_by_category?.[0]?.recommendation}
+                <strong>Recommendation:</strong> {reportData?.sample_detailed_findings?.[0]?.recommendation}
               </div>
             </div>
 
             <div className="bg-white rounded-xl border border-[#e5e7eb] p-4 mt-3">
               <div className="flex justify-between items-baseline mb-2">
                 <div className="text-[13px] font-semibold">
-                  {reportData?.issues_by_category?.[1]?.title}
+                  {reportData?.sample_detailed_findings?.[1]?.title}
                 </div>
                 <div className="inline-flex px-1.5 py-0.5 rounded-full bg-[#f3f4f6] text-[10px] text-[#c05621] font-semibold">
-                  {reportData?.issues_by_category?.[1]?.severity}
+                  {reportData?.sample_detailed_findings?.[1]?.severity}
                 </div>
               </div>
               <div className="text-[11px] text-[#6b7280]">
-                <strong>Location:</strong> {reportData?.issues_by_category?.[1]?.file}:{reportData?.issues_by_category?.[1]?.line}<br/>
-                <strong>Category:</strong> {reportData?.issues_by_category?.[1]?.category}<br/>
-                <strong>Description:</strong> {reportData?.issues_by_category?.[1]?.description}
+                {/* <strong>Location:</strong> {reportData?.issues_by_category?.[1]?.file}:{reportData?.issues_by_category?.[1]?.line}<br/> */}
+                {/* <strong>Category:</strong> {reportData?.issues_by_category?.[1]?.category}<br/> */}
+                <strong>Description:</strong> {reportData?.sample_detailed_findings?.[1]?.description}
               </div>
               <div className="font-mono text-[11px] bg-[#f9fafb] rounded-md border border-[#e5e7eb] p-2 mt-1.5 overflow-x-auto whitespace-pre">
-                {reportData?.issues_by_category?.[1]?.code}
+                {reportData?.sample_detailed_findings?.[1]?.code}
               </div>
               <div className="text-[11px] text-[#6b7280] mt-1.5">
-                    <strong>Recommendation:</strong> {reportData?.issues_by_category?.[1]?.recommendation}
+                    <strong>Recommendation:</strong> {reportData?.sample_detailed_findings?.[1]?.recommendation}
               </div>
             </div>
 
@@ -1071,7 +1242,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
                         };
                         return (
                           <tr key={idx} className="hover:bg-[#f9fafb]">
-                            <td className="border border-[#e5e7eb] p-2 text-[#111827] font-medium">{issue.title}</td>
+                            <td className="border border-[#e5e7eb] p-2 text-[#111827] font-medium">{issue.category}</td>
                             <td className="border border-[#e5e7eb] p-2 text-center text-[#111827] font-semibold">{issue.count}</td>
                             <td className="border border-[#e5e7eb] p-2 text-center">
                               <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${severityColors[issue.severity] || 'bg-[#f3f4f6] text-[#6b7280] border-[#e5e7eb]'}`}>
@@ -1096,31 +1267,16 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
                 <p className="mb-2">
                   The following positive patterns were identified during the scan and can be used as examples for other services:
                 </p>
-                <ul className="list-disc list-inside space-y-1">
+                {/* <ul className="list-disc list-inside space-y-1"> */}
                   {reportData?.good_practices?.map((practice, idx) => (
-                    <li key={idx}>
-                      <span className="text-[#111827]">{practice}</span>
-                    </li>
-                  )) || (
-                    <>
-                      <li>
-                        <span className="text-[#111827]">
-                          {reportData?.good_practices?.[0]}
-                        </span>
-                      </li>
-                      <li>
-                        <span className="text-[#111827]">
-                          {reportData?.good_practices?.[1]}
-                        </span>
-                      </li>
-                      <li>
-                        <span className="text-[#111827]">
-                          {reportData?.good_practices?.[2]}
-                        </span>
-                      </li>
-                    </>
-                  )}
-                </ul>
+                    // <li key={idx}>
+                    <div key={idx} className="mt-2">
+                      <strong className="text-[#111827]">{practice.title}</strong>
+                      <p className="text-[#6b7280]">{practice.comment}</p>
+                    </div>
+                    // </li>
+                  ))
+                }
               </div>
             </div>
           </section>

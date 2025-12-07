@@ -58,6 +58,7 @@ const sourceCodeReviewItems = [
   { title: "Connect Repository", url: "/code-review-connect", icon: Link2 },
   { title: "Repositories", url: "/code-review-repos", icon: BookOpen },
   { title: "Scan Reports", url: "/code-review-scan-reports", icon: FileText },
+  { title: "Git Automated Scan", url: "/git-automated-scan", icon: Clock },
   // { title: "Team Security Habits", url: "/code-review-team", icon: Users },
 ];
 

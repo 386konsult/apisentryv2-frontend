@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GitBranch, Zap, Loader2, CheckCircle, AlertCircle, Clock, Building2 } from "lucide-react";
+import { GitBranch, Zap, Loader2, CheckCircle, AlertCircle, Clock, Building2, Settings, Shield, Info } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { API_BASE_URL } from "@/services/api";
+import { API_BASE_URL, apiService } from "@/services/api";
 import { usePlatform } from "@/contexts/PlatformContext";
+import { RepositoryScanConfig } from "@/components/RepositoryScanConfig";
+import { ScanRepositoryDialog } from "@/components/ScanRepositoryDialog";
 
 type Provider = 'github' | 'bitbucket';
 
@@ -35,6 +37,17 @@ interface Repository {
   resolvedSuggestions?: number;
   branches?: string[]; // List of branch names
   default_branch?: string; // Default branch name
+}
+
+interface ScanConfig {
+  is_active: boolean;
+  scan_on_push: boolean;
+  scan_on_pr_created: boolean;
+  scan_on_pr_updated: boolean;
+  push_scan_branches: string[];
+  pr_target_branches: string[];
+  auto_post_comments: boolean;
+  min_severity_for_comments: string;
 }
 
 interface ScanJob {
@@ -79,6 +92,16 @@ const CodeReviewRepos = () => {
   
   // Branch selection state: map of repo URL to selected branch
   const [selectedBranches, setSelectedBranches] = useState<Map<string, string>>(new Map());
+  
+  // Repository scan configuration state
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [selectedRepoForConfig, setSelectedRepoForConfig] = useState<Repository | null>(null);
+  const [repoScanConfigs, setRepoScanConfigs] = useState<Map<string, ScanConfig>>(new Map());
+  const [loadingConfigs, setLoadingConfigs] = useState<Set<string>>(new Set());
+  
+  // Scan dialog state
+  const [scanDialogOpen, setScanDialogOpen] = useState(false);
+  const [selectedRepoForScan, setSelectedRepoForScan] = useState<Repository | null>(null);
 
   // Fetch Bitbucket workspaces
   const fetchWorkspaces = async () => {
@@ -186,6 +209,11 @@ const CodeReviewRepos = () => {
       
       setRepos(reposList);
       setError("");
+      
+      // Fetch scan configurations for all repos
+      if (selectedPlatformId && reposList.length > 0) {
+        fetchScanConfigs(reposList);
+      }
     } catch (error) {
       console.error("Error fetching repos:", error);
       setError("Could not load repositories.");
@@ -193,6 +221,51 @@ const CodeReviewRepos = () => {
       setLoading(false);
     }
   }, [selectedPlatformId, provider, page, pageSize, selectedWorkspace]);
+
+  // Fetch scan configurations for repositories
+  const fetchScanConfigs = async (repos: Repository[]) => {
+    if (!selectedPlatformId) return;
+    
+    const token = localStorage.getItem('auth_token');
+    const configsMap = new Map<string, ScanConfig>();
+    const loadingSet = new Set<string>();
+    
+    // Mark all as loading
+    repos.forEach(repo => {
+      loadingSet.add(String(repo.id));
+    });
+    setLoadingConfigs(new Set(loadingSet));
+    
+    // Fetch configs in parallel
+    const configPromises = repos.map(async (repo) => {
+      try {
+        // Clean repo_id if it has curly brackets
+        const repoId = repo.id ? String(repo.id).replace(/[{}]/g, '') : '';
+        const config = await apiService.getRepositoryScanConfig(repoId, selectedPlatformId, repo.html_url);
+        if (config) {
+          configsMap.set(String(repo.id), {
+            is_active: config.is_active ?? false,
+            scan_on_push: config.scan_on_push ?? false,
+            scan_on_pr_created: config.scan_on_pr_created ?? false,
+            scan_on_pr_updated: config.scan_on_pr_updated ?? false,
+            push_scan_branches: config.push_scan_branches || [],
+            pr_target_branches: config.pr_target_branches || [],
+            auto_post_comments: config.auto_post_comments ?? false,
+            min_severity_for_comments: config.min_severity_for_comments || 'medium'
+          });
+        }
+      } catch (error) {
+        // Config doesn't exist yet, that's okay
+        console.log(`No scan config found for repo ${repo.id}`);
+      } finally {
+        loadingSet.delete(String(repo.id));
+      }
+    });
+    
+    await Promise.all(configPromises);
+    setRepoScanConfigs(configsMap);
+    setLoadingConfigs(new Set());
+  };
 
   // Poll scan status for active jobs
   const pollScanStatus = useCallback(async (analysisRunId: string) => {
@@ -421,8 +494,17 @@ const CodeReviewRepos = () => {
     }
   }
 
+  // Open scan dialog
+  const handleScanClick = (repo: Repository) => {
+    setSelectedRepoForScan(repo);
+    setScanDialogOpen(true);
+  };
+
   // Manual scan alert - sends email notification for manual processing
-  const handleScan = async (repo: Repository) => {
+  const handleScan = async (branch: string) => {
+    if (!selectedRepoForScan) return;
+    
+    const repo = selectedRepoForScan;
     setScanningRepos(prev => new Set(prev).add(repo.html_url));
     const token = localStorage.getItem('auth_token');
     try {
@@ -430,12 +512,9 @@ const CodeReviewRepos = () => {
         throw new Error('No platform selected');
       }
       
-      // Get selected branch for this repo, or use default
-      const selectedBranch = selectedBranches.get(repo.html_url) || repo.default_branch || 'main';
-      
       // Build branches parameter: map repo_url to branch name
       const branches: Record<string, string> = {};
-      branches[repo.html_url] = selectedBranch;
+      branches[repo.html_url] = branch;
       
       const response = await fetch(`${API_BASE_URL}/admin/manual-scan-alert/`, {
         method: 'POST',
@@ -459,7 +538,7 @@ const CodeReviewRepos = () => {
       
       // Show success message
       setError("");
-      setSuccessMessage(`Scan request submitted for ${repo.name}. You will receive an email notification when the scan is complete.`);
+      setSuccessMessage(`Scan request submitted for ${repo.name} (${branch}). You will receive an email notification when the scan is complete.`);
       
       // Clear success message after 5 seconds
       setTimeout(() => {
@@ -792,35 +871,83 @@ const CodeReviewRepos = () => {
                     <div className="flex items-center gap-3">
                       {/* Show scan status badge if available, otherwise show risk badge */}
                       {repo.scan_status ? getRepoScanStatusBadge(repo.scan_status) : (repoScanJob ? getScanStatusBadge(repoScanJob) : getRiskBadge(repo.risk))}
+                      
+                      {/* Automated Scan Status Badge */}
+                      {(() => {
+                        const config = repoScanConfigs.get(String(repo.id));
+                        if (loadingConfigs.has(String(repo.id))) {
+                          return (
+                            <Badge variant="outline" className="flex items-center gap-1">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Loading...
+                            </Badge>
+                          );
+                        }
+                        if (config?.is_active) {
+                          const activeTriggers = [
+                            config.scan_on_push && 'Push',
+                            config.scan_on_pr_created && 'PR Created',
+                            config.scan_on_pr_updated && 'PR Updated'
+                          ].filter(Boolean);
+                          
+                          return (
+                            <div className="flex items-center gap-1 group relative">
+                              <Badge className="bg-green-100 text-green-800 border-green-200 flex items-center gap-1 cursor-help">
+                                <Shield className="w-3 h-3" />
+                                Automated Scan: Active
+                              </Badge>
+                              <div className="absolute left-0 top-full mt-2 hidden group-hover:block z-50 bg-popover border rounded-lg shadow-lg p-3 min-w-[280px] text-sm">
+                                <div className="font-semibold mb-2 text-foreground">Automated Repository Scan</div>
+                                <div className="space-y-1.5 text-muted-foreground">
+                                  <p className="text-xs mb-2">This repository is configured to automatically scan when code changes occur.</p>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs">Triggers:</span>
+                                    <span className="font-medium text-xs text-foreground">{activeTriggers.join(', ') || 'None'}</span>
+                                  </div>
+                                  {config.push_scan_branches.length > 0 && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-xs">Push Branches:</span>
+                                      <span className="font-medium text-xs text-foreground">{config.push_scan_branches.join(', ')}</span>
+                                    </div>
+                                  )}
+                                  {config.pr_target_branches.length > 0 && (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-xs">PR Targets:</span>
+                                      <span className="font-medium text-xs text-foreground">{config.pr_target_branches.join(', ')}</span>
+                                    </div>
+                                  )}
+                                  {config.auto_post_comments && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs">Comments:</span>
+                                      <span className="font-medium text-xs text-foreground">Enabled ({config.min_severity_for_comments})</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="flex items-center gap-1 group relative">
+                            <Badge variant="outline" className="flex items-center gap-1 cursor-help">
+                              <Shield className="w-3 h-3" />
+                              Automated Scan: Not Configured
+                            </Badge>
+                            <div className="absolute left-0 top-full mt-2 hidden group-hover:block z-50 bg-popover border rounded-lg shadow-lg p-3 min-w-[280px] text-sm">
+                              <div className="font-semibold mb-2 text-foreground">Automated Repository Scan</div>
+                              <p className="text-xs text-muted-foreground">
+                                This repository has not been configured for automated scanning. 
+                                Configure it to automatically scan when users push code, create pull requests, or update pull requests.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      
                       <div className="flex gap-2 items-center">
-                        {/* Branch Selection */}
-                        {repo.branches && repo.branches.length > 0 && (
-                          <Select
-                            value={selectedBranches.get(repo.html_url) || repo.default_branch || repo.branches[0]}
-                            onValueChange={(value) => {
-                              const newSelectedBranches = new Map(selectedBranches);
-                              newSelectedBranches.set(repo.html_url, value);
-                              setSelectedBranches(newSelectedBranches);
-                            }}
-                            disabled={isScanInProgress}
-                          >
-                            <SelectTrigger className="w-[140px]">
-                              <GitBranch className="w-4 h-4 mr-2" />
-                              <SelectValue placeholder="Select branch" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {repo.branches.map((branch) => (
-                                <SelectItem key={branch} value={branch}>
-                                  {branch}
-                                  {branch === repo.default_branch && ' (default)'}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
                         <Button 
                           variant="outline" 
-                          onClick={() => handleScan(repo)}
+                          onClick={() => handleScanClick(repo)}
                           disabled={!canScan}
                         >
                           {isScanning ? (
@@ -836,9 +963,20 @@ const CodeReviewRepos = () => {
                           ) : (
                             <>
                               <Zap className="w-4 h-4 mr-2" />
-                              Scan
+                              Scan Now
                             </>
                           )}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setSelectedRepoForConfig(repo);
+                            setConfigDialogOpen(true);
+                          }}
+                          title="Configure automated scanning"
+                        >
+                          <Settings className="w-4 h-4 mr-2" />
+                          Configure
                         </Button>
                         <Button variant="outline" onClick={() => navigate(`/code-review-repos/${repo.name}?repo_url=${repo.html_url}`)}>
                           View Details
@@ -897,6 +1035,37 @@ const CodeReviewRepos = () => {
         <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page === 1 || loading}>Prev</Button>
         <Button variant="outline" size="sm" onClick={() => setPage(page + 1)} disabled={repos.length < pageSize || loading}>Next</Button>
       </div>
+
+      {/* Repository Scan Configuration Dialog */}
+      {selectedRepoForConfig && (
+        <RepositoryScanConfig
+          open={configDialogOpen}
+          onOpenChange={(open) => {
+            setConfigDialogOpen(open);
+            // Refresh config when dialog closes
+            if (!open && repos.length > 0) {
+              fetchScanConfigs(repos);
+            }
+          }}
+          repoId={selectedRepoForConfig.id ? String(selectedRepoForConfig.id) : undefined}
+          repoUrl={selectedRepoForConfig.html_url}
+          repoName={selectedRepoForConfig.name}
+          branches={selectedRepoForConfig.branches || []}
+        />
+      )}
+
+      {/* Scan Repository Dialog */}
+      {selectedRepoForScan && (
+        <ScanRepositoryDialog
+          open={scanDialogOpen}
+          onOpenChange={setScanDialogOpen}
+          repoName={selectedRepoForScan.name}
+          branches={selectedRepoForScan.branches || []}
+          defaultBranch={selectedRepoForScan.default_branch || selectedBranches.get(selectedRepoForScan.html_url) || 'main'}
+          onConfirm={handleScan}
+          isScanning={scanningRepos.has(selectedRepoForScan.html_url)}
+        />
+      )}
     </div>
   );
 };

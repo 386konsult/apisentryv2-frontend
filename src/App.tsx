@@ -44,6 +44,8 @@ import CodeReviewTeam from "./pages/CodeReviewTeam";
 import SecurityDashboard from "./pages/CodeReviewRepoDetails2";
 import CodeReviewScanReports from "./pages/CodeReviewScanReports";
 import CodeReviewReport from "./pages/CodeReviewReport";
+import GitAutomatedScan from "./pages/GitAutomatedScan";
+import AutomatedScanDetails from "./pages/AutomatedScanDetails";
 import Platforms from "./pages/Platforms";
 import PlatformDetails from "./pages/PlatformDetails";
 import CreateAlert from "./pages/CreateAlert";
@@ -223,6 +225,16 @@ const AppContent = () => {
                       <Route path="/code-review-report/:reportId" element={
                         <ProtectedPlatformRoute>
                           <CodeReviewReport />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/git-automated-scan" element={
+                        <ProtectedPlatformRoute>
+                          <GitAutomatedScan />
+                        </ProtectedPlatformRoute>
+                      } />
+                      <Route path="/automated-scan-details/:id" element={
+                        <ProtectedPlatformRoute>
+                          <AutomatedScanDetails />
                         </ProtectedPlatformRoute>
                       } />
                       <Route path="/platforms" element={<Platforms />} />

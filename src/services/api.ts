@@ -955,6 +955,112 @@ private getCSRFToken = () => {
       method: 'DELETE',
     });
   }
+
+  // Repository Scan Configuration
+  // Activate automated scanning for a repository
+  async activateRepositoryScan(data: {
+    repo_id?: string;
+    repo_url?: string;
+    platform_id: string;
+    scan_on_push?: boolean;
+    scan_on_pr_created?: boolean;
+    scan_on_pr_updated?: boolean;
+    push_scan_branches?: string[];
+    pr_target_branches?: string[];
+    auto_post_comments?: boolean;
+    min_severity_for_comments?: 'critical' | 'high' | 'medium' | 'low';
+  }): Promise<any> {
+    // Clean repo_id if it has curly brackets
+    const cleanedData = { ...data };
+    if (cleanedData.repo_id) {
+      cleanedData.repo_id = cleanedData.repo_id.replace(/[{}]/g, '');
+    }
+    return await this.request<any>('/repository-scan/activate/', {
+      method: 'POST',
+      body: JSON.stringify(cleanedData),
+    });
+  }
+
+  // Deactivate automated scanning for a repository
+  async deactivateRepositoryScan(data: {
+    repo_id?: string;
+    repo_url?: string;
+    platform_id: string;
+  }): Promise<any> {
+    // Clean repo_id if it has curly brackets
+    const cleanedData = { ...data };
+    if (cleanedData.repo_id) {
+      cleanedData.repo_id = cleanedData.repo_id.replace(/[{}]/g, '');
+    }
+    return await this.request<any>('/repository-scan/deactivate/', {
+      method: 'POST',
+      body: JSON.stringify(cleanedData),
+    });
+  }
+
+  // Get current scan configuration for a repository
+  async getRepositoryScanConfig(repoId: string, platformId: string, repoUrl?: string): Promise<any> {
+    // Clean repo_id if it has curly brackets
+    const cleanedRepoId = repoId.replace(/[{}]/g, '');
+    let url = `/repository-scan/config/?platform_id=${platformId}`;
+    if (cleanedRepoId) {
+      url += `&repo_id=${encodeURIComponent(cleanedRepoId)}`;
+    }
+    if (repoUrl) {
+      url += `&repo_url=${encodeURIComponent(repoUrl)}`;
+    }
+    return await this.request<any>(url);
+  }
+
+  // Get automated runs
+  async getAutomatedRuns(params?: {
+    platform_id: string;
+    repo_id?: string;
+    status?: 'Queued' | 'In Progress' | 'Completed' | 'Failed';
+    trigger_type?: 'webhook_push' | 'webhook_pr_created' | 'webhook_pr_updated';
+    pr_id?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<any> {
+    if (!params?.platform_id) {
+      throw new Error('platform_id is required');
+    }
+
+    const queryParams: Record<string, string> = {
+      platform_id: params.platform_id,
+    };
+
+    if (params.repo_id) queryParams.repo_id = params.repo_id;
+    if (params.status) queryParams.status = params.status;
+    if (params.trigger_type) queryParams.trigger_type = params.trigger_type;
+    if (params.pr_id) queryParams.pr_id = params.pr_id;
+    if (params.page) queryParams.page = String(params.page);
+    if (params.page_size) queryParams.page_size = String(params.page_size);
+
+    const query = '?' + new URLSearchParams(queryParams).toString();
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/automated-runs/${query}`, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    return res.json();
+  }
+
+  // Get automated run details
+  async getAutomatedRunDetails(automatedRunId: string): Promise<any> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/automated-runs/${automatedRunId}/`, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || errorData.message || 'Failed to fetch automated run details');
+    }
+    
+    return res.json();
+  }
 }
 
 // Create and export a singleton instance

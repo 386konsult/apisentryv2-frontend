@@ -588,7 +588,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
       }
 
       // Save PDF
-      pdf.save(`APISentry-Security-Report-${reportData.scanId}.pdf`);
+      pdf.save(`SmartComply Heimdall-Security-Report-${reportData.scanId}.pdf`);
 
       // Remove loading indicator
       document.body.removeChild(loadingToast);
@@ -638,7 +638,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
             </div>
             <div>
               <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs bg-[#eff6ff] text-[#1d4ed8] mb-1">
-                APISentry · Code Review AI
+                SmartComply Heimdall · Code Review AI
               </div>
               <h1 className="text-lg font-semibold mb-1">Source Code Security Report</h1>
               <p className="text-xs text-[#6b7280]">
@@ -663,7 +663,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
               <span className="text-[11px] text-[#6b7280]">High-level risk & remediation priorities</span>
             </div>
             <p className="text-xs text-[#6b7280] mb-3">
-              APISentry Code Review AI analyzed the <strong>{reportData.repository}</strong> repository for security weaknesses, bad patterns,
+              SmartComply Heimdall Code Review AI analyzed the <strong>{reportData.repository}</strong> repository for security weaknesses, bad patterns,
               and compliance gaps. This report is intended for engineering leadership, security teams, and compliance stakeholders.
             </p>
 
@@ -751,7 +751,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
                 </div>
                 <p className="text-[11px] text-[#6b7280] mt-3">
                   Recommended: prioritize remediation of critical and high findings within the next one to two sprint cycles, and
-                  incorporate automated APISentry checks into your CI pipeline to prevent regression.
+                  incorporate automated SmartComply Heimdall checks into your CI pipeline to prevent regression.
                 </p>
               </div>
             </div>
@@ -764,7 +764,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
               <span className="text-[11px] text-[#6b7280]">Context for this analysis</span>
             </div>
             <p className="text-xs text-[#6b7280] mb-3">
-              This section outlines how APISentry Code Review AI was configured for this repository, including scan scope, languages,
+              This section outlines how SmartComply Heimdall Code Review AI was configured for this repository, including scan scope, languages,
               and the types of checks applied.
             </p>
 
@@ -798,7 +798,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
                   </li>
                 </ul>
                 <p className="text-[11px] text-[#6b7280] mt-2">
-                  All changes merged into <strong>{reportData.branch}</strong> during the reporting period were analyzed using APISentry's rules
+                  All changes merged into <strong>{reportData.branch}</strong> during the reporting period were analyzed using SmartComply Heimdall's rules
                   and ML-based detections.
                 </p>
               </div>
@@ -816,7 +816,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
                   </li>
                   <li className="flex justify-between py-0.75">
                     <span className="max-w-[70%]">Policy Profile</span>
-                    <span className="font-medium text-[#111827]">APISentry Default + Custom Auth Rules</span>
+                    <span className="font-medium text-[#111827]">SmartComply Heimdall Default + Custom Auth Rules</span>
                   </li>
                   <li className="flex justify-between py-0.75">
                     <span className="max-w-[70%]">Exclusions</span>
@@ -841,7 +841,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
               <span className="text-[11px] text-[#6b7280]">Findings categorized by OWASP Top 10 (latest)</span>
             </div>
             <p className="text-xs text-[#6b7280] mb-3">
-              APISentry maps detected vulnerabilities to the OWASP Top 10, providing a common language for security, development,
+              SmartComply Heimdall maps detected vulnerabilities to the OWASP Top 10, providing a common language for security, development,
               and compliance teams.
             </p>
 
@@ -949,7 +949,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
               <span className="text-[11px] text-[#6b7280]">Secret detection, config files, and hardening</span>
             </div>
             <p className="text-xs text-[#6b7280] mb-3">
-              APISentry analyzes code and configuration to identify embedded secrets, misconfigurations, and high-risk defaults that may
+              SmartComply Heimdall analyzes code and configuration to identify embedded secrets, misconfigurations, and high-risk defaults that may
               expose the environment.
             </p>
 
@@ -1006,7 +1006,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
               <span className="text-[11px] text-[#6b7280]">Third-party components and SBOM-style summary</span>
             </div>
             <p className="text-xs text-[#6b7280] mb-3">
-              Dependencies can introduce vulnerabilities even when first-party code is well-designed. APISentry highlights known issues
+              Dependencies can introduce vulnerabilities even when first-party code is well-designed. SmartComply Heimdall highlights known issues
               in libraries and frameworks referenced by this repository.
             </p>
 
@@ -1073,11 +1073,11 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
               <span className="text-[11px] text-[#6b7280]">How findings relate to SOC 2, ISO 27001, PCI DSS, OWASP ASVS</span>
             </div>
             <p className="text-xs text-[#6b7280] mb-3">
-              While APISentry does not replace a full audit, it provides mappings to common frameworks to support audit readiness and
+              While SmartComply Heimdall does not replace a full audit, it provides mappings to common frameworks to support audit readiness and
               gap analysis.
             </p>
             <p className="text-xs text-[#6b7280] mb-3">
-              APISentry maps findings to 8 core global compliance frameworks: SOC 2, ISO 27001, PCI DSS, GDPR, NIST CSF, CIS Controls, OWASP ASVS, and OWASP Top 10
+              SmartComply Heimdall maps findings to 8 core global compliance frameworks: SOC 2, ISO 27001, PCI DSS, GDPR, NIST CSF, CIS Controls, OWASP ASVS, and OWASP Top 10
             </p>
 
             <div className="grid grid-cols-3 gap-3 mt-2 text-[11px]">
@@ -1166,7 +1166,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
               <span className="text-[11px] text-[#6b7280]">Illustrative examples (not full list)</span>
             </div>
             <p className="text-xs text-[#6b7280] mb-3">
-              Full finding exports are available in APISentry. This appendix provides a small subset of issues to illustrate the level
+              Full finding exports are available in SmartComply Heimdall. This appendix provides a small subset of issues to illustrate the level
               of detail captured and to support audit or engineering review.
             </p>
 
@@ -1284,7 +1284,7 @@ const SecurityReportView = ({ reportData, onClose, loading = false }: SecurityRe
 
         {/* Footer */}
         <footer className="px-8 py-2.5 pb-4 border-t border-[#e5e7eb] text-[10px] text-[#6b7280] flex justify-between">
-          <span>APISentry · {reportData?.repository} Source Code Security Report</span>
+          <span>SmartComply Heimdall · {reportData?.repository} Source Code Security Report</span>
           {/* <span>Page 1 of {reportData?.total_pages}</span> */}
         </footer>
       </div>

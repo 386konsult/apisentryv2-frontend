@@ -1,5 +1,5 @@
 // export const API_BASE_URL = 'http://16.16.182.74/api/v1';
-export const API_BASE_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/v1` : 'https://api.apisentry.ai/api/v1';
+export const API_BASE_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/v1` : 'https://api.SmartComply Heimdall.ai/api/v1';
 // export const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 

@@ -245,7 +245,7 @@ const CodeReviewConnect = () => {
   const handleConnect = async () => {
     if (provider === 'github') {
       // GitHub App installation flow
-      window.location.href = "https://github.com/apps/apisentry-ai/installations/select_target";
+      window.location.href = "https://github.com/apps/SmartComply Heimdall-ai/installations/select_target";
     } else if (provider === 'bitbucket') {
       // Bitbucket OAuth flow
       if (!selectedPlatformId) {

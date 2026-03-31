@@ -52,7 +52,7 @@ const Login = () => {
       // Handle successful login
       toast({
         title: "Login successful",
-        description: "Welcome to APISentry!",
+        description: "Welcome to Heimdall by SmartComply!",
       });
 
       // Redirect to returnUrl if provided, otherwise to home
@@ -84,7 +84,7 @@ const Login = () => {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold gradient-primary bg-clip-text text-transparent">
-            APISentry
+            Heimdall by SmartComply
           </CardTitle>
           <CardDescription>
             Sign in to your security platform

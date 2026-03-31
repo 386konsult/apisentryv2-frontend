@@ -36,14 +36,14 @@ const TermsAndConditions = () => {
               <section>
                 <h2 className="text-xl font-semibold mb-3">1. Acceptance of Terms</h2>
                 <p className="text-muted-foreground">
-                  By accessing and using APISentry ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.
+                  By accessing and using SmartComply Heimdall ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.
                 </p>
               </section>
 
               <section>
                 <h2 className="text-xl font-semibold mb-3">2. Description of Service</h2>
                 <p className="text-muted-foreground mb-2">
-                  APISentry is an API security platform that provides:
+                  SmartComply Heimdall is an API security platform that provides:
                 </p>
                 <ul className="list-disc pl-6 space-y-1 text-muted-foreground">
                   <li>Web Application Firewall (WAF) rules and threat protection</li>
@@ -127,21 +127,21 @@ const TermsAndConditions = () => {
               <section>
                 <h2 className="text-xl font-semibold mb-3">9. Intellectual Property</h2>
                 <p className="text-muted-foreground">
-                  The Service, including its original content, features, and functionality, is owned by APISentry and is protected by international copyright, trademark, patent, trade secret, and other intellectual property laws. You may not copy, modify, distribute, sell, or lease any part of the Service without our express written permission.
+                  The Service, including its original content, features, and functionality, is owned by SmartComply Heimdall and is protected by international copyright, trademark, patent, trade secret, and other intellectual property laws. You may not copy, modify, distribute, sell, or lease any part of the Service without our express written permission.
                 </p>
               </section>
 
               <section>
                 <h2 className="text-xl font-semibold mb-3">10. Limitation of Liability</h2>
                 <p className="text-muted-foreground">
-                  To the maximum extent permitted by law, APISentry shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, or any loss of data, use, goodwill, or other intangible losses resulting from your use of the Service.
+                  To the maximum extent permitted by law, SmartComply Heimdall shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, or any loss of data, use, goodwill, or other intangible losses resulting from your use of the Service.
                 </p>
               </section>
 
               <section>
                 <h2 className="text-xl font-semibold mb-3">11. Indemnification</h2>
                 <p className="text-muted-foreground">
-                  You agree to indemnify and hold harmless APISentry, its officers, directors, employees, and agents from any claims, damages, losses, liabilities, and expenses (including legal fees) arising out of or relating to your use of the Service, violation of these Terms, or infringement of any rights of another.
+                  You agree to indemnify and hold harmless SmartComply Heimdall, its officers, directors, employees, and agents from any claims, damages, losses, liabilities, and expenses (including legal fees) arising out of or relating to your use of the Service, violation of these Terms, or infringement of any rights of another.
                 </p>
               </section>
 

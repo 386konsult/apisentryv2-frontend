@@ -36,7 +36,7 @@ const PrivacyPolicy = () => {
               <section>
                 <h2 className="text-xl font-semibold mb-3">1. Introduction</h2>
                 <p className="text-muted-foreground">
-                  APISentry ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our API security platform and services (the "Service"). Please read this Privacy Policy carefully. By using the Service, you consent to the data practices described in this policy.
+                  SmartComply Heimdall ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our API security platform and services (the "Service"). Please read this Privacy Policy carefully. By using the Service, you consent to the data practices described in this policy.
                 </p>
               </section>
 

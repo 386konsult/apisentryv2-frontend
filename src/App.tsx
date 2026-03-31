@@ -118,7 +118,7 @@ const AppContent = () => {
                   <header className="h-16 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-6 flex-shrink-0">
                     <div className="flex items-center space-x-4 min-w-0">
                       <h1 className="text-2xl font-bold gradient-primary bg-clip-text text-transparent">
-                        {/* APISentry */}
+                        {/* SmartComply Heimdall */}
                       </h1>
                     </div>
                     <div className="flex items-center space-x-4 flex-shrink-0">

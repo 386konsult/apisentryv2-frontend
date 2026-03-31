@@ -172,7 +172,7 @@ const Register = () => {
             Create Account
           </CardTitle>
           <CardDescription>
-            Sign up to get started with APISentry
+            Sign up to get started with Heimdall by SmartComply
           </CardDescription>
         </CardHeader>
         <CardContent>

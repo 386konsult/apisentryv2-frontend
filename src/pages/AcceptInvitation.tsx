@@ -186,7 +186,7 @@ const AcceptInvitation = () => {
               className="w-full mt-4" 
               onClick={() => navigate('/platforms')}
             >
-              Go to Platforms
+              Go to Workspaces
             </Button>
           </CardContent>
         </Card>
@@ -207,9 +207,9 @@ const AcceptInvitation = () => {
               <Shield className="h-6 w-6 text-white" />
             </div>
           </div>
-          <CardTitle className="text-center">Platform Invitation</CardTitle>
+          <CardTitle className="text-center">Workspace Invitation</CardTitle>
           <CardDescription className="text-center">
-            You've been invited to join a security platform
+            You've been invited to join a security workspace
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -239,7 +239,7 @@ const AcceptInvitation = () => {
             <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
               <Shield className="h-5 w-5 text-primary" />
               <div className="flex-1">
-                <p className="text-sm text-muted-foreground">Platform</p>
+              <p className="text-sm text-muted-foreground">Workspace</p>
                 <p className="font-semibold">{invitation.platform_name}</p>
               </div>
             </div>

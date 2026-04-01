@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +77,52 @@ import { useToast } from "@/hooks/use-toast";
 import countriesData from "@/data/countries.json";
 import { cn } from "@/lib/utils";
 
+type AnimatedNumberProps = {
+  value: number;
+  decimals?: number;
+  suffix?: string;
+  className?: string;
+};
+
+const AnimatedNumber = ({
+  value,
+  decimals = 0,
+  suffix = '',
+  className = '',
+}: AnimatedNumberProps) => {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const target = Number.isFinite(value) ? value : 0;
+    const duration = 800;
+    const start = performance.now();
+    let frame = 0;
+
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(target * eased);
+
+      if (progress < 1) {
+        frame = requestAnimationFrame(tick);
+      }
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+
+  return (
+    <span className={className}>
+      {displayValue.toLocaleString(undefined, {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      })}
+      {suffix}
+    </span>
+  );
+};
+
 interface RequestLog {
   id: string;
   endpoint_name: string;
@@ -148,8 +195,8 @@ const SecurityHub = () => {
       const response = await apiService.getPlatformRequestLogs(platformId, { num: '100' });
       if (Array.isArray(response)) {
         setAllLogs(response); // Set logs directly if response is an array
-      } else if (response && Array.isArray(response.logs)) {
-        setAllLogs(response.logs); // Extract logs if nested in `logs`
+      } else if (response && Array.isArray((response as any).logs)) {
+        setAllLogs((response as any).logs); // Extract logs if nested in `logs`
       } else {
         console.error('Unexpected response format for security hub logs:', response);
         setAllLogs([]); // Fallback to an empty array
@@ -368,6 +415,13 @@ const SecurityHub = () => {
       .filter(([_, count]) => count > 10)
       .length;
 
+    // Unique countries
+    const uniqueCountries = new Set(
+      filteredLogs
+        .map((log) => (log as any).country || (log as any).country_code)
+        .filter((country) => country && country !== "unknown")
+    ).size;
+
     return {
       totalLogs,
       blockedLogs,
@@ -376,6 +430,7 @@ const SecurityHub = () => {
       avgResponseTime,
       botRequests,
       suspiciousIPs,
+      uniqueCountries,
     };
   }, [filteredLogs]);
 
@@ -528,496 +583,530 @@ const SecurityHub = () => {
   }, [searchParams]);
 
   return (
-    <div className="space-y-6 w-full min-w-0 max-w-full">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words">
-            Security Hub
-            {platformName && (
-              <span className="text-base sm:text-lg font-normal text-muted-foreground ml-2 break-words">
-                • {platformName}
-              </span>
-            )}
-          </h1>
-          <p className="text-muted-foreground break-words">
-            Comprehensive request log analysis and security investigation
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportLogs}>
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
+    <div className="space-y-8 w-full min-w-0 max-w-full">
+      {/* Header with gradient background */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 py-8 sm:py-10 shadow-lg">
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white break-words">
+              Security Hub
+              {platformName && (
+                <span className="text-lg sm:text-xl font-semibold text-blue-100 ml-2 break-words block sm:inline">
+                  • {platformName}
+                </span>
+              )}
+            </h1>
+            <p className="text-blue-100 mt-2 break-words">
+              Comprehensive request log analysis and security investigation
+            </p>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="flex gap-3"
+          >
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={exportLogs}
+              className="bg-white/20 border-white/40 text-white hover:bg-white/30 hover:text-white"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+          </motion.div>
         </div>
       </div>
 
-      {/* Analytics Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 w-full min-w-0">
-        <Card className="w-full min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 min-w-0">
-            <CardTitle className="text-sm font-medium truncate flex-1 min-w-0">Total Requests</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.totalLogs}</div>
-            <p className="text-xs text-muted-foreground">Filtered results</p>
-          </CardContent>
-        </Card>
-
-        <Card className="w-full min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium truncate">Blocked</CardTitle>
-            <Shield className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.blockedLogs}</div>
-            <p className="text-xs text-muted-foreground">
-              {analytics.totalLogs > 0
-                ? ((analytics.blockedLogs / analytics.totalLogs) * 100).toFixed(1)
-                : 0}
-              % of requests
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="w-full min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium truncate">Unique IPs</CardTitle>
-            <MapPin className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.uniqueIPs}</div>
-            <p className="text-xs text-muted-foreground">Source addresses</p>
-          </CardContent>
-        </Card>
-
-        <Card className="w-full min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium truncate">Errors</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.errorLogs}</div>
-            <p className="text-xs text-muted-foreground">4xx/5xx responses</p>
-          </CardContent>
-        </Card>
-
-        <Card className="w-full min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium truncate">Avg Response</CardTitle>
-            <Clock className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {analytics.avgResponseTime.toFixed(0)}ms
+      {/* Key Stats - 3 Primary Tiles */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="grid gap-6 grid-cols-1 md:grid-cols-3 w-full min-w-0"
+      >
+        {/* Total Requests */}
+        <div className="group relative rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 p-6 transition-all duration-300 hover:shadow-lg overflow-hidden">
+          <div className="relative z-10 flex items-start justify-between mb-4">
+            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-500/10">
+              <Activity className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
-            <p className="text-xs text-muted-foreground">Response time</p>
-          </CardContent>
-        </Card>
+            <div className="h-1 w-8 rounded-full bg-gradient-to-r from-blue-600 to-transparent"></div>
+          </div>
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Total Requests</p>
+          <p className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white"><AnimatedNumber value={analytics.totalLogs} /></p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Filtered results</p>
+        </div>
 
-        <Card className="w-full min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium truncate">Bot Requests</CardTitle>
-            <Bot className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.botRequests}</div>
-            <p className="text-xs text-muted-foreground">
-              {analytics.totalLogs > 0
-                ? ((analytics.botRequests / analytics.totalLogs) * 100).toFixed(1)
-                : 0}
-              % detected
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="w-full min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium truncate">Suspicious IPs</CardTitle>
-            <TrendingUp className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.suspiciousIPs}</div>
-            <p className="text-xs text-muted-foreground">&gt;10 requests/IP</p>
-          </CardContent>
-        </Card>
-
-        <Card className="w-full min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium truncate">Unique Countries</CardTitle>
-            <Globe className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Source countries</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <Card className="w-full min-w-0">
-        <CardHeader className="w-full min-w-0">
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>Filter latest 100 request logs for detailed analysis</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 w-full min-w-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="relative w-full min-w-0">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search logs..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  updateQueryParam("search", e.target.value);
+        {/* Blocked Requests with gradient bar */}
+        <div className="group relative rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 p-6 transition-all duration-300 hover:shadow-lg overflow-hidden">
+          <div className="relative z-10 flex items-start justify-between mb-4">
+            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10">
+              <Ban className="h-6 w-6 text-red-600 dark:text-red-400" />
+            </div>
+            <div className="h-1 w-8 rounded-full bg-gradient-to-r from-red-600 to-transparent"></div>
+          </div>
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Blocked Requests</p>
+          <p className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white"><AnimatedNumber value={analytics.blockedLogs} /></p>
+          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-500 dark:text-slate-400">Block Rate</span>
+              <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                {analytics.totalLogs > 0 ? ((analytics.blockedLogs / analytics.totalLogs) * 100).toFixed(1) : 0}%
+              </span>
+            </div>
+            <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-red-500 to-orange-500 rounded-full transition-all duration-500"
+                style={{
+                  width: `${analytics.totalLogs > 0 ? (analytics.blockedLogs / analytics.totalLogs) * 100 : 0}%`,
                 }}
-                className="pl-8 w-full min-w-0"
               />
             </div>
           </div>
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full min-w-0">
-            <Select
-              value={methodFilter}
-              onValueChange={(value) => handleFilterChange("method", value)}
+        {/* Unique IPs */}
+        <div className="group relative rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 p-6 transition-all duration-300 hover:shadow-lg overflow-hidden">
+          <div className="relative z-10 flex items-start justify-between mb-4">
+            <div className="p-3 rounded-xl bg-green-50 dark:bg-green-500/10">
+              <MapPin className="h-6 w-6 text-green-600 dark:text-green-400" />
+            </div>
+            <div className="h-1 w-8 rounded-full bg-gradient-to-r from-green-600 to-transparent"></div>
+          </div>
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Unique IPs</p>
+          <p className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white"><AnimatedNumber value={analytics.uniqueIPs} /></p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Source addresses</p>
+        </div>
+      </motion.div>
+
+      {/* Secondary Stats Grid */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 w-full min-w-0"
+      >
+        {/* Errors */}
+        <div className="group relative rounded-xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 p-4 transition-all duration-300 hover:shadow-lg overflow-hidden">
+          <div className="relative z-10 flex items-center justify-between mb-2">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+          </div>
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Errors</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-white"><AnimatedNumber value={analytics.errorLogs} /></p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">4xx/5xx</p>
+        </div>
+
+        {/* Avg Response Time */}
+        <div className="group relative rounded-xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 p-4 transition-all duration-300 hover:shadow-lg overflow-hidden">
+          <div className="relative z-10 flex items-center justify-between mb-2">
+            <Clock className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+          </div>
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Avg Response</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-white"><AnimatedNumber value={Math.round(analytics.avgResponseTime)} />ms</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Response time</p>
+        </div>
+
+        {/* Bot Requests */}
+        <div className="group relative rounded-xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 p-4 transition-all duration-300 hover:shadow-lg overflow-hidden">
+          <div className="relative z-10 flex items-center justify-between mb-2">
+            <Bot className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+          </div>
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Bot Requests</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-white"><AnimatedNumber value={analytics.botRequests} /></p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {analytics.totalLogs > 0 ? ((analytics.botRequests / analytics.totalLogs) * 100).toFixed(1) : 0}%
+          </p>
+        </div>
+
+        {/* Suspicious IPs */}
+        <div className="group relative rounded-xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 p-4 transition-all duration-300 hover:shadow-lg overflow-hidden">
+          <div className="relative z-10 flex items-center justify-between mb-2">
+            <TrendingUp className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+          </div>
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Suspicious IPs</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-white"><AnimatedNumber value={analytics.suspiciousIPs} /></p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">&gt;10 req/IP</p>
+        </div>
+
+        {/* Unique Countries */}
+        <div className="group relative rounded-xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 p-4 transition-all duration-300 hover:shadow-lg overflow-hidden">
+          <div className="relative z-10 flex items-center justify-between mb-2">
+            <Globe className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Unique Countries</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-white"><AnimatedNumber value={analytics.uniqueCountries} /></p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Source countries</p>
+        </div>
+      </motion.div>
+
+      {/* Filters */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-md p-6 space-y-4"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Filters</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Refine your request log analysis</p>
+          </div>
+          {Array.from(searchParams.keys()).length > 0 && (
+            <button
+              onClick={clearAllFilters}
+              className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors px-3 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10"
             >
-              <SelectTrigger>
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Method" />
+              Clear All
+            </button>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          {/* Search Bar */}
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400 dark:text-slate-500" />
+            <Input
+              placeholder="Search logs by IP, path, endpoint, user agent..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                updateQueryParam("search", e.target.value);
+              }}
+              className="pl-10 rounded-lg border-slate-200/50 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+            />
+          </div>
+
+          {/* Filter Controls */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <Select value={methodFilter} onValueChange={(value) => handleFilterChange("method", value)}>
+              <SelectTrigger className="rounded-lg border-slate-200/50 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
+                <SelectValue placeholder="HTTP Method" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Methods</SelectItem>
                 <SelectItem value="GET">GET</SelectItem>
                 <SelectItem value="POST">POST</SelectItem>
                 <SelectItem value="PUT">PUT</SelectItem>
+                <SelectItem value="PATCH">PATCH</SelectItem>
                 <SelectItem value="DELETE">DELETE</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select
-              value={statusCodeFilter}
-              onValueChange={(value) => handleFilterChange("status_code", value)}
-            >
-              <SelectTrigger>
-                <AlertTriangle className="h-4 w-4 mr-2" />
+            <Select value={statusCodeFilter} onValueChange={(value) => handleFilterChange("status_code", value)}>
+              <SelectTrigger className="rounded-lg border-slate-200/50 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
                 <SelectValue placeholder="Status Code" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status Codes</SelectItem>
-                <SelectItem value="200">200</SelectItem>
-                <SelectItem value="404">404</SelectItem>
-                <SelectItem value="500">500</SelectItem>
+                <SelectItem value="200">200 OK</SelectItem>
+                <SelectItem value="201">201 Created</SelectItem>
+                <SelectItem value="400">400 Bad Request</SelectItem>
+                <SelectItem value="401">401 Unauthorized</SelectItem>
+                <SelectItem value="403">403 Forbidden</SelectItem>
+                <SelectItem value="404">404 Not Found</SelectItem>
+                <SelectItem value="500">500 Server Error</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select
-              value={threatLevelFilter}
-              onValueChange={(value) => handleFilterChange("threat_level", value)}
-            >
-              <SelectTrigger>
-                <Shield className="h-4 w-4 mr-2" />
+            <Select value={threatLevelFilter} onValueChange={(value) => handleFilterChange("threat_level", value)}>
+              <SelectTrigger className="rounded-lg border-slate-200/50 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
                 <SelectValue placeholder="Threat Level" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Threat Levels</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="high">🔴 High</SelectItem>
+                <SelectItem value="medium">🟡 Medium</SelectItem>
+                <SelectItem value="low">🟢 Low</SelectItem>
+                <SelectItem value="none">None</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select
-              value={wafBlockedFilter}
-              onValueChange={(value) => handleFilterChange("blocked", value)}
-            >
-              <SelectTrigger>
-                <Shield className="h-4 w-4 mr-2" />
+            <Select value={wafBlockedFilter} onValueChange={(value) => handleFilterChange("blocked", value)}>
+              <SelectTrigger className="rounded-lg border-slate-200/50 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
                 <SelectValue placeholder="WAF Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Requests</SelectItem>
-                <SelectItem value="true">Blocked Only</SelectItem>
-                <SelectItem value="false">Allowed Only</SelectItem>
+                <SelectItem value="blocked">🚫 Blocked</SelectItem>
+                <SelectItem value="allowed">✅ Allowed</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap w-full min-w-0">
-            <span className="text-sm text-muted-foreground w-full sm:w-auto flex-shrink-0">
-              Active filters:
-            </span>
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto min-w-0">
+          {/* Active Filters Display */}
+          {Array.from(searchParams.keys()).length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700"
+            >
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Active:</span>
               {searchParams.get("search") && (
-                <Badge
-                  variant="secondary"
-                  className="text-xs"
-                  onClick={() => clearFilter("search")}
-                >
-                  Search: {searchParams.get("search")}
-                </Badge>
+                <div>
+                  <Badge
+                    onClick={() => clearFilter("search")}
+                    className="cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/20 dark:text-blue-300 dark:hover:bg-blue-500/30 border border-blue-200 dark:border-blue-500/30"
+                  >
+                    ✕ Search: {searchParams.get("search")}
+                  </Badge>
+                </div>
               )}
               {searchParams.get("method") && (
-                <Badge
-                  variant="secondary"
-                  className="text-xs"
-                  onClick={() => clearFilter("method")}
-                >
-                  Method: {searchParams.get("method")}
-                </Badge>
+                <div>
+                  <Badge
+                    onClick={() => clearFilter("method")}
+                    className="cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/20 dark:text-blue-300 dark:hover:bg-blue-500/30 border border-blue-200 dark:border-blue-500/30"
+                  >
+                    ✕ Method: {searchParams.get("method")}
+                  </Badge>
+                </div>
               )}
               {searchParams.get("status_code") && (
-                <Badge
-                  variant="secondary"
-                  className="text-xs"
-                  onClick={() => clearFilter("status_code")}
-                >
-                  Status: {searchParams.get("status_code")}
-                </Badge>
+                <div>
+                  <Badge
+                    onClick={() => clearFilter("status_code")}
+                    className="cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/20 dark:text-blue-300 dark:hover:bg-blue-500/30 border border-blue-200 dark:border-blue-500/30"
+                  >
+                    ✕ Status: {searchParams.get("status_code")}
+                  </Badge>
+                </div>
               )}
               {searchParams.get("threat_level") && (
-                <Badge
-                  variant="secondary"
-                  className="text-xs"
-                  onClick={() => clearFilter("threat_level")}
-                >
-                  Threat: {searchParams.get("threat_level")}
-                </Badge>
+                <div>
+                  <Badge
+                    onClick={() => clearFilter("threat_level")}
+                    className="cursor-pointer bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-500/20 dark:text-red-300 dark:hover:bg-red-500/30 border border-red-200 dark:border-red-500/30"
+                  >
+                    ✕ Threat: {searchParams.get("threat_level")}
+                  </Badge>
+                </div>
               )}
               {searchParams.get("blocked") && (
-                <Badge
-                  variant="secondary"
-                  className="text-xs"
-                  onClick={() => clearFilter("blocked")}
-                >
-                  WAF: {searchParams.get("blocked")}
-                </Badge>
+                <div>
+                  <Badge
+                    onClick={() => clearFilter("blocked")}
+                    className="cursor-pointer bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-500/20 dark:text-orange-300 dark:hover:bg-orange-500/30 border border-orange-200 dark:border-orange-500/30"
+                  >
+                    ✕ WAF: {searchParams.get("blocked")}
+                  </Badge>
+                </div>
               )}
-              {Array.from(searchParams.keys()).length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs"
-                  onClick={clearAllFilters}
-                >
-                  Clear all
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </motion.div>
+          )}
+        </div>
+      </motion.div>
 
       {/* Request Logs - Responsive View */}
-      <Card className="w-full min-w-0 overflow-hidden">
-        <CardHeader className="w-full min-w-0">
-          <CardTitle className="truncate">Latest Request Logs ({filteredLogs.length})</CardTitle>
-          <CardDescription>
-            Latest 100 request logs for security analysis
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="w-full min-w-0 p-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-md overflow-hidden"
+      >
+        <div className="border-b border-slate-200/50 dark:border-slate-800/50 px-6 py-4 bg-gradient-to-r from-slate-50 dark:from-slate-800/30 to-transparent">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Latest Request Logs</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {filteredLogs.length > 0 ? `Showing ${filteredLogs.length} requests` : "No logs to display"}
+          </p>
+        </div>
+
+        <div className="p-6">
           {loading ? (
-            <div className="text-center py-8">
-              <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
-              <p>Loading request logs...</p>
-            </div>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-16 text-center"
+            >
+              <div className="relative w-16 h-16 mb-4">
+                <div className="absolute inset-0 rounded-full bg-blue-100 dark:bg-blue-500/20 animate-pulse" />
+                <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-blue-600 dark:border-t-blue-400 animate-spin" />
+              </div>
+              <p className="text-slate-600 dark:text-slate-400 font-medium">Loading request logs...</p>
+            </motion.div>
           ) : filteredLogs.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No logs match your filters</p>
-            </div>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="flex flex-col items-center justify-center py-16 text-center"
+            >
+              <div className="relative mb-6">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500/20 to-cyan-500/20 blur-xl" />
+                <div className="relative bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-500/10 dark:to-cyan-500/10 p-6 rounded-full shadow-lg">
+                  <Shield className="h-12 w-12 text-blue-600 dark:text-blue-400" />
+                </div>
+              </div>
+              <p className="text-lg font-semibold text-slate-900 dark:text-white mb-2">No logs match your filters</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs">
+                Try adjusting your filters or check back later for new security events.
+              </p>
+            </motion.div>
           ) : (
             <>
               {/* Desktop Table View */}
-              <div className="hidden lg:block w-full max-w-full min-w-0 overflow-hidden">
-                <div className="max-h-[60vh] overflow-auto border rounded-md w-full">
-                  <div className="overflow-x-auto">
-                    <table className="w-full caption-bottom text-sm border-collapse">
-                      <thead className="sticky top-0 bg-background z-10 [&_tr]:border-b">
-                        <tr>
-                          <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">Timestamp</th>
-                          <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Method</th>
-                          <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Path</th>
-                          <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</th>
-                          <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">IP Address</th>
-                          <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground hidden xl:table-cell">User Agent</th>
-                          <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground whitespace-nowrap">Response Time</th>
-                          <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">WAF</th>
-                          <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Threat</th>
-                          <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Actions</th>
+              <div className="hidden lg:block w-full overflow-hidden">
+                <div className="max-h-[70vh] overflow-y-auto border border-slate-200/50 dark:border-slate-700/50 rounded-xl">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/50 backdrop-blur-sm border-b border-slate-200/50 dark:border-slate-700/50 z-10">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white whitespace-nowrap">Timestamp</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white whitespace-nowrap">Method</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white">Path</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white whitespace-nowrap">Status</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white">IP</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white whitespace-nowrap">Response</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white whitespace-nowrap">WAF</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white whitespace-nowrap">Threat</th>
+                        <th className="px-4 py-3 text-center font-semibold text-slate-900 dark:text-white whitespace-nowrap">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/50 dark:divide-slate-700/50">
+                      {filteredLogs.map((log, index) => (
+                        <tr
+                          key={log.id}
+                          className="hover:bg-blue-50 dark:hover:bg-blue-500/5 transition-colors group"
+                        >
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{log.timestamp}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <Badge className={`${getMethodColor(log.method)} rounded-lg font-semibold`}>
+                              {log.method}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-mono text-xs text-slate-700 dark:text-slate-300 truncate" title={log.path}>
+                              {log.path}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <Badge className={`${getStatusCodeColor(log.status_code)} rounded-lg font-semibold`}>
+                              {log.status_code}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-mono text-xs text-slate-600 dark:text-slate-400">{log.client_ip}</span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">{log.response_time_ms.toFixed(0)}ms</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {log.waf_blocked ? (
+                              <Badge className="bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-300 rounded-lg font-semibold">🚫 Blocked</Badge>
+                            ) : (
+                              <Badge className="bg-green-50 text-green-700 dark:bg-green-500/20 dark:text-green-300 rounded-lg font-semibold">✓ Allowed</Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {log.threat_level && log.threat_level !== "none" ? (
+                              <Badge className={`${getThreatLevelColor(log.threat_level)} rounded-lg font-semibold`}>
+                                {log.threat_level.charAt(0).toUpperCase() + log.threat_level.slice(1)}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300 rounded-lg font-semibold">-</Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedLog(log);
+                                    setIsDetailsOpen(true);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <Eye className="h-4 w-4 mr-2" /> View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => setBlockIPDialog({ open: true, ip: log.client_ip })}
+                                  className="cursor-pointer text-red-600 dark:text-red-400"
+                                >
+                                  <Ban className="h-4 w-4 mr-2" /> Block IP
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    setBlockEndpointDialog({
+                                      open: true,
+                                      endpoint: `${log.method} ${log.path}`,
+                                      endpointId: log.endpoint,
+                                    })
+                                  }
+                                  className="cursor-pointer text-orange-600 dark:text-orange-400"
+                                >
+                                  <Shield className="h-4 w-4 mr-2" /> Protect Endpoint
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="[&_tr:last-child]:border-0">
-                        {filteredLogs.map((log) => (
-                          <tr key={log.id} className="border-b transition-colors hover:bg-muted/50">
-                            <td className="p-4 align-middle font-mono text-xs whitespace-nowrap">
-                              {log.timestamp}
-                            </td>
-                            <td className="p-4 align-middle whitespace-nowrap">
-                              <Badge className={getMethodColor(log.method)}>
-                                {log.method}
-                              </Badge>
-                            </td>
-                            <td className="p-4 align-middle max-w-[200px]">
-                              <div className="truncate" title={log.path}>
-                                {log.path}
-                              </div>
-                            </td>
-                            <td className="p-4 align-middle whitespace-nowrap">
-                              <Badge className={getStatusCodeColor(log.status_code)}>
-                                {log.status_code}
-                              </Badge>
-                            </td>
-                            <td className="p-4 align-middle max-w-[140px]">
-                              <div className="flex items-center gap-1 min-w-0">
-                                <MapPin className="h-3 w-3 flex-shrink-0" />
-                                <span className="font-mono text-xs truncate">{log.client_ip}</span>
-                              </div>
-                            </td>
-                            <td className="p-4 align-middle hidden xl:table-cell max-w-[200px]">
-                              <div className="truncate" title={log.user_agent}>
-                                <div className="flex items-center gap-2">
-                                  {isBot(log.user_agent || "") && (
-                                    <Bot className="h-3 w-3 text-orange-500 flex-shrink-0" />
-                                  )}
-                                  <span className="text-xs truncate">
-                                    {log.user_agent || "Unknown"}
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-4 align-middle whitespace-nowrap">{log.response_time_ms.toFixed(0)}ms</td>
-                            <td className="p-4 align-middle whitespace-nowrap">
-                              {log.waf_blocked ? (
-                                <Badge variant="destructive">Blocked</Badge>
-                              ) : (
-                                <Badge variant="outline">Allowed</Badge>
-                              )}
-                            </td>
-                            <td className="p-4 align-middle whitespace-nowrap">
-                              {log.threat_level && log.threat_level !== "none" ? (
-                                <Badge className={getThreatLevelColor(log.threat_level)}>
-                                  {log.threat_level}
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline">None</Badge>
-                              )}
-                            </td>
-                            <td className="p-4 align-middle whitespace-nowrap">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedLog(log);
-                                      setIsDetailsOpen(true);
-                                    }}
-                                  >
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    View Details
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      setBlockIPDialog({ open: true, ip: log.client_ip })
-                                    }
-                                  >
-                                    <Ban className="h-4 w-4 mr-2" />
-                                    Block IP
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      setBlockEndpointDialog({
-                                        open: true,
-                                        endpoint: `${log.method} ${log.path}`,
-                                        endpointId: log.endpoint,
-                                      })
-                                    }
-                                  >
-                                    <Shield className="h-4 w-4 mr-2" />
-                                    Block Endpoint
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
               {/* Mobile/Tablet Card View */}
-              <div className="lg:hidden space-y-4 w-full min-w-0 max-h-[60vh] overflow-y-auto p-4">
-                {filteredLogs.map((log) => (
+              <div className="lg:hidden space-y-3 max-h-[70vh] overflow-y-auto">
+                {filteredLogs.map((log, index) => (
                   <div
                     key={log.id}
-                    className="border border-border/50 rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                    className="group border border-slate-200/50 dark:border-slate-700/50 rounded-xl p-4 hover:border-blue-400/50 dark:hover:border-blue-500/30 hover:shadow-lg transition-all"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Badge className={getMethodColor(log.method)}>
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <Badge className={`${getMethodColor(log.method)} rounded-lg font-semibold flex-shrink-0`}>
                           {log.method}
                         </Badge>
                         <div className="min-w-0">
-                          <p className="font-mono text-sm truncate">{log.path}</p>
-                          <p className="text-xs text-muted-foreground">{log.timestamp}</p>
+                          <p className="font-mono text-sm truncate text-slate-700 dark:text-slate-300">{log.path}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{log.timestamp}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <Badge className={getStatusCodeColor(log.status_code)}>
-                          {log.status_code}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-slate-200/50 dark:border-slate-700/50">
+                      <Badge className={`${getStatusCodeColor(log.status_code)} rounded-lg font-semibold`}>
+                        {log.status_code}
+                      </Badge>
+                      {log.waf_blocked ? (
+                        <Badge className="bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-300 rounded-lg text-xs font-semibold">🚫 Blocked</Badge>
+                      ) : (
+                        <Badge className="bg-green-50 text-green-700 dark:bg-green-500/20 dark:text-green-300 rounded-lg text-xs font-semibold">✓ Allowed</Badge>
+                      )}
+                      {log.threat_level && log.threat_level !== "none" && (
+                        <Badge className={`${getThreatLevelColor(log.threat_level)} rounded-lg text-xs font-semibold`}>
+                          {log.threat_level.charAt(0).toUpperCase() + log.threat_level.slice(1)}
                         </Badge>
-                        {log.waf_blocked ? (
-                          <Badge variant="destructive">Blocked</Badge>
-                        ) : (
-                          <Badge variant="outline">Allowed</Badge>
-                        )}
-                        {log.threat_level && log.threat_level !== "none" && (
-                          <Badge className={getThreatLevelColor(log.threat_level)}>
-                            {log.threat_level}
-                          </Badge>
-                        )}
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-slate-500 dark:text-slate-400 font-medium">IP Address</Label>
+                        <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{log.client_ip}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-slate-500 dark:text-slate-400 font-medium">Response</Label>
+                        <p className="text-sm text-slate-700 dark:text-slate-300">{log.response_time_ms.toFixed(0)}ms</p>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">IP Address</Label>
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-3 w-3 flex-shrink-0" />
-                          <span className="text-sm font-mono truncate">{log.client_ip}</span>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Response Time</Label>
-                        <span className="text-sm">{log.response_time_ms.toFixed(0)}ms</span>
-                      </div>
-                      <div className="space-y-1 sm:col-span-2">
-                        <Label className="text-xs text-muted-foreground">User Agent</Label>
-                        <div className="flex items-center gap-2">
-                          {isBot(log.user_agent || "") && (
-                            <Bot className="h-3 w-3 text-orange-500 flex-shrink-0" />
-                          )}
-                          <span className="text-xs truncate">
-                            {log.user_agent || "Unknown"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                      <div className="text-xs text-muted-foreground truncate flex-1 min-w-0">
-                        <span className="truncate block">
-                          {log.endpoint_name || `${log.method} ${log.path}`}
-                        </span>
-                      </div>
+                    <div className="flex items-center justify-between pt-2">
+                      {isBot(log.user_agent || "") && (
+                        <Badge className="bg-orange-50 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 rounded-lg text-xs font-semibold">
+                          <Bot className="h-3 w-3 mr-1" /> Bot
+                        </Badge>
+                      )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm">
@@ -1032,17 +1121,15 @@ const SecurityHub = () => {
                               setSelectedLog(log);
                               setIsDetailsOpen(true);
                             }}
+                            className="cursor-pointer"
                           >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Details
+                            <Eye className="h-4 w-4 mr-2" /> View Details
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() =>
-                              setBlockIPDialog({ open: true, ip: log.client_ip })
-                            }
+                            onClick={() => setBlockIPDialog({ open: true, ip: log.client_ip })}
+                            className="cursor-pointer text-red-600 dark:text-red-400"
                           >
-                            <Ban className="h-4 w-4 mr-2" />
-                            Block IP
+                            <Ban className="h-4 w-4 mr-2" /> Block IP
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() =>
@@ -1052,9 +1139,9 @@ const SecurityHub = () => {
                                 endpointId: log.endpoint,
                               })
                             }
+                            className="cursor-pointer text-orange-600 dark:text-orange-400"
                           >
-                            <Shield className="h-4 w-4 mr-2" />
-                            Block Endpoint
+                            <Shield className="h-4 w-4 mr-2" /> Protect Endpoint
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -1064,111 +1151,118 @@ const SecurityHub = () => {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </motion.div>
 
       {/* Log Details Dialog */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] w-[95vw] sm:w-full flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>
-              Request Details - {selectedLog?.method} {selectedLog?.path}
-            </DialogTitle>
-            <DialogDescription>
-              Complete request and response information
-            </DialogDescription>
+        <DialogContent className="max-w-4xl max-h-[90vh] w-[95vw] sm:w-full flex flex-col rounded-2xl">
+          <DialogHeader className="flex-shrink-0 border-b border-slate-200 dark:border-slate-700 pb-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <DialogTitle className="text-2xl text-slate-900 dark:text-white">
+                  {selectedLog?.method} {selectedLog?.path}
+                </DialogTitle>
+                <DialogDescription className="text-slate-600 dark:text-slate-400 mt-1">
+                  Complete request and response details
+                </DialogDescription>
+              </div>
+              {selectedLog?.waf_blocked && (
+                <Badge className="bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-300 rounded-lg font-semibold flex-shrink-0">
+                  🚫 Blocked by WAF
+                </Badge>
+              )}
+            </div>
           </DialogHeader>
           {selectedLog && (
-            <div className="overflow-y-auto max-h-[calc(90vh-140px)] pr-2 flex-1 min-h-0">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label>Timestamp</Label>
-                  <p className="text-sm">{selectedLog.timestamp}</p>
+            <div className="overflow-y-auto max-h-[calc(90vh-140px)] pr-2 flex-1 min-h-0 space-y-6">
+              {/* Key Info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4 border border-slate-200/50 dark:border-slate-700/50">
+                  <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Timestamp</Label>
+                  <p className="text-sm font-mono text-slate-900 dark:text-white">{selectedLog.timestamp}</p>
                 </div>
-                <div>
-                  <Label>Status Code</Label>
-                  <Badge className={getStatusCodeColor(selectedLog.status_code)}>
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4 border border-slate-200/50 dark:border-slate-700/50">
+                  <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Status Code</Label>
+                  <Badge className={`${getStatusCodeColor(selectedLog.status_code)} rounded-lg font-semibold w-fit`}>
                     {selectedLog.status_code}
                   </Badge>
                 </div>
-                <div>
-                  <Label>Method</Label>
-                  <Badge className={getMethodColor(selectedLog.method)}>
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4 border border-slate-200/50 dark:border-slate-700/50">
+                  <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Response Time</Label>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{selectedLog.response_time_ms.toFixed(2)}ms</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4 border border-slate-200/50 dark:border-slate-700/50">
+                  <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Method</Label>
+                  <Badge className={`${getMethodColor(selectedLog.method)} rounded-lg font-semibold w-fit`}>
                     {selectedLog.method}
                   </Badge>
                 </div>
-                <div>
-                  <Label>Response Time</Label>
-                  <p className="text-sm">{selectedLog.response_time_ms.toFixed(2)}ms</p>
-                </div>
-                <div>
-                  <Label>WAF Blocked</Label>
-                  <Badge
-                    variant={selectedLog.waf_blocked ? "destructive" : "default"}
-                  >
-                    {selectedLog.waf_blocked ? "Yes" : "No"}
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4 border border-slate-200/50 dark:border-slate-700/50">
+                  <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Threat Level</Label>
+                  <Badge className={`${getThreatLevelColor(selectedLog.threat_level)} rounded-lg font-semibold w-fit`}>
+                    {selectedLog.threat_level ? selectedLog.threat_level.charAt(0).toUpperCase() + selectedLog.threat_level.slice(1) : "None"}
                   </Badge>
                 </div>
-                <div>
-                  <Label>Threat Level</Label>
-                  <Badge className={getThreatLevelColor(selectedLog.threat_level)}>
-                    {selectedLog.threat_level || "none"}
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4 border border-slate-200/50 dark:border-slate-700/50">
+                  <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">WAF Status</Label>
+                  <Badge className={selectedLog.waf_blocked ? "bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-300 rounded-lg font-semibold" : "bg-green-50 text-green-700 dark:bg-green-500/20 dark:text-green-300 rounded-lg font-semibold"}>
+                    {selectedLog.waf_blocked ? "🚫 Blocked" : "✓ Allowed"}
                   </Badge>
                 </div>
               </div>
 
-              <div>
-                <Label>Client IP</Label>
-                <p className="text-sm font-mono">{selectedLog.client_ip}</p>
-              </div>
-
-              <div>
-                <Label>User Agent</Label>
-                <p className="text-sm bg-muted p-2 rounded break-all">
-                  {selectedLog.user_agent}
-                </p>
-                {isBot(selectedLog.user_agent || "") && (
-                  <Badge variant="outline" className="mt-2">
-                    <Bot className="h-3 w-3 mr-1" />
-                    Bot Detected
-                  </Badge>
-                )}
-              </div>
-
-              <div>
-                <Label>Path</Label>
-                <p className="text-sm font-mono">{selectedLog.path}</p>
-              </div>
-
-              {selectedLog.query_params &&
-                Object.keys(selectedLog.query_params).length > 0 && (
+              {/* Client Info */}
+              <div className="space-y-3">
+                <h4 className="font-semibold text-slate-900 dark:text-white">Client Information</h4>
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4 border border-slate-200/50 dark:border-slate-700/50 space-y-3">
                   <div>
-                    <Label>Query Parameters</Label>
-                    <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto">
-                      <pre className="whitespace-pre-wrap break-words">
-                        {JSON.stringify(selectedLog.query_params, null, 2)}
-                      </pre>
+                    <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">IP Address</Label>
+                    <p className="text-sm font-mono text-slate-900 dark:text-white mt-1">{selectedLog.client_ip}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">User Agent</Label>
+                    <div className="mt-1 flex items-start gap-2">
+                      {isBot(selectedLog.user_agent || "") && (
+                        <Badge className="bg-orange-50 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 rounded-lg text-xs font-semibold flex-shrink-0 mt-1">
+                          <Bot className="h-3 w-3 mr-1" /> Bot
+                        </Badge>
+                      )}
+                      <p className="text-sm text-slate-700 dark:text-slate-300 break-all">{selectedLog.user_agent || "Unknown"}</p>
                     </div>
                   </div>
-                )}
+                </div>
+              </div>
 
-              {selectedLog.headers &&
-                Object.keys(selectedLog.headers).length > 0 && (
-                  <div>
-                    <Label>Request Headers</Label>
-                    <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto">
-                      <pre className="whitespace-pre-wrap break-words">
-                        {JSON.stringify(selectedLog.headers, null, 2)}
-                      </pre>
+              {/* Request Info */}
+              <div className="space-y-3">
+                <h4 className="font-semibold text-slate-900 dark:text-white">Request Details</h4>
+                <div className="rounded-xl bg-slate-900 dark:bg-slate-950 p-4 border border-slate-700/50 font-mono text-xs text-slate-100 overflow-x-auto">
+                  <p className="text-slate-400 mb-2">{selectedLog.method} {selectedLog.path}</p>
+                  {selectedLog.query_params && Object.keys(selectedLog.query_params).length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-700">
+                      <p className="text-slate-300 mb-2">Query Parameters:</p>
+                      <pre className="whitespace-pre-wrap break-words text-slate-100">{JSON.stringify(selectedLog.query_params, null, 2)}</pre>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+              </div>
 
+              {/* Headers */}
+              {selectedLog.headers && Object.keys(selectedLog.headers).length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-slate-900 dark:text-white">Request Headers</h4>
+                  <div className="rounded-xl bg-slate-900 dark:bg-slate-950 p-4 border border-slate-700/50 font-mono text-xs text-slate-100 overflow-x-auto">
+                    <pre className="whitespace-pre-wrap break-words">{JSON.stringify(selectedLog.headers, null, 2)}</pre>
+                  </div>
+                </div>
+              )}
+
+              {/* Request Body */}
               {selectedLog.request_body && (
-                <div>
-                  <Label>Request Body</Label>
-                  <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto">
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-slate-900 dark:text-white">Request Body</h4>
+                  <div className="rounded-xl bg-slate-900 dark:bg-slate-950 p-4 border border-slate-700/50 font-mono text-xs text-slate-100 overflow-x-auto">
                     <pre className="whitespace-pre-wrap break-words">
                       {typeof selectedLog.request_body === "object"
                         ? JSON.stringify(selectedLog.request_body, null, 2)
@@ -1178,22 +1272,21 @@ const SecurityHub = () => {
                 </div>
               )}
 
-              {selectedLog.response_headers &&
-                Object.keys(selectedLog.response_headers).length > 0 && (
-                  <div>
-                    <Label>Response Headers</Label>
-                    <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto">
-                      <pre className="whitespace-pre-wrap break-words">
-                        {JSON.stringify(selectedLog.response_headers, null, 2)}
-                      </pre>
-                    </div>
+              {/* Response Headers */}
+              {selectedLog.response_headers && Object.keys(selectedLog.response_headers).length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-slate-900 dark:text-white">Response Headers</h4>
+                  <div className="rounded-xl bg-slate-900 dark:bg-slate-950 p-4 border border-slate-700/50 font-mono text-xs text-slate-100 overflow-x-auto">
+                    <pre className="whitespace-pre-wrap break-words">{JSON.stringify(selectedLog.response_headers, null, 2)}</pre>
                   </div>
-                )}
+                </div>
+              )}
 
+              {/* Response Body */}
               {selectedLog.response_body && (
-                <div>
-                  <Label>Response Body</Label>
-                  <div className="bg-muted p-4 rounded font-mono text-sm mt-2 overflow-x-auto">
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-slate-900 dark:text-white">Response Body</h4>
+                  <div className="rounded-xl bg-slate-900 dark:bg-slate-950 p-4 border border-slate-700/50 font-mono text-xs text-slate-100 overflow-x-auto">
                     <pre className="whitespace-pre-wrap break-words">
                       {typeof selectedLog.response_body === "object"
                         ? JSON.stringify(selectedLog.response_body, null, 2)
@@ -1203,40 +1296,41 @@ const SecurityHub = () => {
                 </div>
               )}
 
+              {/* WAF Rule */}
               {selectedLog.waf_rule_triggered && (
-                <div>
-                  <Label>WAF Rule Triggered</Label>
-                  <p className="text-sm">{selectedLog.waf_rule_triggered}</p>
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-slate-900 dark:text-white">WAF Rule Triggered</h4>
+                  <div className="rounded-xl bg-red-50 dark:bg-red-500/10 p-4 border border-red-200 dark:border-red-500/20">
+                    <p className="text-sm font-semibold text-red-700 dark:text-red-300">{selectedLog.waf_rule_triggered}</p>
+                  </div>
                 </div>
               )}
-            </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
       {/* Block IP Dialog */}
-      <AlertDialog
-        open={blockIPDialog.open}
-        onOpenChange={(open) =>
-          setBlockIPDialog({ open, ip: blockIPDialog.ip })
-        }
-      >
-        <AlertDialogContent>
+      <AlertDialog open={blockIPDialog.open} onOpenChange={(open) => setBlockIPDialog({ open, ip: blockIPDialog.ip })}>
+        <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Block IP Address</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to block {blockIPDialog.ip}? This will add it
-              to the IP blacklist and prevent all requests from this IP.
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-red-50 dark:bg-red-500/10">
+                <Ban className="h-6 w-6 text-red-600 dark:text-red-400" />
+              </div>
+              <AlertDialogTitle className="text-xl">Block IP Address</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              <span className="font-mono font-semibold text-slate-900 dark:text-white">{blockIPDialog.ip}</span> will be permanently added to your IP blacklist. All requests from this address will be blocked.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-lg">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => handleBlockIP(blockIPDialog.ip)}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-red-600 hover:bg-red-700 text-white rounded-lg"
             >
-              Block IP
+              Block IP Address
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1253,21 +1347,25 @@ const SecurityHub = () => {
           })
         }
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Block Endpoint</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to block {blockEndpointDialog.endpoint} from
-              public access? This will enable protection on this endpoint.
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-500/10">
+                <Shield className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+              </div>
+              <AlertDialogTitle className="text-xl">Protect Endpoint</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+              <span className="font-mono font-semibold text-slate-900 dark:text-white">{blockEndpointDialog.endpoint}</span> will have enhanced protection enabled. This endpoint will require additional authentication.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
+            <AlertDialogCancel className="rounded-lg">Cancel</AlertDialogCancel>
+            <AlertDialogAction
               onClick={() => handleBlockEndpoint(blockEndpointDialog.endpoint)}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-orange-600 hover:bg-orange-700 text-white rounded-lg"
             >
-              Block Endpoint
+              Protect Endpoint
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

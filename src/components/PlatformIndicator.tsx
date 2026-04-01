@@ -18,7 +18,7 @@ const PlatformIndicator: React.FC = () => {
         className="text-orange-600 border-orange-200 hover:bg-orange-50"
       >
         <Globe className="w-4 h-4 mr-2" />
-        Select Platform
+        Select Workspace
       </Button>
     );
   }
@@ -27,7 +27,7 @@ const PlatformIndicator: React.FC = () => {
     <div className="flex items-center space-x-2">
       <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
         <Globe className="w-3 h-3 mr-1" />
-        Platform Selected
+        Workspace Selected
       </Badge>
       <Button
         variant="ghost"

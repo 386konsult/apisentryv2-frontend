@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Plus, Activity, Globe, Users, Settings, Eye } from 'lucide-react';
+import { Shield, Plus, Activity, Globe, Settings, Eye, Server, Zap, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import apiService from '@/services/api';
@@ -29,7 +29,6 @@ const Platforms = () => {
   const { setSelectedPlatformId } = usePlatform();
 
   useEffect(() => {
-    // Fetch platforms from backend API
     const fetchPlatforms = async () => {
       setLoading(true);
       try {
@@ -44,15 +43,14 @@ const Platforms = () => {
           throw new Error(err.message || 'Failed to fetch platforms');
         }
         const data = await res.json();
-        // If backend returns a list, use it directly; if paginated, use data.results
         const platformsList = Array.isArray(data) ? data : (data.results || []);
         setPlatforms(platformsList);
         localStorage.setItem('user_platforms', JSON.stringify(platformsList));
       } catch (error) {
         console.error('Error loading platforms:', error);
         toast({
-          title: 'Error loading platforms',
-          description: error.message || 'Failed to load your platforms',
+          title: 'Error loading workspaces',
+          description: error.message || 'Failed to load your workspaces',
           variant: 'destructive',
         });
       } finally {
@@ -71,127 +69,227 @@ const Platforms = () => {
     navigate('/onboarding');
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants = {
-      active: 'default',
-      inactive: 'secondary',
-      maintenance: 'destructive',
-    } as const;
-    
-    return (
-      <Badge variant={variants[status as keyof typeof variants] || 'default'}>
-        {status}
-      </Badge>
-    );
+  const getStatusConfig = (status: string) => {
+    const config = {
+      active: {
+        dot: 'bg-emerald-400',
+        ring: 'ring-emerald-400/20',
+        text: 'text-emerald-400',
+        bg: 'bg-emerald-400/10',
+        label: 'Active',
+      },
+      inactive: {
+        dot: 'bg-slate-400',
+        ring: 'ring-slate-400/20',
+        text: 'text-slate-400',
+        bg: 'bg-slate-400/10',
+        label: 'Inactive',
+      },
+      maintenance: {
+        dot: 'bg-amber-400',
+        ring: 'ring-amber-400/20',
+        text: 'text-amber-400',
+        bg: 'bg-amber-400/10',
+        label: 'Maintenance',
+      },
+    };
+    return config[status as keyof typeof config] || config.inactive;
   };
 
-  const getEnvironmentIcon = (environment: string) => {
+  const getEnvironmentConfig = (environment: string) => {
     switch (environment) {
       case 'production':
-        return <Globe className="h-4 w-4 text-red-500" />;
+        return { icon: <Globe className="h-4 w-4" />, color: 'text-red-400', bg: 'bg-red-400/10', label: 'Production' };
       case 'staging':
-        return <Activity className="h-4 w-4 text-yellow-500" />;
+        return { icon: <AlertTriangle className="h-4 w-4" />, color: 'text-amber-400', bg: 'bg-amber-400/10', label: 'Staging' };
       case 'development':
-        return <Settings className="h-4 w-4 text-blue-500" />;
+        return { icon: <Settings className="h-4 w-4" />, color: 'text-blue-400', bg: 'bg-blue-400/10', label: 'Development' };
       default:
-        return <Globe className="h-4 w-4 text-gray-500" />;
+        return { icon: <Globe className="h-4 w-4" />, color: 'text-slate-400', bg: 'bg-slate-400/10', label: environment };
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading platforms...</p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative">
+            <div className="h-10 w-10 rounded-full border-2 border-blue-500/20 border-t-blue-500 animate-spin" />
+            <Shield className="h-4 w-4 text-blue-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          </div>
+          <p className="text-sm text-muted-foreground font-medium tracking-wide">Loading workspaces...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Your Platforms</h1>
-          <p className="text-muted-foreground">
-            Manage and monitor your security platforms
+    <div className="space-y-8 p-1">
+
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-bold tracking-tight">Your Workspaces</h1>
+            {platforms.length > 0 && (
+              <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-500/15 text-blue-400 text-xs font-bold ring-1 ring-blue-500/20">
+                {platforms.length}
+              </span>
+            )}
+          </div>
+          <p className="text-muted-foreground text-sm">
+            Manage and monitor your security workspaces
           </p>
         </div>
-        <Button onClick={handleCreateNewPlatform} className="gradient-primary">
-          <Plus className="h-4 w-4 mr-2" />
-          Create New Platform
+        <Button
+          onClick={handleCreateNewPlatform}
+          className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 transition-all duration-200"
+        >
+          <Plus className="h-4 w-4" />
+          Create New Workspace
         </Button>
       </div>
 
+      {/* ── Empty State ── */}
       {platforms.length === 0 ? (
-        <Card className="text-center py-12">
-          <CardContent>
-            <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">No platforms yet</h3>
-            <p className="text-muted-foreground mb-4">
-              Create your first security platform to get started
-            </p>
-            <Button onClick={handleCreateNewPlatform} className="gradient-primary">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Your First Platform
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/20 dark:bg-muted/5 py-20 text-center">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/10 ring-1 ring-blue-500/20">
+            <Shield className="h-8 w-8 text-blue-400" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">No workspaces yet</h3>
+          <p className="text-muted-foreground text-sm mb-6 max-w-xs">
+            Create your first security workspace to start monitoring and protecting your APIs.
+          </p>
+          <Button
+            onClick={handleCreateNewPlatform}
+            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20"
+          >
+            <Plus className="h-4 w-4" />
+            Create Your First Workspace
+          </Button>
+        </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {platforms.map((platform) => (
-            <Card key={platform.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {getEnvironmentIcon(platform.environment)}
-                    <CardTitle className="text-lg">{platform.name}</CardTitle>
+
+        /* ── Platform Grid ── */
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {platforms.map((platform) => {
+            const statusCfg = getStatusConfig(platform.status);
+            const envCfg = getEnvironmentConfig(platform.environment);
+            const blockRate = platform.total_requests
+              ? ((platform.blocked_threats || 0) / platform.total_requests * 100).toFixed(1)
+              : '0.0';
+
+            return (
+              <div
+                key={platform.id}
+                className="group relative rounded-2xl border border-border bg-card dark:bg-card/60 backdrop-blur-sm overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10 dark:hover:shadow-black/30 hover:-translate-y-0.5 hover:border-blue-500/30"
+              >
+                {/* Subtle top accent line */}
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                {/* Card Header */}
+                <div className="p-5 pb-4">
+                  <div className="flex items-start justify-between mb-3">
+                    {/* Platform icon + name */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20">
+                        <Server className="h-4 w-4 text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-sm leading-tight">{platform.name}</h3>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={`flex items-center gap-1 text-xs font-medium ${envCfg.color}`}>
+                            {envCfg.icon}
+                            {envCfg.label}
+                          </span>
+                          <span className="text-muted-foreground text-xs">·</span>
+                          <span className="text-muted-foreground text-xs">
+                            {platform.deployment_type === 'saas' ? 'SaaS' : 'On-Premises'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status badge */}
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ring-1 ${statusCfg.bg} ${statusCfg.text} ${statusCfg.ring}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot} ${platform.status === 'active' ? 'animate-pulse' : ''}`} />
+                      {statusCfg.label}
+                    </div>
                   </div>
-                  {getStatusBadge(platform.status)}
+
+                  {/* Divider */}
+                  <div className="h-px bg-border/60 my-4" />
+
+                  {/* Stats row */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-muted/40 dark:bg-muted/20 p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 mb-0.5">
+                        <Activity className="h-3 w-3 text-blue-400" />
+                      </div>
+                      <div className="text-lg font-bold tabular-nums">
+                        {platform.total_requests?.toLocaleString() || '0'}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">Requests</div>
+                    </div>
+
+                    <div className="rounded-xl bg-muted/40 dark:bg-muted/20 p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 mb-0.5">
+                        <Zap className="h-3 w-3 text-red-400" />
+                      </div>
+                      <div className="text-lg font-bold tabular-nums text-red-500 dark:text-red-400">
+                        {platform.blocked_threats?.toLocaleString() || '0'}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">Blocked</div>
+                    </div>
+
+                    <div className="rounded-xl bg-muted/40 dark:bg-muted/20 p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 mb-0.5">
+                        <Globe className="h-3 w-3 text-emerald-400" />
+                      </div>
+                      <div className="text-lg font-bold tabular-nums">
+                        {platform.active_endpoints || '0'}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">Endpoints</div>
+                    </div>
+                  </div>
+
+                  {/* Block rate bar */}
+                  {platform.total_requests ? (
+                    <div className="mt-4 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Block rate</span>
+                        <span className="font-medium tabular-nums">{blockRate}%</span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-muted/50 dark:bg-muted/30 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500"
+                          style={{ width: `${Math.min(parseFloat(blockRate), 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-                <CardDescription>
-                  {platform.deployment_type === 'saas' ? 'SaaS (Managed)' : 'On-Premises'} • {platform.environment}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div className="text-center">
-                    <div className="font-semibold text-lg">
-                      {platform.total_requests?.toLocaleString() || '0'}
-                    </div>
-                    <div className="text-muted-foreground text-xs">Requests</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-semibold text-lg text-red-600">
-                      {platform.blocked_threats?.toLocaleString() || '0'}
-                    </div>
-                    <div className="text-muted-foreground text-xs">Blocked</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-semibold text-lg">
-                      {platform.active_endpoints || '0'}
-                    </div>
-                    <div className="text-muted-foreground text-xs">Endpoints</div>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2">
-                  <Button 
+
+                {/* Card Footer / Actions */}
+                <div className="px-5 pb-5 flex gap-2">
+                  <Button
                     onClick={() => handleSelectPlatform(platform)}
-                    className="flex-1 gradient-primary"
+                    className="flex-1 h-9 gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm shadow-md shadow-blue-600/20 transition-all duration-200"
                   >
-                    <Eye className="h-4 w-4 mr-2" />
+                    <Eye className="h-3.5 w-3.5" />
                     View Dashboard
                   </Button>
-                  <Button variant="outline" size="sm">
-                    <Settings className="h-4 w-4" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-9 p-0 border-border hover:bg-muted hover:border-blue-500/30 transition-all duration-200"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -245,7 +245,7 @@ const CodeReviewConnect = () => {
   const handleConnect = async () => {
     if (provider === 'github') {
       // GitHub App installation flow
-      window.location.href = "https://github.com/apps/SmartComply Heimdall-ai/installations/select_target";
+      window.location.href = "https://github.com/apps/Smartcomply Heimdall-ai/installations/select_target";
     } else if (provider === 'bitbucket') {
       // Bitbucket OAuth flow
       if (!selectedPlatformId) {
@@ -331,10 +331,10 @@ const CodeReviewConnect = () => {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Settings className="w-5 h-5 text-yellow-600" />
-              <span>Platform Required</span>
+              <span>Workspace Required</span>
             </CardTitle>
             <CardDescription>
-              Please select a platform to manage repository connections.
+              Please select a workspace to manage repository connections.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -502,8 +502,8 @@ const CodeReviewConnect = () => {
               </CardTitle>
               <CardDescription>
                 {provider === 'github' 
-                  ? 'GitHub App is not installed for this platform' 
-                  : 'Bitbucket is not connected for this platform'}
+                  ? 'GitHub App is not installed for this workspace' 
+                  : 'Bitbucket is not connected for this workspace'}
               </CardDescription>
             </CardHeader>
           </Card>

@@ -8,7 +8,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { apiService } from '@/services/api';
 
-type RegisterStep = 'account' | 'workspace' | 'security';
+type RegisterStep = 'account' | 'security';
 
 const Register = () => {
   const [activeStep, setActiveStep] = useState<RegisterStep>('account');
@@ -223,24 +223,11 @@ const Register = () => {
 
                   <button
                     type="button"
-                    onClick={() => setActiveStep('workspace')}
-                    className={`flex items-center gap-2 transition ${stepButtonClass('workspace')}`}
-                  >
-                    <div className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold ${stepCircleClass('workspace')}`}>
-                      02
-                    </div>
-                    <span className="text-[11px] font-medium">Workspace</span>
-                  </button>
-
-                  <div className="h-px flex-1 bg-blue-100 dark:bg-white/10" />
-
-                  <button
-                    type="button"
                     onClick={() => setActiveStep('security')}
                     className={`flex items-center gap-2 transition ${stepButtonClass('security')}`}
                   >
                     <div className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold ${stepCircleClass('security')}`}>
-                      03
+                      02
                     </div>
                     <span className="text-[11px] font-medium">Security</span>
                   </button>
@@ -249,12 +236,10 @@ const Register = () => {
 
               {activeStep === 'account' && (
                 <>
-                  <div className="mb-6 space-y-2">
-                    <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                      Create account
-                    </h1>
+                  <div className="space-y-2">
+                    <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">Create account</h1>
                     <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
-                      Set up your Smartcomply Heimdall workspace and start securing your APIs
+                      Create your account and continue to security settings to complete setup.
                     </p>
                   </div>
 
@@ -347,7 +332,7 @@ const Register = () => {
 
                     <Button
                       type="button"
-                      onClick={() => setActiveStep('workspace')}
+                      onClick={() => setActiveStep('security')}
                       className="mt-2 h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-500 hover:to-sky-400"
                     >
                       Continue →
@@ -356,18 +341,20 @@ const Register = () => {
                 </>
               )}
 
-              {activeStep === 'workspace' && (
+
+
+              {activeStep === 'security' && (
                 <div className="space-y-6">
                   <div className="space-y-2">
                     <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                      Workspace setup
+                      Security setup
                     </h1>
                     <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
-                      Add the basic workspace details your team will use across Heimdall.
+                      Create a strong password to secure your Heimdall account before finishing setup.
                     </p>
                   </div>
 
-                  <div className="space-y-4">
+                  <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="phoneNumber" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                         Phone number
@@ -390,44 +377,6 @@ const Register = () => {
                       )}
                     </div>
 
-                    <div className="rounded-2xl border border-blue-100 bg-white/55 p-4 text-sm text-slate-600 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                      Your workspace will be used to organize platforms, teammates, alerts, and security findings in one place.
-                    </div>
-
-                    <div className="flex gap-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setActiveStep('account')}
-                        className="h-12 flex-1 rounded-xl border-blue-200/60 bg-white/50 text-slate-700 hover:bg-white/80 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-                      >
-                        Back
-                      </Button>
-
-                      <Button
-                        type="button"
-                        onClick={() => setActiveStep('security')}
-                        className="h-12 flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-500 hover:to-sky-400"
-                      >
-                        Continue →
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeStep === 'security' && (
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                      Security setup
-                    </h1>
-                    <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
-                      Create a strong password to secure your Heimdall account before finishing setup.
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="password" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                         Password
@@ -550,7 +499,7 @@ const Register = () => {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => setActiveStep('workspace')}
+                        onClick={() => setActiveStep('account')}
                         className="h-12 flex-1 rounded-xl border-blue-200/60 bg-white/50 text-slate-700 hover:bg-white/80 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
                       >
                         Back

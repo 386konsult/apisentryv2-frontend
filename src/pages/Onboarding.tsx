@@ -50,7 +50,7 @@ const Onboarding = () => {
   const navigate = useNavigate();
   const { setSelectedPlatformId } = usePlatform();
 
-  const installCommand = `curl -sL https://api-shield.com/install.sh | bash`;
+  const installCommand = `curl -sL https://raw.githubusercontent.com/386konsult/installation-script/main/install.sh | bash`;
   // Backend API endpoint
   const API_URL = `${API_BASE_URL}/platforms/`;
 
@@ -205,7 +205,7 @@ const Onboarding = () => {
               <Shield className="h-6 w-6 text-white" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome to SmartComply Heimdall</CardTitle>
+          <CardTitle className="text-2xl font-bold">Welcome to Smartcomply Heimdall</CardTitle>
           <CardDescription>
             Let's set up your security platform in just a few steps
           </CardDescription>
@@ -232,7 +232,7 @@ const Onboarding = () => {
             <div className="space-y-6">
               <div className="text-center">
                 <h3 className="text-lg font-semibold mb-2">Select Your Platform</h3>
-                <p className="text-muted-foreground">Choose where you'll deploy SmartComply Heimdall</p>
+                <p className="text-muted-foreground">Choose where you'll deploy Smartcomply Heimdall</p>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

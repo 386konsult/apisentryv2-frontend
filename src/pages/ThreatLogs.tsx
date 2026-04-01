@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,52 @@ import {
 import { apiService } from "@/services/api";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+
+type AnimatedNumberProps = {
+  value: number;
+  decimals?: number;
+  suffix?: string;
+  className?: string;
+};
+
+const AnimatedNumber = ({
+  value,
+  decimals = 0,
+  suffix = '',
+  className = '',
+}: AnimatedNumberProps) => {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const target = Number.isFinite(value) ? value : 0;
+    const duration = 800;
+    const start = performance.now();
+    let frame = 0;
+
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(target * eased);
+
+      if (progress < 1) {
+        frame = requestAnimationFrame(tick);
+      }
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+
+  return (
+    <span className={className}>
+      {displayValue.toLocaleString(undefined, {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      })}
+      {suffix}
+    </span>
+  );
+};
 
 const ThreatLogs = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -88,12 +135,12 @@ const ThreatLogs = () => {
           return;
         }
 
-        // Fetch last 100 blocked logs
-        const response = await apiService.getPlatformRequestLogs(platformId, { num: '100', blocked: 'true' });
+        // Fetch last 100 logs
+        const response = await apiService.getPlatformRequestLogs(platformId, { num: '100' });
         if (Array.isArray(response)) {
           setAllLogs(response); // Set logs directly if response is an array
-        } else if (response && Array.isArray(response.logs)) {
-          setAllLogs(response.logs); // Extract logs if nested in `logs`
+        } else if (response && Array.isArray((response as any).logs)) {
+          setAllLogs((response as any).logs); // Extract logs if nested in `logs`
         } else {
           console.error('Unexpected response format for threat logs:', response);
           setAllLogs([]); // Fallback to an empty array
@@ -357,94 +404,108 @@ const ThreatLogs = () => {
   }, [searchParams]);
 
   return (
-    <div className="space-y-6 w-full min-w-0 max-w-full">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            Threat Logs
-            {platformName && (
-              <span className="text-base sm:text-lg font-normal text-muted-foreground ml-2">
-                • {platformName}
-              </span>
-            )}
-          </h1>
-          <p className="text-muted-foreground">
-            Security events and threat detection history
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export Logs
-          </Button>
-          <Button 
-            size="sm" 
-            className="gradient-primary"
-            onClick={() => navigate('/create-alert')}
-          >
-            <Shield className="h-4 w-4 mr-2" />
-            Create Alert
-          </Button>
+    <div className="space-y-8 w-full min-w-0 max-w-full">
+      {/* Header with gradient background */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 to-orange-500 px-6 sm:px-8 py-8 sm:py-10 shadow-lg">
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+              Threat Logs
+              {platformName && (
+                <span className="text-base sm:text-lg font-normal text-red-100 ml-2">
+                  • {platformName}
+                </span>
+              )}
+            </h1>
+            <p className="text-red-100 mt-2">
+              Security events and threat detection history
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="hover:shadow-md transition-all">
+              <Download className="h-4 w-4 mr-2" />
+              Export Logs
+            </Button>
+            <Button 
+              size="sm" 
+              className="bg-cyan-500 text-white hover:bg-cyan-600 transition-all hover:shadow-md rounded-lg"
+              onClick={() => navigate('/create-alert')}
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Create Alert
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Threats</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{allBlockedThreats.length}</div>
-            <p className="text-xs text-muted-foreground">Blocked requests</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">High Severity</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {allBlockedThreats.filter(t => t.threat_level === 'high').length}
+      {/* Stats Cards with Animations */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="grid gap-4 md:grid-cols-4 w-full min-w-0"
+      >
+        <motion.div whileHover={{ scale: 1.02, translateY: -4 }} transition={{ type: 'spring', stiffness: 400 }} className="relative rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900 p-6 transition-all duration-300 hover:shadow-lg overflow-hidden cursor-default">
+          <div>
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">Today's Threats</div>
+              <AlertTriangle className="h-4 w-4 text-red-500" />
             </div>
-            <p className="text-xs text-muted-foreground">Requires attention</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Medium Severity</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {allBlockedThreats.filter(t => t.threat_level === 'medium').length}
+            <div className="text-3xl font-bold text-slate-900 dark:text-white mt-2">
+              <AnimatedNumber value={allBlockedThreats.length} />
             </div>
-            <p className="text-xs text-muted-foreground">Monitor closely</p>
-          </CardContent>
-        </Card>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Blocked requests</p>
+          </div>
+        </motion.div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unique IPs</CardTitle>
-            <MapPin className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {new Set(allBlockedThreats.map(t => t.client_ip)).size}
+        <motion.div whileHover={{ scale: 1.02, translateY: -4 }} transition={{ type: 'spring', stiffness: 400 }} className="relative rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900 p-6 transition-all duration-300 hover:shadow-lg overflow-hidden cursor-default">
+          <div>
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">High Severity</div>
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
             </div>
-            <p className="text-xs text-muted-foreground">Unique source IPs</p>
-          </CardContent>
-        </Card>
-      </div>
+            <div className="text-3xl font-bold text-slate-900 dark:text-white mt-2">
+              <AnimatedNumber value={allBlockedThreats.filter(t => t.threat_level === 'high').length} />
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Requires attention</p>
+          </div>
+        </motion.div>
+
+        <motion.div whileHover={{ scale: 1.02, translateY: -4 }} transition={{ type: 'spring', stiffness: 400 }} className="relative rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900 p-6 transition-all duration-300 hover:shadow-lg overflow-hidden cursor-default">
+          <div>
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">Medium Severity</div>
+              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            </div>
+            <div className="text-3xl font-bold text-slate-900 dark:text-white mt-2">
+              <AnimatedNumber value={allBlockedThreats.filter(t => t.threat_level === 'medium').length} />
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Monitor closely</p>
+          </div>
+        </motion.div>
+
+        <motion.div whileHover={{ scale: 1.02, translateY: -4 }} transition={{ type: 'spring', stiffness: 400 }} className="relative rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900 p-6 transition-all duration-300 hover:shadow-lg overflow-hidden cursor-default">
+          <div>
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">Unique IPs</div>
+              <MapPin className="h-4 w-4 text-blue-500" />
+            </div>
+            <div className="text-3xl font-bold text-slate-900 dark:text-white mt-2">
+              <AnimatedNumber value={new Set(allBlockedThreats.map(t => t.client_ip)).size} />
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Unique source IPs</p>
+          </div>
+        </motion.div>
+      </motion.div>
 
       {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-md p-6 space-y-4"
+      >
+        <div className="space-y-4">
           <div className="space-y-4">
             {/* First Row: Search and Time Range */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -581,18 +642,21 @@ const ThreatLogs = () => {
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </motion.div>
 
       {/* Threat Logs Table */}
-      <Card className="w-full overflow-hidden">
-        <CardHeader>
-          <CardTitle>Security Events ({filteredThreats.length})</CardTitle>
-          <CardDescription>
-            Detailed view of detected threats and security incidents
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="w-full overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-md overflow-hidden"
+      >
+        <div className="p-6">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Security Events ({filteredThreats.length})</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Detailed view of detected threats and security incidents</p>
+          </div>
           <div className="space-y-4 w-full">
             {loading ? (
               <div className="text-center py-8">
@@ -771,8 +835,8 @@ const ThreatLogs = () => {
               ))
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </motion.div>
 
       {/* Pagination controls for paged blocked logs */}
       {totalPages && totalPages > 1 && (

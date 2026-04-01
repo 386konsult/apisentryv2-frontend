@@ -1,6 +1,6 @@
 // export const API_BASE_URL = 'http://16.16.182.74/api/v1';
 // export const API_BASE_URL = 'http://165.245.211.56:8000/api/v1';
-export const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
 
 
 

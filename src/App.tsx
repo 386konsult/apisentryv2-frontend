@@ -7,7 +7,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "./components/AppSidebar";
 import ProtectedPlatformRoute from "./components/ProtectedPlatformRoute";
 import PlatformIndicator from "./components/PlatformIndicator";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -59,7 +59,28 @@ import Incidents from "./pages/Incidents";
 import AuditLogs from "./pages/AuditLogs";
 import AcceptInvitation from "./pages/AcceptInvitation";
 
+
+
 const queryClient = new QueryClient();
+
+const THEME_STORAGE_KEY = "app-theme";
+
+const getStoredTheme = () => {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(THEME_STORAGE_KEY) === "dark";
+};
+
+const applyTheme = (isDark: boolean) => {
+  if (typeof document === "undefined") return;
+
+  document.documentElement.classList.toggle("dark", isDark);
+  document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+  localStorage.setItem(THEME_STORAGE_KEY, isDark ? "dark" : "light");
+};
+
+if (typeof document !== "undefined") {
+  applyTheme(getStoredTheme());
+}
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -84,11 +105,14 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const AppContent = () => {
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(getStoredTheme);
+
+  useEffect(() => {
+    applyTheme(isDark);
+  }, [isDark]);
 
   const toggleDarkMode = () => {
-    setIsDark(!isDark);
-    document.documentElement.classList.toggle('dark');
+    setIsDark((prev) => !prev);
   };
 
   return (
@@ -98,6 +122,7 @@ const AppContent = () => {
         <Route path="/terms" element={<TermsAndConditions />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/invitations/accept/:token" element={<AcceptInvitation />} />
+
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -108,171 +133,283 @@ const AppContent = () => {
         <Route path="/auth/github/callback" element={<GitHubCallback />} />
         <Route path="/auth/bitbucket/callback" element={<BitbucketCallback />} />
         {/* <Route path="/force-password-reset" element={<ForcePasswordReset />} /> */}
+
         {/* Main App Routes */}
-        <Route path="/*" element={
-          <ProtectedRoute>
-            <SidebarProvider>
-              <div className="min-h-screen flex w-full overflow-hidden bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
-                <AppSidebar />
-                <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
-                  <header className="h-16 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-6 flex-shrink-0">
-                    <div className="flex items-center space-x-4 min-w-0">
-                      <h1 className="text-2xl font-bold gradient-primary bg-clip-text text-transparent">
-                        {/* SmartComply Heimdall */}
-                      </h1>
-                    </div>
-                    <div className="flex items-center space-x-4 flex-shrink-0">
-                      <PlatformIndicator />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={toggleDarkMode}
-                        className="h-9 w-9"
-                      >
-                        {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </header>
-                  <main className="p-6 overflow-x-hidden overflow-y-auto flex-1 min-w-0">
-                    <Routes>
-                      <Route path="/" element={<Platforms />} />
-                      <Route path="/waf-rules" element={
-                        <ProtectedPlatformRoute>
-                          <WAFRules />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/threat-logs" element={
-                        <ProtectedPlatformRoute>
-                          <ThreatLogs />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/api-endpoints" element={
-                        <ProtectedPlatformRoute>
-                          <APIEndpoints />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/api-endpoints/:endpointId/analytics" element={
-                        <ProtectedPlatformRoute>
-                          <EndpointAnalytics />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/integrations" element={
-                        <ProtectedPlatformRoute>
-                          <Integrations />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/users" element={<Users />} />
-                      <Route path="/settings" element={
-                        <ProtectedPlatformRoute>
-                          <Settings />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/playground" element={
-                        <ProtectedPlatformRoute>
-                          <Playground />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/vulnerability-dashboard" element={
-                        <ProtectedPlatformRoute>
-                          <VulnerabilityDashboard />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/vulnerability-scan" element={
-                        <ProtectedPlatformRoute>
-                          <VulnerabilityScan />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/vulnerability-reports" element={
-                        <ProtectedPlatformRoute>
-                          <VulnerabilityReports />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/vulnerability-settings" element={
-                        <ProtectedPlatformRoute>
-                          <VulnerabilitySettings />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/code-review-dashboard" element={
-                        <ProtectedPlatformRoute>
-                          <CodeReviewDashboard />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/code-review-connect" element={
-                        <ProtectedPlatformRoute>
-                          <CodeReviewConnect />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/code-review-repos" element={
-                        <ProtectedPlatformRoute>
-                          <CodeReviewRepos />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/code-review-team" element={
-                        <ProtectedPlatformRoute>
-                          <CodeReviewTeam />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/code-review-repos/:repoName" element={
-                        <ProtectedPlatformRoute>
-                          <SecurityDashboard />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/code-review-scan-reports" element={
-                        <ProtectedPlatformRoute>
-                          <CodeReviewScanReports />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/code-review-report/:reportId" element={
-                        <ProtectedPlatformRoute>
-                          <CodeReviewReport />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/git-automated-scan" element={
-                        <ProtectedPlatformRoute>
-                          <GitAutomatedScan />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/automated-scan-details/:id" element={
-                        <ProtectedPlatformRoute>
-                          <AutomatedScanDetails />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/platforms" element={<Platforms />} />
-                      <Route path="/platforms/:id" element={<PlatformDetails />} />
-                      <Route path="/create-alert" element={
-                        <ProtectedPlatformRoute>
-                          <CreateAlert />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/security-alerts" element={
-                        <ProtectedPlatformRoute>
-                          <SecurityAlerts />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/security-hub" element={
-                        <ProtectedPlatformRoute>
-                          <SecurityHub />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/ip-blacklist" element={
-                        <ProtectedPlatformRoute>
-                          <IPBlacklist />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/incidents" element={
-                        <ProtectedPlatformRoute>
-                          <Incidents />
-                        </ProtectedPlatformRoute>
-                      } />
-                      <Route path="/audit-logs" element={<AuditLogs />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </main>
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="min-h-screen flex w-full overflow-hidden bg-[#f4f8ff] dark:bg-[#0f1724]">
+                  <AppSidebar isDark={isDark} />
+
+
+                  <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
+                    <header className="h-16 border-b border-slate-200/70 bg-[#f4f8ff] flex items-center justify-between px-6 flex-shrink-0 dark:border-slate-800/80 dark:bg-[#0f1724]">
+                      <div className="flex items-center space-x-4 min-w-0">
+                        <h1 className="text-2xl font-bold gradient-primary bg-clip-text text-transparent">
+                          {/* Smartcomply Heimdall */}
+                        </h1>
+                      </div>
+
+                      <div className="flex items-center space-x-4 flex-shrink-0">
+                        <PlatformIndicator />
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={toggleDarkMode}
+                          className="h-8 w-8 rounded-xl text-slate-700 hover:bg-white/50 dark:text-slate-200 dark:hover:bg-white/10"
+                        >
+                          {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                        </Button>
+                      </div>
+                    </header>
+
+                    <main className="p-6 overflow-x-hidden overflow-y-auto flex-1 min-w-0">
+                      <Routes>
+                        <Route path="/" element={<Platforms />} />
+
+                        <Route
+                          path="/waf-rules"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <WAFRules />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/threat-logs"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <ThreatLogs />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/api-endpoints"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <APIEndpoints />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/api-endpoints/:endpointId/analytics"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <EndpointAnalytics />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/integrations"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <Integrations />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route path="/users" element={<Users />} />
+
+                        <Route
+                          path="/settings"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <Settings />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/playground"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <Playground />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/vulnerability-dashboard"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <VulnerabilityDashboard />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/vulnerability-scan"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <VulnerabilityScan />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/vulnerability-reports"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <VulnerabilityReports />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/vulnerability-settings"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <VulnerabilitySettings />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/code-review-dashboard"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <CodeReviewDashboard />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/code-review-connect"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <CodeReviewConnect />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/code-review-repos"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <CodeReviewRepos />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/code-review-team"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <CodeReviewTeam />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/code-review-repos/:repoName"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <SecurityDashboard />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/code-review-scan-reports"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <CodeReviewScanReports />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/code-review-report/:reportId"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <CodeReviewReport />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/git-automated-scan"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <GitAutomatedScan />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/automated-scan-details/:id"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <AutomatedScanDetails />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route path="/platforms" element={<Platforms />} />
+                        <Route path="/platforms/:id" element={<PlatformDetails />} />
+
+                        <Route
+                          path="/create-alert"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <CreateAlert />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/security-alerts"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <SecurityAlerts />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/security-hub"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <SecurityHub />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/ip-blacklist"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <IPBlacklist />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route
+                          path="/incidents"
+                          element={
+                            <ProtectedPlatformRoute>
+                              <Incidents />
+                            </ProtectedPlatformRoute>
+                          }
+                        />
+
+                        <Route path="/audit-logs" element={<AuditLogs />} />
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </main>
+                  </div>
                 </div>
-              </div>
-            </SidebarProvider>
-          </ProtectedRoute>
-        } />
+              </SidebarProvider>
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

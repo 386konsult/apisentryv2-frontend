@@ -291,18 +291,18 @@ const Dashboard = () => {
     return (
       <div className="text-center py-12">
         <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-        <h2 className="text-xl font-semibold mb-2">No Platform Selected</h2>
+        <h2 className="text-xl font-semibold mb-2">No Workspace Selected</h2>
         <p className="text-muted-foreground mb-6">
-          Please select a platform to view its dashboard
+          Please select a workspace to view its dashboard
         </p>
         <div className="flex gap-4 justify-center">
           <Button onClick={() => navigate('/platforms')} className="gradient-primary">
             <Eye className="h-4 w-4 mr-2" />
-            View Platforms
+            View Workspaces
           </Button>
           <Button variant="outline" onClick={() => navigate('/onboarding')}>
             <Plus className="h-4 w-4 mr-2" />
-            Create New Platform
+            Create New Workspace
           </Button>
         </div>
       </div>

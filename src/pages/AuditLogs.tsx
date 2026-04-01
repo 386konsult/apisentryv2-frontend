@@ -198,7 +198,7 @@ const AuditLogs = () => {
                   <SelectItem value="waf_rule">WAF Rule</SelectItem>
                   <SelectItem value="endpoint">Endpoint</SelectItem>
                   <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="platform">Platform</SelectItem>
+                  <SelectItem value="platform">Workspace</SelectItem>
                 </SelectContent>
               </Select>
 

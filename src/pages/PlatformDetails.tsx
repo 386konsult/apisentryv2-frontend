@@ -176,7 +176,7 @@ const PlatformDetails = () => {
     apiService
       .getPlatformWAFRules(id)
       .then((data: any) => setWafRules(data))
-      .catch(() => {});
+      .catch(() => { });
   };
 
   const fetchTrafficData = () => {
@@ -185,9 +185,9 @@ const PlatformDetails = () => {
     const params =
       trafficTimeRange === 'custom' && trafficCustomRange.start && trafficCustomRange.end
         ? {
-            start: trafficCustomRange.start.toISOString(),
-            end: trafficCustomRange.end.toISOString(),
-          }
+          start: trafficCustomRange.start.toISOString(),
+          end: trafficCustomRange.end.toISOString(),
+        }
         : { range: trafficTimeRange };
 
     apiService
@@ -237,9 +237,9 @@ const PlatformDetails = () => {
     const params =
       threatTimeRange === 'custom' && threatCustomRange.start && threatCustomRange.end
         ? {
-            start: threatCustomRange.start.toISOString(),
-            end: threatCustomRange.end.toISOString(),
-          }
+          start: threatCustomRange.start.toISOString(),
+          end: threatCustomRange.end.toISOString(),
+        }
         : { range: threatTimeRange };
 
     apiService
@@ -590,9 +590,9 @@ const PlatformDetails = () => {
   const trafficChartDisplayData = hasTrafficData
     ? trafficOverviewData
     : HTTP_METHODS.map((method) => ({
-        method,
-        total: method === 'PUT' ? 4 : 0,
-      }));
+      method,
+      total: method === 'PUT' ? 4 : 0,
+    }));
 
   const maxTraffic = Math.max(...trafficOverviewData.map((item) => item.total), 1);
   const topThreats = threatTypesByCategory.slice(0, 4);
@@ -602,24 +602,24 @@ const PlatformDetails = () => {
   const recentRows =
     threatLogs.length > 0
       ? threatLogs.slice(0, 4).map((log: any) => ({
-          id: log.id,
-          path: log.path || '-',
-          attack:
-            log.waf_rule_triggered ||
-            (log.threat_level && log.threat_level !== 'none'
-              ? `${String(log.threat_level).toUpperCase()} Threat`
-              : log.waf_blocked
-                ? 'Suspicious Request'
-                : 'Clean'),
-          source: log.client_ip || '-',
-          status: log.waf_blocked ? 'blocked' : Number(log.status_code) >= 400 ? 'warning' : 'allowed',
-        }))
+        id: log.id,
+        path: log.path || '-',
+        attack:
+          log.waf_rule_triggered ||
+          (log.threat_level && log.threat_level !== 'none'
+            ? `${String(log.threat_level).toUpperCase()} Threat`
+            : log.waf_blocked
+              ? 'Suspicious Request'
+              : 'Clean'),
+        source: log.client_ip || '-',
+        status: log.waf_blocked ? 'blocked' : Number(log.status_code) >= 400 ? 'warning' : 'allowed',
+      }))
       : [
-          { id: 'row-1', path: '/api/v1/users', attack: 'SQL Injection', source: '192.168.1.45', status: 'blocked' },
-          { id: 'row-2', path: '/api/v1/auth/login', attack: 'Brute Force', source: '10.0.0.12', status: 'warning' },
-          { id: 'row-3', path: '/api/v1/products', attack: 'Clean', source: '203.45.67.89', status: 'allowed' },
-          { id: 'row-4', path: '/api/v1/exec', attack: 'RCE Attempt', source: '45.33.32.156', status: 'blocked' },
-        ];
+        { id: 'row-1', path: '/api/v1/users', attack: 'SQL Injection', source: '192.168.1.45', status: 'blocked' },
+        { id: 'row-2', path: '/api/v1/auth/login', attack: 'Brute Force', source: '10.0.0.12', status: 'warning' },
+        { id: 'row-3', path: '/api/v1/products', attack: 'Clean', source: '203.45.67.89', status: 'allowed' },
+        { id: 'row-4', path: '/api/v1/exec', attack: 'RCE Attempt', source: '45.33.32.156', status: 'blocked' },
+      ];
 
   const alertCount =
     threatLogs.length > 0
@@ -725,13 +725,12 @@ const PlatformDetails = () => {
               <motion.button
                 onClick={() => {
                   setIsAlertClicked(true);
-                  navigate('/security-hub');
+                  navigate('/threat-logs');
                 }}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold transition-all duration-300 hover:shadow-md ${
-                  !isAlertClicked
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold transition-all duration-300 hover:shadow-md ${!isAlertClicked
                     ? 'border-red-300/70 bg-red-50/90 text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300'
                     : 'border-red-300/70 bg-red-50/90 text-red-700 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300'
-                }`}
+                  }`}
               >
                 <motion.span
                   className="relative flex h-2 w-2"
@@ -754,7 +753,7 @@ const PlatformDetails = () => {
                   />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
                 </motion.span>
-                {alertCount || 0} alerts
+                Alerts
               </motion.button>
               <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/60 bg-white px-3 py-1 text-[11px] font-semibold text-blue-700 dark:border-white/10 dark:bg-[#172033] dark:text-blue-300">
                 <Activity className="h-3 w-3" />
@@ -771,7 +770,7 @@ const PlatformDetails = () => {
               </span>
             </div>
 
-                       <p className="mt-2 font-mono text-[11px] tracking-[0.03em] text-slate-400 dark:text-slate-500">
+            <p className="mt-2 font-mono text-[11px] tracking-[0.03em] text-slate-400 dark:text-slate-500">
               real_time - updated just now
             </p>
 
@@ -803,7 +802,7 @@ const PlatformDetails = () => {
           </div>
         </motion.div>
 
-    
+
 
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -1057,7 +1056,7 @@ const PlatformDetails = () => {
               )}
             </CardContent>
           </Card>
-        </motion.div> 
+        </motion.div>
 
         {/* --- UI ONLY: Live Threat Activity section restored (design only, no logic touched) --- */}
         <motion.div
@@ -1267,9 +1266,8 @@ const PlatformDetails = () => {
                 countryData.slice(0, 6).map((country) => (
                   <div
                     key={country.code}
-                    className={`rounded-xl px-3 py-3 ${softPanelClass} ${
-                      hoveredCountry === country.code ? 'border-blue-400/70' : ''
-                    }`}
+                    className={`rounded-xl px-3 py-3 ${softPanelClass} ${hoveredCountry === country.code ? 'border-blue-400/70' : ''
+                      }`}
                     onMouseEnter={() => setHoveredCountry(country.code)}
                     onMouseLeave={() => setHoveredCountry(null)}
                   >
@@ -1388,25 +1386,25 @@ const PlatformDetails = () => {
             {
               title: 'User Management',
               description: 'Manage team access and permissions',
-              icon: <span className="inline-block"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z" fill="#22c55e"/></svg></span>,
+              icon: <span className="inline-block"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z" fill="#22c55e" /></svg></span>,
               url: '/users',
             },
             {
               title: 'Audit Logs',
               description: 'View system activity and changes',
-              icon: <span className="inline-block"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M17 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H7V5h10v14Zm-5-2a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-4h-2V7h2v6Z" fill="#a78bfa"/></svg></span>,
+              icon: <span className="inline-block"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M17 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H7V5h10v14Zm-5-2a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-4h-2V7h2v6Z" fill="#a78bfa" /></svg></span>,
               url: '/audit-logs',
             },
             {
               title: 'IP Blacklist',
               description: 'Manage blocked IP addresses',
-              icon: <span className="inline-block"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59Z" fill="#ef4444"/></svg></span>,
+              icon: <span className="inline-block"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59Z" fill="#ef4444" /></svg></span>,
               url: '/ip-blacklist',
             },
             {
               title: 'Security Alerts',
               description: 'Configure and manage security alerts',
-              icon: <span className="inline-block"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11c0-3.07-1.63-5.64-5-6.32V4a1 1 0 1 0-2 0v.68C7.63 5.36 6 7.92 6 11v5l-1.29 1.29A1 1 0 0 0 6 19h12a1 1 0 0 0 .71-1.71L18 16Z" fill="#6366f1"/></svg></span>,
+              icon: <span className="inline-block"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11c0-3.07-1.63-5.64-5-6.32V4a1 1 0 1 0-2 0v.68C7.63 5.36 6 7.92 6 11v5l-1.29 1.29A1 1 0 0 0 6 19h12a1 1 0 0 0 .71-1.71L18 16Z" fill="#6366f1" /></svg></span>,
               url: '/security-alerts',
             },
           ].map((action) => (

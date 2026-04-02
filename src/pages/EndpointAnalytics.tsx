@@ -158,10 +158,11 @@ const EndpointAnalytics = () => {
   const trafficData1y = analyticsData?.traffic_data?.["1y"] || [];
   const securityIssues = analyticsData?.security_issues || [];
   const performanceIssues = analyticsData?.performance_issues || [];
-  const requestLogs = (analyticsData?.request_logs || []).map(log => ({
-    ...log,
-    responseTime: log.response_time || log.responseTime || 0
-  }));
+  const requestLogs = (analyticsData?.request_logs || []).map((log) => ({
+  ...log,
+  responseTime: log.response_time ?? 0,
+}));
+
 
   const topIPs = analyticsData?.top_ip_addresses || [];
 

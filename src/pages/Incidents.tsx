@@ -32,10 +32,8 @@ import {
   MoreVertical,
   Edit,
   Eye,
-  FileText,
   Shield,
   Clock,
-  User,
   Activity,
   Download,
 } from "lucide-react";
@@ -55,110 +53,30 @@ interface Incident extends IncidentFormData {
   lessonsLearned?: string;
 }
 
-// Sample incident data
-const generateSampleIncidents = (): Incident[] => {
-  const now = new Date();
-  return [
-    {
-      id: "inc-001",
-      title: "SQL Injection Attempts on /login from 44.22.11.5",
-      severity: "High",
-      status: "Open",
-      category: "SQL Injection",
-      impactedEndpoints: ["/api/login", "/api/auth"],
-      sourceIPs: "44.22.11.5, 192.168.1.100",
-      associatedAlertIds: ["alert-001", "alert-002"],
-      summary: "245 failed login attempts from 44.22.11.5 against POST /login across 6 minutes. Pattern matches credential stuffing rule.",
-      assignedTo: "",
-      containmentActions: [],
-      nextStep: "Monitor IP and block if pattern continues",
-      customerDataExposure: "no",
-      dataClass: "",
-      requiresCustomerNotification: "no",
-      regulatoryImpact: "None",
-      createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      updatedAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "inc-002",
-      title: "Brute Force Attack on Payment Endpoint",
-      severity: "Critical",
-      status: "Contained",
-      category: "Brute Force",
-      impactedEndpoints: ["/billing/checkout", "/api/payments"],
-      sourceIPs: "203.0.113.45, AS12345",
-      associatedAlertIds: ["alert-003"],
-      summary: "Massive brute force attack targeting payment endpoints. Over 1000 requests in 15 minutes.",
-      assignedTo: "",
-      containmentActions: [
-        "Blocked IP at WAF",
-        "Rate-limited endpoint",
-        "Notified customer",
-      ],
-      nextStep: "Review payment logs and verify no successful breaches",
-      customerDataExposure: "yes",
-      dataClass: "payments",
-      requiresCustomerNotification: "under review",
-      regulatoryImpact: "PCI",
-      createdAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      updatedAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "inc-003",
-      title: "Anomalous Traffic Pattern Detected",
-      severity: "Medium",
-      status: "In Progress",
-      category: "Anomalous Traffic",
-      impactedEndpoints: ["/api/v1/users", "/api/v1/data"],
-      sourceIPs: "198.51.100.12",
-      associatedAlertIds: ["alert-004"],
-      summary: "Unusual traffic spike from single IP. Requests pattern suggests automated scraping.",
-      assignedTo: "",
-      containmentActions: [],
-      nextStep: "Investigate source and intent",
-      customerDataExposure: "unknown",
-      dataClass: "",
-      requiresCustomerNotification: "no",
-      regulatoryImpact: "None",
-      createdAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-      updatedAt: new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "inc-004",
-      title: "Credential Stuffing Attack",
-      severity: "High",
-      status: "Closed",
-      category: "Credential Stuffing",
-      impactedEndpoints: ["/api/login"],
-      sourceIPs: "44.22.11.5, 203.0.113.45",
-      associatedAlertIds: ["alert-005"],
-      summary: "Credential stuffing attack detected. Attack blocked successfully with no data breach.",
-      assignedTo: "",
-      containmentActions: [
-        "Blocked IP at WAF",
-        "Rotated credentials",
-        "Enabled additional authentication",
-      ],
-      nextStep: "Monitor for similar patterns",
-      customerDataExposure: "no",
-      dataClass: "",
-      requiresCustomerNotification: "no",
-      regulatoryImpact: "None",
-      createdAt: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-      updatedAt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      responseNote: "Incident was successfully contained. All affected accounts have been notified and passwords reset.",
-      actionsTaken: "1. Blocked attacker IPs at WAF level\n2. Implemented rate limiting on login endpoint\n3. Added CAPTCHA verification\n4. Notified affected users to change passwords",
-      lessonsLearned: "1. Need faster detection of credential stuffing patterns\n2. Consider implementing account lockout after failed attempts\n3. Add geolocation-based blocking for known attack sources",
-    },
-  ];
+type IncidentEndpoint = IncidentFormData["impactedEndpoints"][number];
+
+const getEndpointDisplay = (endpoint: IncidentEndpoint) => {
+  if (typeof endpoint === "string") return endpoint;
+  if (!endpoint) return "Unknown endpoint";
+
+  return (
+    endpoint.path ||
+    endpoint.name ||
+    `${endpoint.method || ""} ${endpoint.path || ""}`.trim() ||
+    "Unknown endpoint"
+  );
+};
+
+const getEndpointKey = (endpoint: IncidentEndpoint, index: number) => {
+  if (typeof endpoint === "string") return `${endpoint}-${index}`;
+  return endpoint?.id || endpoint?.path || endpoint?.name || `endpoint-${index}`;
 };
 
 const Incidents = () => {
-  // get selected platform id from context
   const { selectedPlatformId } = usePlatform();
   const [platform, setPlatform] = useState<any>(null);
   const { toast } = useToast();
-  const [incidents, setIncidents] = useState<Incident[]>([]); // start empty, load from API
+  const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -166,41 +84,34 @@ const Incidents = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [users, setUsers] = useState<any[]>([]);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const usersData = await apiService.getUsers();
-        setUsers(usersData);
-      } catch (error) {
-        // log error for debugging
-        console.error("Incidents: error fetching users", error);
-      }
-    };
-    fetchUsers();
-  }, []);
-
-  // fetch platform details (name, etc.) when selectedPlatformId changes
   useEffect(() => {
     if (!selectedPlatformId) {
       setPlatform(null);
       return;
     }
+
     let mounted = true;
-    apiService.getPlatformDetails(selectedPlatformId)
-      .then(data => { if (mounted) setPlatform(data); })
-      .catch(() => { if (mounted) setPlatform(null); });
-    return () => { mounted = false; };
+    apiService
+      .getPlatformDetails(selectedPlatformId)
+      .then((data) => {
+        if (mounted) setPlatform(data);
+      })
+      .catch(() => {
+        if (mounted) setPlatform(null);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, [selectedPlatformId]);
 
-  // extract fetchIncidents so we can call it after create/update
   const fetchIncidents = React.useCallback(async () => {
     setLoading(true);
     try {
       const platformId = selectedPlatformId || localStorage.getItem("selected_platform_id");
       const data = await apiService.getIncidents(platformId || undefined);
-      // Normalize server response to Incident[]
+
       const normalized = (data || []).map((it: any) => ({
         id: it.id,
         title: it.title,
@@ -216,7 +127,8 @@ const Incidents = () => {
         nextStep: it.next_step || it.nextStep || "",
         customerDataExposure: it.customer_data_exposure || it.customerDataExposure || "no",
         dataClass: it.data_class || it.dataClass || "",
-        requiresCustomerNotification: it.requires_customer_notification || it.requiresCustomerNotification || "no",
+        requiresCustomerNotification:
+          it.requires_customer_notification || it.requiresCustomerNotification || "no",
         regulatoryImpact: it.regulatory_impact || it.regulatoryImpact || "None",
         createdAt: it.created_at || it.createdAt || new Date().toISOString(),
         updatedAt: it.updated_at || it.updatedAt || new Date().toISOString(),
@@ -224,9 +136,9 @@ const Incidents = () => {
         actionsTaken: it.actions_taken || it.actionsTaken,
         lessonsLearned: it.lessons_learned || it.lessonsLearned,
       }));
+
       setIncidents(normalized);
     } catch (error: any) {
-      // log error for debugging
       console.error("Incidents: error fetching incidents", error);
       toast({
         title: "Error loading incidents",
@@ -239,146 +151,134 @@ const Incidents = () => {
     }
   }, [selectedPlatformId, toast]);
 
-  // call fetchIncidents when platform changes (or on mount)
   useEffect(() => {
     fetchIncidents();
   }, [fetchIncidents]);
 
-  // Guard title/summary access to avoid undefined.toLowerCase errors
   const filteredIncidents = incidents.filter((incident) => {
-    const title = (incident.title || '').toLowerCase();
-    const summary = (incident.summary || '').toLowerCase();
+    const title = (incident.title || "").toLowerCase();
+    const summary = (incident.summary || "").toLowerCase();
     const q = searchTerm.toLowerCase();
+
     const matchesSearch = title.includes(q) || summary.includes(q);
     const matchesStatus = statusFilter === "all" || incident.status === statusFilter;
     const matchesSeverity = severityFilter === "all" || incident.severity === severityFilter;
+
     return matchesSearch && matchesStatus && matchesSeverity;
   });
 
   const handleCreateIncident = async (data: IncidentFormData) => {
-		try {
-			setLoading(true);
-			const platformId = platform?.id || localStorage.getItem("selected_platform_id");
-			if (!platformId) throw new Error("No platform selected");
+    try {
+      setLoading(true);
+      const platformId = platform?.id || localStorage.getItem("selected_platform_id");
+      if (!platformId) throw new Error("No platform selected");
 
-			// Build structured associated_alerts: [{ alert_id, incident_type }]
-			const modalIds = Array.isArray(data.associatedAlertIds) ? [...data.associatedAlertIds] : [];
-			const associated_alerts = modalIds.map((id) => ({
-				alert_id: id,
-				incident_type: (data as any).incident_type || "rate_anomaly",
-			}));
+      const modalIds = Array.isArray(data.associatedAlertIds) ? [...data.associatedAlertIds] : [];
+      const associated_alerts = modalIds.map((id) => ({
+        alert_id: id,
+        incident_type: (data as any).incident_type || "rate_anomaly",
+      }));
 
-			// map UI keys to backend expected snake_case payload
-			const payload: Record<string, any> = {
-				platform_uuid: platformId,
-				title: data.title,
-				severity: data.severity,
-				status: data.status,
-				category: data.category,
-				impacted_endpoints: data.impactedEndpoints,
-				source_ips: data.sourceIPs,
-				// structured associations
-				associated_alerts,
-				// keep array of ids as well (optional)
-				associated_alert_ids: modalIds,
-				summary: data.summary,
-				assigned_to: data.assignedTo,
-				containment_actions: data.containmentActions,
-				next_step: data.nextStep,
-				customer_data_exposure: data.customerDataExposure,
-				data_class: data.dataClass,
-				requires_customer_notification: data.requiresCustomerNotification,
-				regulatory_impact: data.regulatoryImpact,
-			};
+      const payload: Record<string, any> = {
+        platform_uuid: platformId,
+        title: data.title,
+        severity: data.severity,
+        status: data.status,
+        category: data.category,
+        impacted_endpoints: data.impactedEndpoints,
+        source_ips: data.sourceIPs,
+        associated_alerts,
+        associated_alert_ids: modalIds,
+        summary: data.summary,
+        assigned_to: data.assignedTo,
+        containment_actions: data.containmentActions,
+        next_step: data.nextStep,
+        customer_data_exposure: data.customerDataExposure,
+        data_class: data.dataClass,
+        requires_customer_notification: data.requiresCustomerNotification,
+        regulatory_impact: data.regulatoryImpact,
+      };
 
-			await apiService.createIncident(payload);
+      await apiService.createIncident(payload);
+      await fetchIncidents();
 
-			// Refresh from server to ensure consistent data (prevents blank UI / stale state)
-			await fetchIncidents();
-
-			setShowCreateModal(false);
-			toast({
-				title: "Incident Created",
-				description: "New incident has been created successfully.",
-				variant: "default",
-			});
-		} catch (error: any) {
-			// log error for debugging
-			console.error("Incidents: error creating incident", error);
-			toast({
-				title: "Error creating incident",
-				description: error?.message || "Failed to create incident.",
-				variant: "destructive",
-			});
-		} finally {
-			setLoading(false);
-		}
-	};
+      setShowCreateModal(false);
+      toast({
+        title: "Incident Created",
+        description: "New incident has been created successfully.",
+        variant: "default",
+      });
+    } catch (error: any) {
+      console.error("Incidents: error creating incident", error);
+      toast({
+        title: "Error creating incident",
+        description: error?.message || "Failed to create incident.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleUpdateIncident = async (data: any) => {
-		if (!selectedIncident) return;
+    if (!selectedIncident) return;
 
-		try {
-			setLoading(true);
-			// Build payload for update (snake_case)
-			const payload: Record<string, any> = {
-				title: data.title,
-				severity: data.severity,
-				status: data.status,
-				category: data.category,
-				impacted_endpoints: data.impactedEndpoints,
-				source_ips: data.sourceIPs,
-				// keep id list for backward compatibility
-				associated_alert_ids: data.associatedAlertIds,
-				summary: data.summary,
-				assigned_to: data.assignedTo,
-				containment_actions: data.containmentActions,
-				next_step: data.nextStep,
-				customer_data_exposure: data.customerDataExposure,
-				data_class: data.dataClass,
-				requires_customer_notification: data.requiresCustomerNotification,
-				regulatory_impact: data.regulatoryImpact,
-			};
+    try {
+      setLoading(true);
 
-			// Build and include structured associated_alerts if provided
-			if (Array.isArray(data.associatedAlertIds) && data.associatedAlertIds.length > 0) {
-				payload.associated_alerts = data.associatedAlertIds.map((id: string) => ({
-					alert_id: id,
-					incident_type: (data as any).incident_type || "rate_anomaly",
-				}));
-			}
+      const payload: Record<string, any> = {
+        title: data.title,
+        severity: data.severity,
+        status: data.status,
+        category: data.category,
+        impacted_endpoints: data.impactedEndpoints,
+        source_ips: data.sourceIPs,
+        associated_alert_ids: data.associatedAlertIds,
+        summary: data.summary,
+        assigned_to: data.assignedTo,
+        containment_actions: data.containmentActions,
+        next_step: data.nextStep,
+        customer_data_exposure: data.customerDataExposure,
+        data_class: data.dataClass,
+        requires_customer_notification: data.requiresCustomerNotification,
+        regulatory_impact: data.regulatoryImpact,
+      };
 
-			// If closing, include closure fields
-			if (data.status === "Closed") {
-				payload.response_note = data.responseNote;
-				payload.actions_taken = data.actionsTaken;
-				payload.lessons_learned = data.lessonsLearned;
-			}
+      if (Array.isArray(data.associatedAlertIds) && data.associatedAlertIds.length > 0) {
+        payload.associated_alerts = data.associatedAlertIds.map((id: string) => ({
+          alert_id: id,
+          incident_type: (data as any).incident_type || "rate_anomaly",
+        }));
+      }
 
-			await apiService.updateIncident(selectedIncident.id, payload);
+      if (data.status === "Closed") {
+        payload.response_note = data.responseNote;
+        payload.actions_taken = data.actionsTaken;
+        payload.lessons_learned = data.lessonsLearned;
+      }
 
-			// Refresh from server to show authoritative updated record and avoid blank UI
-			await fetchIncidents();
+      await apiService.updateIncident(selectedIncident.id, payload);
+      await fetchIncidents();
 
-			setShowUpdateModal(false);
-			setSelectedIncident(null);
-			toast({
-				title: "Incident Updated",
-			 description: "Incident has been updated successfully.",
-				variant: "default",
-			});
-		} catch (error: any) {
-			// log error for debugging
-			console.error("Incidents: error updating incident", error);
-			toast({
-				title: "Error updating incident",
-				description: error?.message || "Failed to update incident.",
-				variant: "destructive",
-			});
-		} finally {
-			setLoading(false);
-		}
-	};
+      setShowUpdateModal(false);
+      setSelectedIncident(null);
+
+      toast({
+        title: "Incident Updated",
+        description: "Incident has been updated successfully.",
+        variant: "default",
+      });
+    } catch (error: any) {
+      console.error("Incidents: error updating incident", error);
+      toast({
+        title: "Error updating incident",
+        description: error?.message || "Failed to update incident.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const generatePDFReport = (incident: Incident) => {
     const doc = new jsPDF();
@@ -387,8 +287,7 @@ const Incidents = () => {
     const margin = 20;
     let yPos = 20;
 
-    // Header with professional dark blue
-    doc.setFillColor(30, 41, 59); // Dark slate blue
+    doc.setFillColor(30, 41, 59);
     doc.rect(0, 0, pageWidth, 50, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(20);
@@ -401,9 +300,8 @@ const Incidents = () => {
     yPos = 60;
     doc.setTextColor(30, 41, 59);
 
-    // Helper function for section headers
     const addSectionHeader = (title: string, y: number) => {
-      doc.setFillColor(241, 245, 249); // Light gray background
+      doc.setFillColor(241, 245, 249);
       doc.rect(margin - 5, y - 5, pageWidth - 2 * margin + 10, 8, "F");
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
@@ -412,10 +310,8 @@ const Incidents = () => {
       return y + 8;
     };
 
-    // Helper function to add spacing
     const addSpacing = (y: number, spacing: number = 5) => y + spacing;
 
-    // Incident Overview
     yPos = addSectionHeader("INCIDENT OVERVIEW", yPos);
     yPos = addSpacing(yPos, 3);
 
@@ -445,32 +341,28 @@ const Incidents = () => {
 
     yPos = addSpacing(yPos, 8);
 
-    // Calculate timeline
     const createdAt = new Date(incident.createdAt);
     const updatedAt = new Date(incident.updatedAt);
     const resolvedAt = incident.status === "Closed" ? updatedAt : null;
-    const timeToResolution = resolvedAt ? Math.round((resolvedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60)) : null;
-    
-    // Timeline Chart
+    const timeToResolution = resolvedAt
+      ? Math.round((resolvedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60))
+      : null;
+
     yPos = addSectionHeader("RESOLUTION TIMELINE", yPos);
     yPos = addSpacing(yPos, 3);
-    
-    // Draw timeline chart
+
     const chartWidth = pageWidth - 2 * margin;
     const chartHeight = 30;
     const chartX = margin;
     const chartY = yPos;
 
-    // Background
     doc.setFillColor(249, 250, 251);
     doc.roundedRect(chartX, chartY, chartWidth, chartHeight, 2, 2, "F");
 
-    // Timeline line
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(2);
     doc.line(chartX + 10, chartY + chartHeight / 2, chartX + chartWidth - 10, chartY + chartHeight / 2);
 
-    // Created point
     doc.setFillColor(59, 130, 246);
     doc.circle(chartX + 15, chartY + chartHeight / 2, 3, "F");
     doc.setFontSize(7);
@@ -479,7 +371,6 @@ const Incidents = () => {
     doc.setFontSize(6);
     doc.text(createdAt.toLocaleDateString(), chartX + 15, chartY - 7, { align: "center" });
 
-    // Updated/Resolved point
     if (resolvedAt) {
       doc.setFillColor(16, 185, 129);
       doc.circle(chartX + chartWidth - 15, chartY + chartHeight / 2, 3, "F");
@@ -487,13 +378,14 @@ const Incidents = () => {
       doc.text("Resolved", chartX + chartWidth - 15, chartY - 2, { align: "center" });
       doc.setFontSize(6);
       doc.text(resolvedAt.toLocaleDateString(), chartX + chartWidth - 15, chartY - 7, { align: "center" });
-      
-      // Duration text
+
       doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 41, 59);
       const durationText = timeToResolution ? `${timeToResolution} hours` : "N/A";
-      doc.text(`Duration: ${durationText}`, chartX + chartWidth / 2, chartY + chartHeight / 2 + 2, { align: "center" });
+      doc.text(`Duration: ${durationText}`, chartX + chartWidth / 2, chartY + chartHeight / 2 + 2, {
+        align: "center",
+      });
     } else {
       doc.setFillColor(251, 146, 60);
       doc.circle(chartX + chartWidth - 15, chartY + chartHeight / 2, 3, "F");
@@ -505,20 +397,19 @@ const Incidents = () => {
 
     yPos = addSpacing(yPos, chartHeight + 12);
 
-    // Severity Chart
     yPos = addSectionHeader("SEVERITY ANALYSIS", yPos);
     yPos = addSpacing(yPos, 3);
 
     const severityColors: Record<string, [number, number, number]> = {
-      Critical: [239, 68, 68],    // Red
-      High: [251, 146, 60],       // Orange
-      Medium: [250, 204, 21],     // Yellow
-      Low: [34, 197, 94],         // Green
+      Critical: [239, 68, 68],
+      High: [251, 146, 60],
+      Medium: [250, 204, 21],
+      Low: [34, 197, 94],
     };
 
     const severityValue = severityColors[incident.severity] || [148, 163, 184];
     const barHeight = 15;
-    const barWidth = (pageWidth - 2 * margin - 80);
+    const barWidth = pageWidth - 2 * margin - 80;
     const maxWidth = barWidth;
     const severityWidths: Record<string, number> = {
       Critical: maxWidth,
@@ -527,14 +418,13 @@ const Incidents = () => {
       Low: maxWidth * 0.25,
     };
 
-    // Draw severity bar
     const barX = margin + 70;
     const barY = yPos;
     const currentWidth = severityWidths[incident.severity] || maxWidth * 0.5;
 
     doc.setFillColor(241, 245, 249);
     doc.roundedRect(barX, barY, maxWidth, barHeight, 2, 2, "F");
-    
+
     doc.setFillColor(severityValue[0], severityValue[1], severityValue[2]);
     doc.roundedRect(barX, barY, currentWidth, barHeight, 2, 2, "F");
 
@@ -548,7 +438,6 @@ const Incidents = () => {
 
     yPos = addSpacing(yPos, barHeight + 10);
 
-    // Summary
     if (incident.summary) {
       yPos = addSectionHeader("SUMMARY", yPos);
       yPos = addSpacing(yPos, 3);
@@ -560,27 +449,20 @@ const Incidents = () => {
       yPos += summaryLines.length * 6 + 8;
     }
 
-    // Impacted Endpoints
     if (incident.impactedEndpoints && incident.impactedEndpoints.length > 0) {
       yPos = addSectionHeader("IMPACTED ENDPOINTS", yPos);
       yPos = addSpacing(yPos, 3);
       autoTable(doc, {
         startY: yPos,
         head: [["Endpoint"]],
-        body: incident.impactedEndpoints.map((ep) => {
-          // Handle both string and object formats
-          const endpointDisplay = typeof ep === 'string' 
-            ? ep 
-            : (ep?.path || ep?.name || `${ep?.method || ''} ${ep?.path || ''}`).trim();
-          return [endpointDisplay];
-        }),
+        body: incident.impactedEndpoints.map((ep) => [getEndpointDisplay(ep)]),
         theme: "striped",
-        headStyles: { 
+        headStyles: {
           fillColor: [30, 41, 59],
           textColor: [255, 255, 255],
           fontStyle: "bold",
         },
-        bodyStyles: { 
+        bodyStyles: {
           textColor: [71, 85, 105],
           fontSize: 9,
         },
@@ -593,7 +475,6 @@ const Incidents = () => {
       yPos = (doc as any).lastAutoTable.finalY + 8;
     }
 
-    // Source IPs
     if (incident.sourceIPs) {
       yPos = addSectionHeader("SOURCE IPs / ACTOR FINGERPRINT", yPos);
       yPos = addSpacing(yPos, 3);
@@ -605,7 +486,6 @@ const Incidents = () => {
       yPos += sourceLines.length * 6 + 8;
     }
 
-    // Containment Actions
     if (incident.containmentActions && incident.containmentActions.length > 0) {
       yPos = addSectionHeader("CONTAINMENT ACTIONS", yPos);
       yPos = addSpacing(yPos, 3);
@@ -614,12 +494,12 @@ const Incidents = () => {
         head: [["#", "Action"]],
         body: incident.containmentActions.map((action, idx) => [idx + 1, action]),
         theme: "striped",
-        headStyles: { 
+        headStyles: {
           fillColor: [16, 185, 129],
           textColor: [255, 255, 255],
           fontStyle: "bold",
         },
-        bodyStyles: { 
+        bodyStyles: {
           textColor: [71, 85, 105],
           fontSize: 9,
         },
@@ -632,18 +512,19 @@ const Incidents = () => {
       yPos = (doc as any).lastAutoTable.finalY + 8;
     }
 
-    // Compliance Information
     if (incident.customerDataExposure !== "unknown" || incident.regulatoryImpact !== "None") {
       yPos = addSectionHeader("COMPLIANCE INFORMATION", yPos);
       yPos = addSpacing(yPos, 3);
       doc.setFontSize(9);
       doc.setTextColor(71, 85, 105);
+
       const complianceData = [
         ["Customer Data Exposure:", incident.customerDataExposure],
         ["Data Class:", incident.dataClass || "N/A"],
         ["Customer Notification Required:", incident.requiresCustomerNotification],
         ["Regulatory Impact:", incident.regulatoryImpact],
       ];
+
       complianceData.forEach(([label, value]) => {
         doc.setFont("helvetica", "bold");
         doc.setTextColor(51, 65, 85);
@@ -653,12 +534,11 @@ const Incidents = () => {
         doc.text(String(value), margin + 70, yPos);
         yPos += 8;
       });
+
       yPos = addSpacing(yPos, 5);
     }
 
-    // If Closed, add response sections
     if (incident.status === "Closed") {
-      // Response Note
       if (incident.responseNote) {
         if (yPos > pageHeight - 60) {
           doc.addPage();
@@ -674,7 +554,6 @@ const Incidents = () => {
         yPos += responseLines.length * 6 + 8;
       }
 
-      // Actions Taken
       if (incident.actionsTaken) {
         if (yPos > pageHeight - 60) {
           doc.addPage();
@@ -690,7 +569,6 @@ const Incidents = () => {
         yPos += actionsLines.length * 6 + 8;
       }
 
-      // Lessons Learned
       if (incident.lessonsLearned) {
         if (yPos > pageHeight - 60) {
           doc.addPage();
@@ -706,34 +584,22 @@ const Incidents = () => {
       }
     }
 
-    // Footer
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
-      
-      // Footer line
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.5);
       doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
-      
+
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
       doc.setFont("helvetica", "normal");
-      doc.text(
-        `Page ${i} of ${pageCount}`,
-        pageWidth / 2,
-        pageHeight - 8,
-        { align: "center" }
-      );
-      doc.text(
-        `Generated: ${new Date().toLocaleString()}`,
-        pageWidth - margin,
-        pageHeight - 8,
-        { align: "right" }
-      );
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 8, { align: "center" });
+      doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - margin, pageHeight - 8, {
+        align: "right",
+      });
     }
 
-    // Save PDF
     doc.save(`incident-report-${incident.id}.pdf`);
   };
 
@@ -772,12 +638,16 @@ const Incidents = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString() + " " + new Date(dateString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return (
+      new Date(dateString).toLocaleDateString() +
+      " " +
+      new Date(dateString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    );
   };
 
   const handleViewDetails = (incident: Incident) => {
+    setShowUpdateModal(false);
     setSelectedIncident(incident);
-    // Show details in a dialog
   };
 
   const handleEdit = (incident: Incident) => {
@@ -786,224 +656,381 @@ const Incidents = () => {
   };
 
   return (
-    <div className="space-y-6 w-full min-w-0 max-w-full">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words">
-            Security Incidents
-            {platform && (
-              <span className="text-base sm:text-lg font-normal text-muted-foreground ml-2 break-words">
-                • {platform.name || selectedPlatformId}
-              </span>
-            )}
-          </h1>
-          <p className="text-muted-foreground break-words">
-            Manage and track security incidents
-          </p>
-        </div>
-        <Button onClick={() => setShowCreateModal(true)}>
+    <div className="space-y-8 w-full min-w-0 max-w-full">
+                 <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 pt-7 pb-6 shadow-lg min-h-[140px]">
+  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.18),transparent_55%)]" />
+
+  <div className="relative z-10 flex flex-col justify-between h-full gap-4">
+    <div className="flex flex-wrap items-center gap-2">
+      <Badge className="border-white/20 bg-white/10 px-3 py-1 text-white hover:bg-white/10 text-xs font-medium rounded-full">
+        Incident Response
+      </Badge>
+      {platform && (
+        <Badge className="border-white/20 bg-white/10 px-3 py-1 text-white hover:bg-white/10 text-xs font-medium rounded-full">
+          {platform.name || selectedPlatformId}
+        </Badge>
+      )}
+    </div>
+
+    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight break-words">
+          Security Incidents
+        </h1>
+        <p className="mt-1 text-sm text-blue-100 break-words max-w-xl">
+          Manage, investigate, and document incident response activity across your protected APIs.
+        </p>
+      </div>
+
+      <div className="flex flex-row gap-2 shrink-0">
+        <Button
+          type="button"
+          variant="outline"
+          className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-sm"
+        >
+          <Activity className="h-4 w-4 mr-2" />
+          Active Queue
+        </Button>
+        <Button
+          onClick={() => setShowCreateModal(true)}
+          className="bg-white text-blue-700 hover:bg-white/90 shadow-md rounded-full px-4 text-sm font-semibold"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Create Incident
         </Button>
       </div>
+    </div>
+  </div>
+</div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Incidents</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-blue-500" />
+
+
+      <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 shadow-sm">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
+          <CardHeader className="pb-2">
+            <div className="rounded-xl bg-blue-50 p-3 w-fit dark:bg-blue-500/10">
+              <AlertTriangle className="h-5 w-5 text-blue-500" />
+            </div>
+            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              Total Incidents
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{incidents.length}</div>
-            <p className="text-xs text-muted-foreground">All incidents</p>
+            <div className="text-3xl font-bold text-slate-900 dark:text-white">{incidents.length}</div>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">All incidents</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open</CardTitle>
-            <Activity className="h-4 w-4 text-orange-500" />
+        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 shadow-sm">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/30 to-transparent" />
+          <CardHeader className="pb-2">
+            <div className="rounded-xl bg-orange-50 p-3 w-fit dark:bg-orange-500/10">
+              <Activity className="h-5 w-5 text-orange-500" />
+            </div>
+            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              Open
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold text-slate-900 dark:text-white">
               {incidents.filter((i) => i.status === "Open").length}
             </div>
-            <p className="text-xs text-muted-foreground">Requires attention</p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Requires attention</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Critical</CardTitle>
-            <Shield className="h-4 w-4 text-red-500" />
+        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 shadow-sm">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/30 to-transparent" />
+          <CardHeader className="pb-2">
+            <div className="rounded-xl bg-red-50 p-3 w-fit dark:bg-red-500/10">
+              <Shield className="h-5 w-5 text-red-500" />
+            </div>
+            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              Critical
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-3xl font-bold text-red-600 dark:text-red-400">
               {incidents.filter((i) => i.severity === "Critical").length}
             </div>
-            <p className="text-xs text-muted-foreground">High priority</p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">High priority</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Closed</CardTitle>
-            <Clock className="h-4 w-4 text-green-500" />
+        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 shadow-sm">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
+          <CardHeader className="pb-2">
+            <div className="rounded-xl bg-emerald-50 p-3 w-fit dark:bg-emerald-500/10">
+              <Clock className="h-5 w-5 text-emerald-500" />
+            </div>
+            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              Closed
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold text-slate-900 dark:text-white">
               {incidents.filter((i) => i.status === "Closed").length}
             </div>
-            <p className="text-xs text-muted-foreground">Resolved</p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Resolved</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="relative flex-1 max-w-sm w-full min-w-0">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search incidents..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
-              />
+      <Card className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-5">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Filters</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Narrow down incidents by title, status, and severity.
+              </p>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Open">Open</SelectItem>
-                <SelectItem value="In Progress">In Progress</SelectItem>
-                <SelectItem value="Contained">Contained</SelectItem>
-                <SelectItem value="Resolved">Resolved</SelectItem>
-                <SelectItem value="Closed">Closed</SelectItem>
-                <SelectItem value="False Positive">False Positive</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={severityFilter} onValueChange={setSeverityFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Severity" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Severity</SelectItem>
-                <SelectItem value="Critical">Critical</SelectItem>
-                <SelectItem value="High">High</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="Low">Low</SelectItem>
-              </SelectContent>
-            </Select>
+
+            <div className="grid gap-4 lg:grid-cols-[1.4fr_220px_220px]">
+              <div className="relative min-w-0">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search incidents..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 rounded-xl border-slate-200/70 bg-slate-50/80 dark:border-slate-700/70 dark:bg-slate-800/50"
+                />
+              </div>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="rounded-xl border-slate-200/70 bg-slate-50/80 dark:border-slate-700/70 dark:bg-slate-800/50">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="Open">Open</SelectItem>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Contained">Contained</SelectItem>
+                  <SelectItem value="Resolved">Resolved</SelectItem>
+                  <SelectItem value="Closed">Closed</SelectItem>
+                  <SelectItem value="False Positive">False Positive</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={severityFilter} onValueChange={setSeverityFilter}>
+                <SelectTrigger className="rounded-xl border-slate-200/70 bg-slate-50/80 dark:border-slate-700/70 dark:bg-slate-800/50">
+                  <SelectValue placeholder="Severity" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Severity</SelectItem>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Incidents Table */}
-      <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle>Incidents ({filteredIncidents.length})</CardTitle>
+      <Card className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
+        <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+          <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
+            Incident Queue
+            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-100 px-2 text-xs font-bold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
+              {filteredIncidents.length}
+            </span>
+          </CardTitle>
           <CardDescription>List of all security incidents</CardDescription>
         </CardHeader>
+
         <CardContent className="p-0">
-          {filteredIncidents.length === 0 ? (
-            <div className="text-center py-12">
-              <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">No incidents found</p>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="relative mb-4 h-14 w-14">
+                <div className="absolute inset-0 rounded-full bg-blue-100 dark:bg-blue-500/20 animate-pulse" />
+                <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-blue-600 dark:border-t-blue-400 animate-spin" />
+              </div>
+              <p className="font-medium text-slate-700 dark:text-slate-300">Loading incidents...</p>
+            </div>
+          ) : filteredIncidents.length === 0 ? (
+            <div className="text-center py-16 px-6">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                <AlertTriangle className="h-8 w-8 text-slate-400" />
+              </div>
+              <p className="text-base font-semibold text-slate-700 dark:text-slate-300">No incidents found</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Try adjusting your search or filters.
+              </p>
             </div>
           ) : (
-            <div className="overflow-x-auto" style={{ maxHeight: "600px" }}>
-              <table className="w-full text-sm border-0">
-                <thead className="bg-muted/50 sticky top-0">
-                  <tr>
-                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[250px]">Title</th>
-                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[100px]">Severity</th>
-                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[120px]">Status</th>
-                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[120px]">Category</th>
-                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[150px]">Created</th>
-                    <th className="px-3 py-2 text-left whitespace-nowrap min-w-[80px]">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredIncidents.map((incident, _idx) => (
-                    <tr key={incident.id ?? `incident-${_idx}`} className="border-b hover:bg-muted/30 transition-colors">
-                      <td className="px-3 py-2">
-                        <div className="min-w-0">
-                          <div className="font-medium truncate max-w-[240px]" title={incident.title}>
-                            {incident.title}
-                          </div>
-                          {incident.summary && (
-                            <div className="text-xs text-muted-foreground truncate max-w-[240px]" title={incident.summary}>
-                              {incident.summary.substring(0, 60)}...
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge className={`${getSeverityColor(incident.severity)} text-xs`}>
-                          {incident.severity}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge className={`${getStatusColor(incident.status)} text-xs`}>
-                          {incident.status}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="text-xs">{incident.category || "-"}</span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="text-xs whitespace-nowrap">{formatDate(incident.createdAt)}</span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleViewDetails(incident)}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEdit(incident)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            {incident.status === "Closed" && (
-                              <DropdownMenuItem
-                                onClick={() => generatePDFReport(incident)}
-                              >
-                                <Download className="h-4 w-4 mr-2" />
-                                Download PDF
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
+            <>
+              <div className="hidden lg:block overflow-x-auto max-h-[620px]">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur dark:bg-slate-900/95">
+                    <tr className="border-b border-slate-200/60 dark:border-slate-800/60">
+                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[280px]">
+                        Title
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[110px]">
+                        Severity
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[130px]">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[130px]">
+                        Category
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[160px]">
+                        Created
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[90px]">
+                        Actions
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredIncidents.map((incident, index) => (
+                      <tr
+                        key={incident.id ?? `incident-${index}`}
+                        className="border-b border-slate-200/40 transition-colors hover:bg-blue-50/40 dark:border-slate-800/40 dark:hover:bg-slate-800/30"
+                      >
+                        <td className="px-4 py-4 align-top">
+                          <div className="min-w-0">
+                            <div
+                              className="font-semibold text-slate-900 dark:text-white truncate max-w-[280px]"
+                              title={incident.title}
+                            >
+                              {incident.title}
+                            </div>
+                            {incident.summary && (
+                              <div
+                                className="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[280px]"
+                                title={incident.summary}
+                              >
+                                {incident.summary.substring(0, 80)}...
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 align-top">
+                          <Badge className={`${getSeverityColor(incident.severity)} text-xs font-medium`}>
+                            {incident.severity}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-4 align-top">
+                          <Badge className={`${getStatusColor(incident.status)} text-xs font-medium`}>
+                            {incident.status}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-4 align-top">
+                          <span className="text-sm text-slate-700 dark:text-slate-300">
+                            {incident.category || "-"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 align-top">
+                          <span className="text-sm whitespace-nowrap text-slate-600 dark:text-slate-400">
+                            {formatDate(incident.createdAt)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 align-top">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="rounded-lg">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleViewDetails(incident)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEdit(incident)}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              {incident.status === "Closed" && (
+                                <DropdownMenuItem onClick={() => generatePDFReport(incident)}>
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download PDF
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="lg:hidden p-4 space-y-3">
+                {filteredIncidents.map((incident, index) => (
+                  <div
+                    key={incident.id ?? `incident-mobile-${index}`}
+                    className="rounded-2xl border border-slate-200/60 bg-slate-50/60 p-4 dark:border-slate-700/60 dark:bg-slate-800/30"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-900 dark:text-white">{incident.title}</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {formatDate(incident.createdAt)}
+                        </p>
+                      </div>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="rounded-lg">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleViewDetails(incident)}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEdit(incident)}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          {incident.status === "Closed" && (
+                            <DropdownMenuItem onClick={() => generatePDFReport(incident)}>
+                              <Download className="h-4 w-4 mr-2" />
+                              Download PDF
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    {incident.summary && (
+                      <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+                        {incident.summary}
+                      </p>
+                    )}
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <Badge className={`${getSeverityColor(incident.severity)} text-xs`}>
+                        {incident.severity}
+                      </Badge>
+                      <Badge className={`${getStatusColor(incident.status)} text-xs`}>
+                        {incident.status}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {incident.category || "-"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
 
-      {/* Create Incident Modal */}
       <CreateIncidentModal
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
         onSubmit={handleCreateIncident}
       />
 
-      {/* Update Incident Modal */}
       {selectedIncident && (
         <UpdateIncidentModal
           open={showUpdateModal}
@@ -1016,7 +1043,6 @@ const Incidents = () => {
         />
       )}
 
-      {/* View Details Dialog */}
       {selectedIncident && (
         <ViewIncidentDialog
           open={!!selectedIncident && !showUpdateModal}
@@ -1030,7 +1056,6 @@ const Incidents = () => {
   );
 };
 
-// Update Incident Modal Component
 interface UpdateIncidentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1045,18 +1070,17 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
   incident,
 }) => {
   const { toast } = useToast();
-  const [users, setUsers] = useState<any[]>([]);
   const [formData, setFormData] = useState<IncidentFormData>({
     title: incident.title,
     severity: incident.severity as any,
     status: incident.status as any,
     category: incident.category,
-    impactedEndpoints: incident.impactedEndpoints,
+    impactedEndpoints: Array.isArray(incident.impactedEndpoints) ? [...incident.impactedEndpoints] : [],
     sourceIPs: incident.sourceIPs,
-    associatedAlertIds: incident.associatedAlertIds,
+    associatedAlertIds: Array.isArray(incident.associatedAlertIds) ? [...incident.associatedAlertIds] : [],
     summary: incident.summary,
     assignedTo: incident.assignedTo,
-    containmentActions: incident.containmentActions,
+    containmentActions: Array.isArray(incident.containmentActions) ? [...incident.containmentActions] : [],
     nextStep: incident.nextStep,
     customerDataExposure: incident.customerDataExposure,
     dataClass: incident.dataClass,
@@ -1068,29 +1092,44 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
   const [lessonsLearned, setLessonsLearned] = useState(incident.lessonsLearned || "");
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const usersData = await apiService.getUsers();
-        setUsers(usersData);
-      } catch (error) {
-        console.error("Error fetching users:", error);
-      }
-    };
-    fetchUsers();
-  }, []);
+    if (!open) return;
+
+    setFormData({
+      title: incident.title,
+      severity: incident.severity as any,
+      status: incident.status as any,
+      category: incident.category,
+      impactedEndpoints: Array.isArray(incident.impactedEndpoints) ? [...incident.impactedEndpoints] : [],
+      sourceIPs: incident.sourceIPs,
+      associatedAlertIds: Array.isArray(incident.associatedAlertIds) ? [...incident.associatedAlertIds] : [],
+      summary: incident.summary,
+      assignedTo: incident.assignedTo,
+      containmentActions: Array.isArray(incident.containmentActions) ? [...incident.containmentActions] : [],
+      nextStep: incident.nextStep,
+      customerDataExposure: incident.customerDataExposure,
+      dataClass: incident.dataClass,
+      requiresCustomerNotification: incident.requiresCustomerNotification,
+      regulatoryImpact: incident.regulatoryImpact,
+    });
+    setResponseNote(incident.responseNote || "");
+    setActionsTaken(incident.actionsTaken || "");
+    setLessonsLearned(incident.lessonsLearned || "");
+  }, [incident, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
     if (formData.status === "Closed") {
       if (!responseNote || !actionsTaken || !lessonsLearned) {
         toast({
           title: "Missing required fields",
-          description: "Please fill in Response Note, Actions Taken, and Lessons Learned when closing an incident.",
+          description:
+            "Please fill in Response Note, Actions Taken, and Lessons Learned when closing an incident.",
           variant: "destructive",
         });
         return;
       }
-      // Store the additional fields for closed incidents
+
       const closedData: any = {
         ...formData,
         responseNote,
@@ -1098,128 +1137,156 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
         lessonsLearned,
       };
       onSubmit(closedData);
-    } else {
-      onSubmit(formData);
+      return;
     }
+
+    onSubmit(formData);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Update Incident</DialogTitle>
+      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200/60 bg-white p-0 shadow-2xl dark:border-slate-800/60 dark:bg-slate-900">
+        <DialogHeader className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-transparent px-6 py-5 dark:border-slate-800/60 dark:from-slate-800/30">
+          <DialogTitle className="text-xl">Update Incident</DialogTitle>
           <DialogDescription>Update incident details</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Include all form fields similar to CreateIncidentModal */}
-          <div className="space-y-2">
-            <Label htmlFor="title">Incident Title *</Label>
-            <Input
-              id="title"
-              value={formData.title}
-              onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-              required
-            />
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="space-y-6 p-6">
+          <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-5 dark:border-slate-700/60 dark:bg-slate-800/30">
             <div className="space-y-2">
-              <Label>Severity *</Label>
-              <Select
-                value={formData.severity}
-                onValueChange={(value: any) =>
-                  setFormData((prev) => ({ ...prev, severity: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Critical">Critical</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="Low">Low</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="title">Incident Title *</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                required
+                className="rounded-xl"
+              />
             </div>
+
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Severity *</Label>
+                <Select
+                  value={formData.severity}
+                  onValueChange={(value: any) =>
+                    setFormData((prev) => ({ ...prev, severity: value }))
+                  }
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Critical">Critical</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="Low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status *</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value: any) =>
+                    setFormData((prev) => ({ ...prev, status: value }))
+                  }
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Open">Open</SelectItem>
+                    <SelectItem value="In Progress">In Progress</SelectItem>
+                    <SelectItem value="Contained">Contained</SelectItem>
+                    <SelectItem value="Resolved">Resolved</SelectItem>
+                    <SelectItem value="Closed">Closed</SelectItem>
+                    <SelectItem value="False Positive">False Positive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-5 dark:border-slate-700/60 dark:bg-slate-800/30">
             <div className="space-y-2">
-              <Label>Status *</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value: any) =>
-                  setFormData((prev) => ({ ...prev, status: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Open">Open</SelectItem>
-                  <SelectItem value="In Progress">In Progress</SelectItem>
-                  <SelectItem value="Contained">Contained</SelectItem>
-                  <SelectItem value="Resolved">Resolved</SelectItem>
-                  <SelectItem value="Closed">Closed</SelectItem>
-                  <SelectItem value="False Positive">False Positive</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="summary">Summary *</Label>
+              <Textarea
+                id="summary"
+                value={formData.summary}
+                onChange={(e) => setFormData((prev) => ({ ...prev, summary: e.target.value }))}
+                rows={4}
+                required
+                className="rounded-xl"
+              />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="summary">Summary *</Label>
-            <Textarea
-              id="summary"
-              value={formData.summary}
-              onChange={(e) => setFormData((prev) => ({ ...prev, summary: e.target.value }))}
-              rows={4}
-              required
-            />
-          </div>
-
-          {/* Show additional fields when status is Closed */}
           {formData.status === "Closed" && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="responseNote">Response Note *</Label>
-                <Textarea
-                  id="responseNote"
-                  value={responseNote}
-                  onChange={(e) => setResponseNote(e.target.value)}
-                  rows={3}
-                  required
-                  placeholder="Enter response note..."
-                />
+            <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 p-5 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+              <div className="mb-4">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-white">Closure Details</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  These fields are required when closing an incident.
+                </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="actionsTaken">Actions Taken *</Label>
-                <Textarea
-                  id="actionsTaken"
-                  value={actionsTaken}
-                  onChange={(e) => setActionsTaken(e.target.value)}
-                  rows={4}
-                  required
-                  placeholder="List all actions taken to resolve the incident..."
-                />
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="responseNote">Response Note *</Label>
+                  <Textarea
+                    id="responseNote"
+                    value={responseNote}
+                    onChange={(e) => setResponseNote(e.target.value)}
+                    rows={3}
+                    required
+                    placeholder="Enter response note..."
+                    className="rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="actionsTaken">Actions Taken *</Label>
+                  <Textarea
+                    id="actionsTaken"
+                    value={actionsTaken}
+                    onChange={(e) => setActionsTaken(e.target.value)}
+                    rows={4}
+                    required
+                    placeholder="List all actions taken to resolve the incident..."
+                    className="rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="lessonsLearned">Lessons Learned *</Label>
+                  <Textarea
+                    id="lessonsLearned"
+                    value={lessonsLearned}
+                    onChange={(e) => setLessonsLearned(e.target.value)}
+                    rows={4}
+                    required
+                    placeholder="What did we learn from this incident? How can we prevent similar incidents in the future?"
+                    className="rounded-xl"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="lessonsLearned">Lessons Learned *</Label>
-                <Textarea
-                  id="lessonsLearned"
-                  value={lessonsLearned}
-                  onChange={(e) => setLessonsLearned(e.target.value)}
-                  rows={4}
-                  required
-                  placeholder="What did we learn from this incident? How can we prevent similar incidents in the future?"
-                />
-              </div>
-            </>
+            </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex justify-end gap-2 border-t border-slate-200/60 pt-4 dark:border-slate-800/60">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="rounded-xl"
+            >
               Cancel
             </Button>
-            <Button type="submit">Update Incident</Button>
+            <Button type="submit" className="rounded-xl">
+              Update Incident
+            </Button>
           </div>
         </form>
       </DialogContent>
@@ -1227,7 +1294,6 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
   );
 };
 
-// View Details Dialog Component
 interface ViewIncidentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1239,82 +1305,122 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
   onOpenChange,
   incident,
 }) => {
+  const severityClass = (() => {
+    switch (incident.severity) {
+      case "Critical":
+        return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400";
+      case "High":
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400";
+      case "Medium":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400";
+      case "Low":
+        return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  })();
+
+  const statusClass = (() => {
+    switch (incident.status) {
+      case "Open":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400";
+      case "In Progress":
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400";
+      case "Contained":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400";
+      case "Resolved":
+        return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400";
+      case "Closed":
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400";
+      case "False Positive":
+        return "bg-slate-100 text-slate-800 dark:bg-slate-900/20 dark:text-slate-400";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  })();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{incident.title}</DialogTitle>
+      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200/60 bg-white p-0 shadow-2xl dark:border-slate-800/60 dark:bg-slate-900">
+        <DialogHeader className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-transparent px-6 py-5 dark:border-slate-800/60 dark:from-slate-800/30">
+          <DialogTitle className="text-xl text-slate-900 dark:text-white">{incident.title}</DialogTitle>
           <DialogDescription>Complete incident details</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-xs text-muted-foreground">Severity</Label>
-              <Badge className="mt-1">{incident.severity}</Badge>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Status</Label>
-              <Badge className="mt-1">{incident.status}</Badge>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Category</Label>
-              <p className="text-sm mt-1">{incident.category || "N/A"}</p>
-            </div>
-            <div>
+
+        <div className="space-y-6 p-6">
+          <div className="flex flex-wrap gap-2">
+            <Badge className={severityClass}>{incident.severity}</Badge>
+            <Badge className={statusClass}>{incident.status}</Badge>
+            {incident.category && <Badge variant="outline">{incident.category}</Badge>}
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
               <Label className="text-xs text-muted-foreground">Created</Label>
-              <p className="text-sm mt-1">{new Date(incident.createdAt).toLocaleString()}</p>
+              <p className="mt-2 text-sm font-medium text-slate-900 dark:text-white">
+                {new Date(incident.createdAt).toLocaleString()}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
+              <Label className="text-xs text-muted-foreground">Updated</Label>
+              <p className="mt-2 text-sm font-medium text-slate-900 dark:text-white">
+                {new Date(incident.updatedAt).toLocaleString()}
+              </p>
             </div>
           </div>
-          <div>
+
+          <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-5 dark:border-slate-700/60 dark:bg-slate-800/30">
             <Label className="text-xs text-muted-foreground">Summary</Label>
-            <p className="text-sm mt-1">{incident.summary}</p>
+            <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">{incident.summary}</p>
           </div>
+
           {incident.impactedEndpoints.length > 0 && (
-            <div>
+            <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-5 dark:border-slate-700/60 dark:bg-slate-800/30">
               <Label className="text-xs text-muted-foreground">Impacted Endpoints</Label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {incident.impactedEndpoints.map((ep, i) => {
-                  // Handle both string and object formats
-                  const endpointDisplay = typeof ep === 'string' 
-                    ? ep 
-                    : (ep?.path || ep?.name || `${ep?.method || ''} ${ep?.path || ''}`).trim();
-                  const endpointKey = typeof ep === 'string' 
-                    ? `${ep}-${i}` 
-                    : (ep?.path || ep?.name || `endpoint-${i}`);
-                  
-                  return (
-                    <Badge key={endpointKey} variant="secondary">
-                      {endpointDisplay}
-                    </Badge>
-                  );
-                })}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {incident.impactedEndpoints.map((ep, i) => (
+                  <Badge key={getEndpointKey(ep, i)} variant="secondary" className="rounded-full">
+                    {getEndpointDisplay(ep)}
+                  </Badge>
+                ))}
               </div>
             </div>
           )}
+
           {incident.sourceIPs && (
-            <div>
+            <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-5 dark:border-slate-700/60 dark:bg-slate-800/30">
               <Label className="text-xs text-muted-foreground">Source IPs</Label>
-              <p className="text-sm mt-1 font-mono">{incident.sourceIPs}</p>
+              <p className="mt-3 font-mono text-sm text-slate-700 dark:text-slate-300">{incident.sourceIPs}</p>
             </div>
           )}
+
           {incident.status === "Closed" && (
             <>
               {incident.responseNote && (
-                <div>
+                <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 p-5 dark:border-emerald-500/20 dark:bg-emerald-500/10">
                   <Label className="text-xs text-muted-foreground">Response Note</Label>
-                  <p className="text-sm mt-1 whitespace-pre-wrap">{incident.responseNote}</p>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">
+                    {incident.responseNote}
+                  </p>
                 </div>
               )}
+
               {incident.actionsTaken && (
-                <div>
+                <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-5 dark:border-slate-700/60 dark:bg-slate-800/30">
                   <Label className="text-xs text-muted-foreground">Actions Taken</Label>
-                  <p className="text-sm mt-1 whitespace-pre-wrap">{incident.actionsTaken}</p>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">
+                    {incident.actionsTaken}
+                  </p>
                 </div>
               )}
+
               {incident.lessonsLearned && (
-                <div>
+                <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-5 dark:border-slate-700/60 dark:bg-slate-800/30">
                   <Label className="text-xs text-muted-foreground">Lessons Learned</Label>
-                  <p className="text-sm mt-1 whitespace-pre-wrap">{incident.lessonsLearned}</p>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">
+                    {incident.lessonsLearned}
+                  </p>
                 </div>
               )}
             </>
@@ -1326,4 +1432,3 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
 };
 
 export default Incidents;
-

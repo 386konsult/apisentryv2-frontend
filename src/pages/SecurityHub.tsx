@@ -585,39 +585,60 @@ const SecurityHub = () => {
   return (
     <div className="space-y-8 w-full min-w-0 max-w-full">
       {/* Header with gradient background */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 py-8 sm:py-10 shadow-lg">
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white break-words">
-              Security Hub
-              {platformName && (
-                <span className="text-lg sm:text-xl font-semibold text-blue-100 ml-2 break-words block sm:inline">
-                  • {platformName}
-                </span>
-              )}
-            </h1>
-            <p className="text-blue-100 mt-2 break-words">
-              Comprehensive request log analysis and security investigation
-            </p>
-          </div>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="flex gap-3"
-          >
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={exportLogs}
-              className="bg-white/20 border-white/40 text-white hover:bg-white/30 hover:text-white"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
-          </motion.div>
-        </div>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 pt-7 pb-6 shadow-lg min-h-[140px]">
+  
+  {/* Background glow */}
+  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.18),transparent_55%)]" />
+
+  <div className="relative z-10 flex flex-col justify-between h-full gap-4">
+    
+    {/* Top — badges */}
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="px-3 py-1 rounded-full border border-white/20 bg-white/10 text-white text-xs font-medium">
+        Security Hub
+      </span>
+
+      {platformName && (
+        <span className="px-3 py-1 rounded-full border border-white/20 bg-white/10 text-white text-xs font-medium">
+          {platformName}
+        </span>
+      )}
+    </div>
+
+    {/* Bottom — content + actions */}
+    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      
+      {/* Left */}
+      <div className="min-w-0">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight break-words">
+          Security Hub
+        </h1>
+        <p className="mt-1 text-sm text-blue-100 max-w-xl break-words">
+          Comprehensive request log analysis and security investigation
+        </p>
       </div>
+
+      {/* Right */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-row gap-2 shrink-0"
+      >
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={exportLogs}
+          className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-sm"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
+      </motion.div>
+
+    </div>
+  </div>
+</div>
 
       {/* Key Stats - 3 Primary Tiles */}
       <motion.div

@@ -790,16 +790,16 @@ const PlatformDetails = () => {
           </div>
 
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => navigate('/platforms')} className={secondaryButtonClass}>
-              <Eye className="mr-2 h-4 w-4" />
-              View Workspaces
-            </Button>
+  <Button variant="outline" onClick={() => navigate('/platforms')} className={`${secondaryButtonClass} rounded-full`}>
+    <Eye className="mr-2 h-4 w-4" />
+    View Workspaces
+  </Button>
 
-            <Button onClick={() => navigate('/onboarding')} className={primaryButtonClass}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Workspace
-            </Button>
-          </div>
+  <Button onClick={() => navigate('/onboarding')} className={`${primaryButtonClass} rounded-full`}>
+    <Plus className="mr-2 h-4 w-4" />
+    Create Workspace
+  </Button>
+</div>
         </motion.div>
 
 

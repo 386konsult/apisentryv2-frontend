@@ -1,32 +1,20 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  FileText, 
-  Clock, 
-  CheckCircle, 
-  AlertTriangle, 
-  XCircle, 
-  Eye, 
-  RefreshCw,
-  GitBranch,
-  Shield,
-  TrendingUp,
-  User,
-  ArrowLeft
+import {
+  FileText, Clock, CheckCircle, AlertTriangle,
+  XCircle, Eye, RefreshCw, GitBranch, Shield,
+  TrendingUp, ArrowLeft,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import SecurityReportView from "@/components/SecurityReportView";
 
+/* ─── types ────────────────────────────────────────────────────────────── */
 interface ScanReport {
   id: string;
-  status: 'in_progress' | 'completed' | 'failed';
+  status: "in_progress" | "completed" | "failed";
   startTime: string;
   endTime?: string;
   openFindings: number;
@@ -37,11 +25,10 @@ interface ScanReport {
   repo_url?: string;
   analysis_run_id?: string;
 }
-
 interface RepositoryScan {
   name: string;
-  status: 'pending' | 'scanning' | 'completed' | 'failed';
-  risk: 'Low' | 'Medium' | 'High' | 'Critical';
+  status: "pending" | "scanning" | "completed" | "failed";
+  risk: "Low" | "Medium" | "High" | "Critical";
   url?: string;
   html_url?: string;
   repo_url?: string;
@@ -49,213 +36,166 @@ interface RepositoryScan {
   analysis_run_id?: string;
 }
 
+/* ─── animated counter ─────────────────────────────────────────────────── */
+function AnimatedCount({ to, duration = 1.2 }: { to: number; duration?: number }) {
+  const count   = useMotionValue(0);
+  const rounded = useTransform(count, (v) => Math.round(v));
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    const c = animate(count, to, { duration, ease: "easeOut" });
+    const u = rounded.on("change", setDisplay);
+    return () => { c.stop(); u(); };
+  }, [to]);
+  return <span>{display}</span>;
+}
+
+/* ─── status pill ───────────────────────────────────────────────────────── */
+const statusCfg: Record<string, { label: string; Icon: any; cls: string }> = {
+  completed:   { label: "Completed",   Icon: CheckCircle, cls: "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20" },
+  in_progress: { label: "In Progress", Icon: RefreshCw,   cls: "bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-500/20" },
+  failed:      { label: "Failed",      Icon: XCircle,     cls: "bg-red-500/10 text-red-500 dark:text-red-400 border-red-500/20" },
+};
+function StatusPill({ status }: { status: string }) {
+  const cfg = statusCfg[status];
+  if (!cfg) return <span className="text-xs text-slate-400">{status}</span>;
+  const { Icon } = cfg;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-medium ${cfg.cls}`}>
+      <Icon className={`w-3 h-3 ${status === "in_progress" ? "animate-spin" : ""}`} />
+      {cfg.label}
+    </span>
+  );
+}
+
+/* ─── risk pill ─────────────────────────────────────────────────────────── */
+const riskCfg: Record<string, string> = {
+  Low:      "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20",
+  Medium:   "bg-amber-500/10  text-amber-500  dark:text-amber-400  border-amber-500/20",
+  High:     "bg-orange-500/10 text-orange-500 dark:text-orange-400 border-orange-500/20",
+  Critical: "bg-red-500/10    text-red-500    dark:text-red-400    border-red-500/20",
+};
+function RiskPill({ risk }: { risk: string }) {
+  return (
+    <span className={`inline-flex items-center text-[11px] px-2.5 py-1 rounded-full border font-medium ${riskCfg[risk] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
+      {risk}
+    </span>
+  );
+}
+
+/* ─── repo status icon ──────────────────────────────────────────────────── */
+function RepoStatusIcon({ status }: { status: string }) {
+  if (status === "scanning")  return <RefreshCw className="w-3.5 h-3.5 text-blue-500 animate-spin" />;
+  if (status === "completed") return <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />;
+  if (status === "failed")    return <XCircle className="w-3.5 h-3.5 text-red-500" />;
+  return <Clock className="w-3.5 h-3.5 text-slate-400" />;
+}
+
+/* ════════════════════════════════════════════════════════════════════════ */
 const CodeReviewScanReports = () => {
-  const [scanReports, setScanReports] = useState<ScanReport[]>([]);
-  const [currentScan, setCurrentScan] = useState<ScanReport | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [viewingReport, setViewingReport] = useState<ScanReport | null>(null);
-  const [securityReportData, setSecurityReportData] = useState<any>(null);
-  const [securityReportLoading, setSecurityReportLoading] = useState(false);
+  const [scanReports,          setScanReports]          = useState<ScanReport[]>([]);
+  const [currentScan,          setCurrentScan]          = useState<ScanReport | null>(null);
+  const [loading,              setLoading]              = useState(false);
+  const [viewingReport,        setViewingReport]        = useState<ScanReport | null>(null);
+  const [securityReportData,   setSecurityReportData]   = useState<any>(null);
+  const [securityReportLoading,setSecurityReportLoading]= useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Find the current in-progress scan
-    const inProgressScan = scanReports.find(report => report.status === 'in_progress');
-    setCurrentScan(inProgressScan || null);
+    const inProgress = scanReports.find(r => r.status === "in_progress");
+    setCurrentScan(inProgress || null);
   }, [scanReports]);
 
   const loadScanReports = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const headers = token ? { Authorization: `Token ${token}` } : {};
-      
-      // Get platform ID from localStorage
-      const platformId = localStorage.getItem('selected_platform_id');
-      if (!platformId) {
-        throw new Error("No platform selected. Please select a platform first.");
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/scan-reports/?platform_id=${platformId}`,
-        { headers }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch scan reports: ${response.status}`);
-      }
-      
-      const reports = await response.json();
-      console.log("Scan reports response:", reports);
-      setScanReports(reports);
-    } catch (error) {
-      console.error('Failed to load scan reports:', error);
-      toast({
-        title: "Error loading scan reports",
-        description: error.message || "Failed to fetch scan reports",
-        variant: "destructive",
+      const token      = localStorage.getItem("auth_token");
+      const platformId = localStorage.getItem("selected_platform_id");
+      if (!platformId) throw new Error("No platform selected. Please select a platform first.");
+      const res = await fetch(`${API_BASE_URL}/scan-reports/?platform_id=${platformId}`, {
+        headers: token ? { Authorization: `Token ${token}` } : {},
       });
-      // Use empty array to show empty state
+      if (!res.ok) throw new Error(`Failed to fetch scan reports: ${res.status}`);
+      setScanReports(await res.json());
+    } catch (error: any) {
+      console.error(error);
+      toast({ title: "Error loading scan reports", description: error.message, variant: "destructive" });
       setScanReports([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadScanReports();
-  }, []);
+  useEffect(() => { loadScanReports(); }, []);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge className="bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />Completed</Badge>;
-      case 'in_progress':
-        return <Badge className="bg-blue-100 text-blue-800"><RefreshCw className="w-3 h-3 mr-1 animate-spin" />In Progress</Badge>;
-      case 'failed':
-        return <Badge className="bg-red-100 text-red-800"><XCircle className="w-3 h-3 mr-1" />Failed</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
+  const formatDate = (d: string) => {
+    try { return new Date(d.replace(/\+00:00Z$/, "+00:00")).toLocaleString(); }
+    catch { return "Invalid Date"; }
   };
 
-  const getRiskBadge = (risk: string) => {
-    switch (risk) {
-      case 'Low':
-        return <Badge className="bg-green-100 text-green-800">{risk}</Badge>;
-      case 'Medium':
-        return <Badge className="bg-orange-100 text-orange-800">{risk}</Badge>;
-      case 'High':
-        return <Badge className="bg-red-100 text-red-800">{risk}</Badge>;
-      case 'Critical':
-        return <Badge className="bg-red-500 text-white">{risk}</Badge>;
-      default:
-        return <Badge variant="secondary">{risk}</Badge>;
-    }
-  };
-
-  const formatDate = (dateString: string) => {
+  const calculateDuration = (start: string, end?: string) => {
     try {
-      // Fix malformed timezone format: "2025-09-03T16:30:57.174274+00:00Z" -> "2025-09-03T16:30:57.174274+00:00"
-      const fixedDateString = dateString.replace(/\+00:00Z$/, '+00:00');
-      return new Date(fixedDateString).toLocaleString();
-    } catch (error) {
-      console.error('Error parsing date:', dateString, error);
-      return 'Invalid Date';
-    }
+      const s = new Date(start.replace(/\+00:00Z$/, "+00:00"));
+      if (!end) return "In Progress";
+      const e   = new Date(end.replace(/\+00:00Z$/, "+00:00"));
+      const min = Math.round((e.getTime() - s.getTime()) / 60000);
+      if (min < 1)  return "< 1m";
+      if (min < 60) return `${min}m`;
+      return `${Math.floor(min / 60)}h ${min % 60}m`;
+    } catch { return "Unknown"; }
   };
 
-  const calculateDuration = (startTime: string, endTime?: string) => {
-    try {
-      // Fix malformed timezone format
-      const fixedStartTime = startTime.replace(/\+00:00Z$/, '+00:00');
-      const start = new Date(fixedStartTime);
-      
-      if (!endTime) return 'In Progress';
-      
-      const fixedEndTime = endTime.replace(/\+00:00Z$/, '+00:00');
-      const end = new Date(fixedEndTime);
-      
-      const durationMs = end.getTime() - start.getTime();
-      const durationMinutes = Math.round(durationMs / 1000 / 60);
-      
-      if (durationMinutes < 1) return '< 1m';
-      if (durationMinutes < 60) return `${durationMinutes}m`;
-      
-      const hours = Math.floor(durationMinutes / 60);
-      const minutes = durationMinutes % 60;
-      return `${hours}h ${minutes}m`;
-    } catch (error) {
-      console.error('Error calculating duration:', error);
-      return 'Unknown';
-    }
-  };
-
-  // Transform scan report data to SecurityReportView format
+  /* ── transform + fetch report data (logic unchanged) ────────────────── */
   const transformReportData = (report: ScanReport) => {
-    const repo = report.repositories[0] || { name: 'Unknown', risk: 'Low' };
-    
-    // Ensure we have valid numbers with fallbacks
-    const openFindings = Math.max(0, report.openFindings || 0);
-    const resolvedFindings = Math.max(0, report.resolvedFindings || 0);
-    
-    // Calculate OWASP findings from report (with minimum values to ensure charts show data)
-    // If openFindings is 0, use sample data for demonstration
-    const hasFindings = openFindings > 0;
-    const owaspFindings = {
-      A01: hasFindings ? Math.max(1, Math.floor(openFindings * 0.3)) : 11,
-      A02: hasFindings ? Math.max(1, Math.floor(openFindings * 0.1)) : 4,
-      A03: hasFindings ? Math.max(1, Math.floor(openFindings * 0.2)) : 7,
-      A04: hasFindings ? Math.max(1, Math.floor(openFindings * 0.05)) : 3,
-      A05: hasFindings ? Math.max(1, Math.floor(openFindings * 0.15)) : 9,
-      A06: hasFindings ? Math.max(1, Math.floor(openFindings * 0.08)) : 5,
-      A07: hasFindings ? Math.max(1, Math.floor(openFindings * 0.05)) : 6,
-      A08: hasFindings ? Math.max(1, Math.floor(openFindings * 0.04)) : 4,
-      A09: hasFindings ? Math.max(1, Math.floor(openFindings * 0.02)) : 3,
-      A10: hasFindings ? Math.max(1, Math.floor(openFindings * 0.01)) : 2,
+    const repo = report.repositories[0] || { name: "Unknown", risk: "Low" };
+    const open = Math.max(0, report.openFindings || 0);
+    const resolved = Math.max(0, report.resolvedFindings || 0);
+    const has = open > 0;
+    const ow = {
+      A01: has ? Math.max(1, Math.floor(open * 0.30)) : 11,
+      A02: has ? Math.max(1, Math.floor(open * 0.10)) : 4,
+      A03: has ? Math.max(1, Math.floor(open * 0.20)) : 7,
+      A04: has ? Math.max(1, Math.floor(open * 0.05)) : 3,
+      A05: has ? Math.max(1, Math.floor(open * 0.15)) : 9,
+      A06: has ? Math.max(1, Math.floor(open * 0.08)) : 5,
+      A07: has ? Math.max(1, Math.floor(open * 0.05)) : 6,
+      A08: has ? Math.max(1, Math.floor(open * 0.04)) : 4,
+      A09: has ? Math.max(1, Math.floor(open * 0.02)) : 3,
+      A10: has ? Math.max(1, Math.floor(open * 0.01)) : 2,
     };
-
-    // Calculate severity breakdown (with minimum values)
-    const criticalFindings = hasFindings ? Math.max(1, Math.floor(openFindings * 0.1)) : 3;
-    const highFindings = hasFindings ? Math.max(1, Math.floor(openFindings * 0.25)) : 7;
-    const mediumFindings = hasFindings ? Math.max(1, Math.floor(openFindings * 0.35)) : 21;
-    const lowFindings = hasFindings 
-      ? Math.max(0, openFindings - criticalFindings - highFindings - mediumFindings)
-      : 45;
-
+    const crit = has ? Math.max(1, Math.floor(open * 0.10)) : 3;
+    const high = has ? Math.max(1, Math.floor(open * 0.25)) : 7;
+    const med  = has ? Math.max(1, Math.floor(open * 0.35)) : 21;
+    const low  = has ? Math.max(0, open - crit - high - med) : 45;
     return {
-      repository: repo.name || 'Unknown Repository',
-      branch: 'main',
-      scanId: report.id,
+      repository: repo.name || "Unknown Repository", branch: "main", scanId: report.id,
       generatedAt: report.endTime || report.startTime,
-      totalFilesScanned: 1248, // Placeholder - adjust based on actual data
-      totalFindings: report.openFindings + report.resolvedFindings,
-      criticalFindings,
-      highFindings,
-      mediumFindings,
-      lowFindings,
-      owaspFindings,
-      severityTrend: {
-        criticalHigh: [16, 15, 13, 12, Math.max(1, criticalFindings + highFindings)],
-        mediumLow: [80, 72, 69, 62, Math.max(1, mediumFindings + lowFindings)],
-      },
-      dependencies: {
-        total: 134,
-        withCVEs: 9,
-        outdated: 4,
-      },
-      compliance: {
-        owaspAsvs: 82,
-        soc2: 74,
-        iso27001: 69,
-        pciDss: 63,
-        gdpr: 76,
-        custom: 64,
-      },
-      // Additional narrative metadata for SecurityReportView
-      frameworks: 'Express, Django, React',
-      languages: 'TypeScript, Python, JavaScript',
-      estimated_lines_of_code: '85,000+',
-      estimated_files_scanned: '1,200+',
-      exclusions: 'Test fixtures, vendor directories, generated code',
-      custom_compliance_mapping: 'SOC 2, ISO 27001, PCI DSS (partial)',
+      totalFilesScanned: 1248, totalFindings: open + resolved,
+      criticalFindings: crit, highFindings: high, mediumFindings: med, lowFindings: low,
+      owaspFindings: ow,
+      severityTrend: { criticalHigh: [16, 15, 13, 12, Math.max(1, crit + high)], mediumLow: [80, 72, 69, 62, Math.max(1, med + low)] },
+      dependencies: { total: 134, withCVEs: 9, outdated: 4 },
+      compliance: { owaspAsvs: 82, soc2: 74, iso27001: 69, pciDss: 63, gdpr: 76, custom: 64 },
+      frameworks: "Express, Django, React", languages: "TypeScript, Python, JavaScript",
+      estimated_lines_of_code: "85,000+", estimated_files_scanned: "1,200+",
+      exclusions: "Test fixtures, vendor directories, generated code",
+      custom_compliance_mapping: "SOC 2, ISO 27001, PCI DSS (partial)",
       owasp_top3_mapping: [
-        { code: 'A01', title: 'Broken Access Control' },
-        { code: 'A03', title: 'Injection' },
-        { code: 'A05', title: 'Security Misconfiguration' },
+        { code: "A01", title: "Broken Access Control" },
+        { code: "A03", title: "Injection" },
+        { code: "A05", title: "Security Misconfiguration" },
       ],
       issues_by_category: [
-        { title: 'Broken Access Control', count: owaspFindings.A01, severity: 'Critical' as const },
-        { title: 'Cryptographic Failures', count: owaspFindings.A02, severity: 'High' as const },
-        { title: 'Injection', count: owaspFindings.A03, severity: 'Critical' as const },
-        { title: 'Insecure Design', count: owaspFindings.A04, severity: 'Medium' as const },
-        { title: 'Security Misconfiguration', count: owaspFindings.A05, severity: 'High' as const },
-        { title: 'Vulnerable Components', count: owaspFindings.A06, severity: 'High' as const },
-        { title: 'Authentication Failures', count: owaspFindings.A07, severity: 'Medium' as const },
-        { title: 'Software and Data Integrity', count: owaspFindings.A08, severity: 'Low' as const },
-        { title: 'Security Logging Failures', count: owaspFindings.A09, severity: 'Medium' as const },
-        { title: 'Server-Side Request Forgery', count: owaspFindings.A10, severity: 'Low' as const },
+        { title: "Broken Access Control",         count: ow.A01, severity: "Critical" as const },
+        { title: "Cryptographic Failures",         count: ow.A02, severity: "High"     as const },
+        { title: "Injection",                      count: ow.A03, severity: "Critical" as const },
+        { title: "Insecure Design",                count: ow.A04, severity: "Medium"   as const },
+        { title: "Security Misconfiguration",      count: ow.A05, severity: "High"     as const },
+        { title: "Vulnerable Components",          count: ow.A06, severity: "High"     as const },
+        { title: "Authentication Failures",        count: ow.A07, severity: "Medium"   as const },
+        { title: "Software and Data Integrity",    count: ow.A08, severity: "Low"      as const },
+        { title: "Security Logging Failures",      count: ow.A09, severity: "Medium"   as const },
+        { title: "Server-Side Request Forgery",    count: ow.A10, severity: "Low"      as const },
       ],
     };
   };
@@ -264,27 +204,14 @@ const CodeReviewScanReports = () => {
     setSecurityReportLoading(true);
     try {
       const token = localStorage.getItem("auth_token");
-      const headers = token ? { Authorization: `Token ${token}` } : {};
-
-      const response = await fetch(
-        `${API_BASE_URL}/analysis-runs/${analysisRunId}/security-report/`,
-        { headers }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch security report: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log("Security report response:", data);
-      setSecurityReportData(data);
-    } catch (error) {
-      console.error('Failed to load security report:', error);
-      toast({
-        title: "Error loading security report",
-        description: error.message || "Failed to fetch security report data",
-        variant: "destructive",
+      const res   = await fetch(`${API_BASE_URL}/analysis-runs/${analysisRunId}/security-report/`, {
+        headers: token ? { Authorization: `Token ${token}` } : {},
       });
+      if (!res.ok) throw new Error(`Failed to fetch security report: ${res.status}`);
+      setSecurityReportData(await res.json());
+    } catch (error: any) {
+      console.error(error);
+      toast({ title: "Error loading security report", description: error.message, variant: "destructive" });
       setSecurityReportData(null);
     } finally {
       setSecurityReportLoading(false);
@@ -294,344 +221,333 @@ const CodeReviewScanReports = () => {
   const viewReport = async (report: ScanReport) => {
     setViewingReport(report);
     setSecurityReportData(null);
-    
-    // Try to get analysis_run_id from the report
-    // It might be in the report itself or in the repositories
-    const analysisRunId = report.analysis_run_id || 
-      (report.repositories && report.repositories.length > 0 && (report.repositories[0] as any).analysis_run_id);
-    
-    if (analysisRunId) {
-      await fetchSecurityReport(analysisRunId);
-    } else {
-      // Fallback: try to use report.id as analysis_run_id
-      console.warn("No analysis_run_id found in report, trying report.id:", report.id);
-      await fetchSecurityReport(report.id);
-    }
+    const id = report.analysis_run_id || (report.repositories[0] as any)?.analysis_run_id;
+    await fetchSecurityReport(id || report.id);
   };
 
-  const closeReport = () => {
-    setViewingReport(null);
-    setSecurityReportData(null);
-  };
+  const closeReport = () => { setViewingReport(null); setSecurityReportData(null); };
 
-  // If viewing a report, show the report view
+  /* ── security report view ───────────────────────────────────────────── */
   if (viewingReport) {
-    // If we have security report data from API, use it; otherwise fallback to transformed data
-    const reportData = securityReportData 
-      ? securityReportData 
-      : transformReportData(viewingReport);
-    
     return (
-      <SecurityReportView 
-        reportData={reportData}
+      <SecurityReportView
+        reportData={securityReportData ?? transformReportData(viewingReport)}
         onClose={closeReport}
         loading={securityReportLoading}
       />
     );
   }
 
+  /* ── derived stats ──────────────────────────────────────────────────── */
+  const totalFindings  = scanReports.reduce((s, r) => s + r.openFindings + r.resolvedFindings, 0);
+  const activeScans    = scanReports.filter(r => r.status === "in_progress").length;
+  const avgScore       = scanReports.length
+    ? Math.round(scanReports.reduce((s, r) => s + (r.averageScore || 0), 0) / scanReports.length)
+    : 0;
+
+  /* ════════════════════════════════════════════════════════════════════════ */
   return (
-    <div className="space-y-6">
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }} 
-        animate={{ opacity: 1, y: 0 }} 
-        transition={{ duration: 0.5 }} 
-        className="flex items-center justify-between"
-      >
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Scan Reports
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            View and manage code review scan reports and results
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            onClick={loadScanReports}
-            variant="outline"
-            disabled={loading}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Button 
-            onClick={() => navigate('/code-review-dashboard')}
-            className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-          >
-            <Shield className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </Button>
-        </div>
-      </motion.div>
+    <div className="space-y-5">
 
-      {/* Summary Stats */}
+      {/* ══ HERO BANNER ════════════════════════════════════════════════════ */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="grid grid-cols-1 md:grid-cols-4 gap-6"
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       >
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-blue-800 dark:text-blue-200">Total Scans</CardTitle>
-            <FileText className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{scanReports.length}</div>
-            <p className="text-xs text-blue-700 dark:text-blue-300">Scans Reported</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-blue-800">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-green-800 dark:text-green-200">Active Scans</CardTitle>
-            <RefreshCw className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-900 dark:text-green-100">
-              {scanReports.filter(r => r.status === 'in_progress').length}
-            </div>
-            <p className="text-xs text-green-700 dark:text-green-300">Currently running</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-purple-800 dark:text-purple-200">Total Findings</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-              {scanReports.reduce((sum, r) => sum + r.openFindings + r.resolvedFindings, 0)}
-            </div>
-            <p className="text-xs text-purple-700 dark:text-purple-300">Open + Resolved</p>
-          </CardContent>
-        </Card>
+        <div
+          className="relative overflow-hidden rounded-2xl min-h-[148px]"
+          style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #06b6d4 100%)" }}
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.18),transparent_55%)] pointer-events-none" />
+          <div className="absolute -bottom-10 -left-10 w-60 h-60 rounded-full bg-white/5 blur-3xl pointer-events-none" />
+          <div className="absolute top-0 right-1/4 w-48 h-32 rounded-full bg-cyan-300/10 blur-2xl pointer-events-none" />
 
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-orange-800 dark:text-orange-200">Avg Score</CardTitle>
-            <TrendingUp className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
-              {scanReports.length > 0 
-                ? Math.round(scanReports.reduce((sum, r) => sum + (r.averageScore || 0), 0) / scanReports.length)
-                : 0
-              }
+          <div className="relative z-10 flex flex-col px-6 sm:px-8 pt-6 pb-5 gap-4 h-full">
+            {/* breadcrumbs */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => navigate("/code-review-dashboard")}
+                className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white/15 text-white hover:bg-white/25 border border-white/20 backdrop-blur-sm transition-colors duration-150"
+              >
+                ← Dashboard
+              </button>
+              <div className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white/90 text-blue-700 border border-white/10 shadow-sm">
+                Scan Reports
+              </div>
             </div>
-            <p className="text-xs text-orange-700 dark:text-orange-300">Overall average</p>
-          </CardContent>
-        </Card>
+
+            {/* title + actions */}
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+              <div>
+                <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-tight drop-shadow-sm">
+                  Scan Reports
+                </h1>
+                <p className="mt-1 text-sm text-blue-100/80 max-w-lg">
+                  View and manage code review scan reports and security findings.
+                </p>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                onClick={loadScanReports}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-blue-700 text-xs font-semibold shadow-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 shrink-0"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                Refresh
+              </motion.button>
+            </div>
+          </div>
+        </div>
       </motion.div>
 
-      {/* Current Scan Progress */}
+      {/* ══ STAT CARDS ═══════════════════════════════════════════════════ */}
+      <motion.div
+        initial="hidden" animate="visible"
+        variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08 } } }}
+        className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+      >
+        {[
+          { label: "Total Scans",    value: scanReports.length, icon: FileText,     numCls: "text-blue-600 dark:text-blue-400",    bg: "bg-blue-50 dark:bg-blue-950/40 border-blue-100 dark:border-blue-900/50"          },
+          { label: "Active Scans",   value: activeScans,        icon: RefreshCw,    numCls: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900/50" },
+          { label: "Total Findings", value: totalFindings,      icon: AlertTriangle, numCls: "text-amber-600 dark:text-amber-400",   bg: "bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900/50"       },
+          { label: "Avg Score",      value: avgScore,           icon: TrendingUp,   numCls: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/30 border-indigo-100 dark:border-indigo-900/50"   },
+        ].map(({ label, value, icon: Icon, numCls, bg }, i) => (
+          <motion.div
+            key={label}
+            variants={{ hidden: { y: 10, opacity: 0 }, visible: { y: 0, opacity: 1, transition: { duration: 0.35 } } }}
+            whileHover={{ scale: 1.04, y: -3, boxShadow: "0 8px 28px rgba(37,99,235,0.10)" }}
+            className={`rounded-2xl border p-5 flex items-center gap-4 cursor-default transition-shadow duration-200 ${bg}`}
+          >
+            <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-white dark:border-slate-700 shadow-sm flex items-center justify-center shrink-0">
+              <Icon className={`w-5 h-5 ${numCls}`} />
+            </div>
+            <div>
+              <p className={`text-2xl font-bold ${numCls}`}><AnimatedCount to={value} duration={1.2} /></p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* ══ CURRENT SCAN PROGRESS ══════════════════════════════════════════ */}
       {currentScan && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/20 overflow-hidden"
         >
-          <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-blue-800 dark:text-blue-200">
-                <RefreshCw className="w-5 h-5 animate-spin" />
-                <span>Current Scan in Progress</span>
-              </CardTitle>
-              <CardDescription className="text-blue-600 dark:text-blue-300">
-                Started: {formatDate(currentScan.startTime)} | Scanned by: {currentScan.scan_by}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                    {currentScan.repositories.filter(r => r.status === 'completed').length}/{currentScan.repositories.length}
-                  </div>
-                  <p className="text-sm text-blue-700 dark:text-blue-300">Repositories Scanned</p>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                    {currentScan.openFindings}
-                  </div>
-                  <p className="text-sm text-blue-700 dark:text-blue-300">Open Findings</p>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                    {currentScan.repositories.filter(r => r.status === 'scanning').length}
-                  </div>
-                  <p className="text-sm text-blue-700 dark:text-blue-300">Currently Scanning</p>
-                </div>
+          {/* top accent */}
+          <div className="h-[3px] bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400" />
+          <div className="p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />
               </div>
-              
-              {/* Repository Progress */}
-              <div className="space-y-2">
-                <h4 className="font-medium text-blue-800 dark:text-blue-200">Repository Progress</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {currentScan.repositories.map((repo, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-white dark:bg-blue-900 rounded">
-                      <span className="text-sm text-blue-900 dark:text-blue-100">{repo.name}</span>
-                      <div className="flex items-center gap-2">
-                        {repo.status === 'scanning' && <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />}
-                        {repo.status === 'completed' && <CheckCircle className="w-4 h-4 text-green-600" />}
-                        {repo.status === 'failed' && <XCircle className="w-4 h-4 text-red-600" />}
-                        <Badge variant="outline" className="text-xs">
-                          {repo.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Scan In Progress</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                  Started: {formatDate(currentScan.startTime)} · By: {currentScan.scan_by}
+                </p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+
+            {/* 3 mini stats */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {[
+                { label: "Repos Scanned",      value: `${currentScan.repositories.filter(r => r.status === "completed").length}/${currentScan.repositories.length}` },
+                { label: "Open Findings",      value: String(currentScan.openFindings) },
+                { label: "Currently Scanning", value: String(currentScan.repositories.filter(r => r.status === "scanning").length) },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-800/60 px-3 py-2.5 text-center">
+                  <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{value}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* repo progress list */}
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Repository Progress</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {currentScan.repositories.map((repo, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="flex items-center justify-between px-3 py-2 rounded-lg border border-blue-100 dark:border-blue-900/50 bg-white dark:bg-slate-800/50"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <GitBranch className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{repo.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <RepoStatusIcon status={repo.status} />
+                    <span className="text-[10px] text-slate-400 capitalize">{repo.status}</span>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
         </motion.div>
       )}
 
-      {/* Scan Reports Table */}
+      {/* ══ REPORTS TABLE ══════════════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 shadow-sm overflow-hidden"
       >
-        <Card>
-          <CardHeader>
-            <CardTitle>Scan Reports</CardTitle>
-            <CardDescription>
-              {loading ? 'Loading scan reports...' : `${scanReports.length} scan reports found`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-muted-foreground">Loading scan reports...</span>
-              </div>
-            ) : scanReports.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">No scan reports found</h3>
-                <p className="text-muted-foreground">No scan reports have been generated yet.</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Repository</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Findings</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {scanReports.flatMap((report) => 
-                    report.repositories.length > 0 
-                      ? report.repositories.map((repo, repoIndex) => {
-                          const repoUrl = repo.html_url || repo.repo_url || repo.url || '';
-                          // Get analysis_run_id from repo, report, or use report.id as fallback
-                          const analysisRunId = repo.analysis_run_id || report.analysis_run_id || report.id;
-                          
-                          return (
-                            <TableRow key={`${report.id}-${repoIndex}`}>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <GitBranch className="w-4 h-4 text-muted-foreground" />
-                                  <span className="font-medium">{repo.name}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                {getStatusBadge(report.status)}
-                              </TableCell>
-                              <TableCell>
-                                <div className="text-sm">
-                                  <div className="font-medium">{report.openFindings + report.resolvedFindings} total</div>
-                                  <div className="text-red-600">{report.openFindings} open</div>
-                                  <div className="text-green-600">{report.resolvedFindings} resolved</div>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex gap-2 justify-end">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => viewReport(report)}
-                                    disabled={report.status !== 'completed'}
-                                  >
-                                    <Eye className="w-4 h-4 mr-1" />
-                                    View Report
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      if (repoUrl) {
-                                        // Build URL with both repo_url and analysis_run_id
-                                        const params = new URLSearchParams();
-                                        params.set('repo_url', repoUrl);
-                                        if (analysisRunId) {
-                                          params.set('analysis_run_id', analysisRunId);
-                                        }
-                                        navigate(`/code-review-repos/${repo.name}?${params.toString()}`);
-                                      }
-                                    }}
-                                    disabled={!repoUrl}
-                                  >
-                                    <FileText className="w-4 h-4 mr-1" />
-                                    View Details
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      : [
-                          <TableRow key={report.id}>
-                            <TableCell>
-                              <span className="text-sm text-muted-foreground">No repositories</span>
-                            </TableCell>
-                            <TableCell>
-                              {getStatusBadge(report.status)}
-                            </TableCell>
-                            <TableCell>
-                              <div className="text-sm">
-                                <div className="font-medium">{report.openFindings + report.resolvedFindings} total</div>
-                                <div className="text-red-600">{report.openFindings} open</div>
-                                <div className="text-green-600">{report.resolvedFindings} resolved</div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2 justify-end">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => viewReport(report)}
-                                  disabled={report.status !== 'completed'}
-                                >
-                                  <Eye className="w-4 h-4 mr-1" />
-                                  View Report
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  disabled
-                                >
-                                  <FileText className="w-4 h-4 mr-1" />
-                                  View Details
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ]
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+        {/* table header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900 flex items-center justify-center">
+              <FileText className="w-4 h-4 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Scan Reports</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                {loading ? "Loading…" : `${scanReports.length} report${scanReports.length !== 1 ? "s" : ""} found`}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* body */}
+        {loading ? (
+          <div className="py-20 flex flex-col items-center gap-4">
+            <div className="relative w-10 h-10">
+              <div className="absolute inset-0 rounded-full border-2 border-blue-100 dark:border-blue-900" />
+              <div className="absolute inset-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+            </div>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Loading scan reports…</p>
+          </div>
+        ) : scanReports.length === 0 ? (
+          <div className="py-20 flex flex-col items-center gap-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900 flex items-center justify-center">
+              <FileText className="w-7 h-7 text-blue-300 dark:text-blue-700" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">No scan reports found</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">No scan reports have been generated yet.</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* column headings */}
+            <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-4 px-6 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              {["Repository", "Status", "Findings", "Actions"].map((h, i) => (
+                <p key={h} className={`text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide ${i === 3 ? "text-right" : ""}`}>{h}</p>
+              ))}
+            </div>
+
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {scanReports.flatMap((report) =>
+                report.repositories.length > 0
+                  ? report.repositories.map((repo, ri) => {
+                      const repoUrl      = repo.html_url || repo.repo_url || repo.url || "";
+                      const analysisRunId = repo.analysis_run_id || report.analysis_run_id || report.id;
+
+                      return (
+                        <motion.div
+                          key={`${report.id}-${ri}`}
+                          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: ri * 0.04 }}
+                          whileHover={{ backgroundColor: "rgba(37,99,235,0.03)" }}
+                          className="grid grid-cols-[2fr_1fr_1fr_auto] gap-4 items-center px-6 py-4 transition-colors duration-150"
+                        >
+                          {/* repo */}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900/60 flex items-center justify-center shrink-0">
+                              <GitBranch className="w-4 h-4 text-blue-500" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{repo.name}</p>
+                              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                {formatDate(report.startTime)} · {calculateDuration(report.startTime, report.endTime)}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* status */}
+                          <StatusPill status={report.status} />
+
+                          {/* findings */}
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">{report.openFindings + report.resolvedFindings} total</p>
+                            <p className="text-[11px] text-red-500 dark:text-red-400">{report.openFindings} open</p>
+                            <p className="text-[11px] text-emerald-600 dark:text-emerald-400">{report.resolvedFindings} resolved</p>
+                          </div>
+
+                          {/* actions */}
+                          <div className="flex gap-2 justify-end">
+                            <motion.button
+                              whileHover={report.status === "completed" ? { scale: 1.04 } : {}}
+                              whileTap={report.status === "completed"  ? { scale: 0.96 } : {}}
+                              onClick={() => viewReport(report)}
+                              disabled={report.status !== "completed"}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                            >
+                              <Eye className="w-3.5 h-3.5" />View Report
+                            </motion.button>
+                            <motion.button
+                              whileHover={repoUrl ? { scale: 1.04 } : {}}
+                              whileTap={repoUrl  ? { scale: 0.96 } : {}}
+                              onClick={() => {
+                                if (!repoUrl) return;
+                                const p = new URLSearchParams();
+                                p.set("repo_url", repoUrl);
+                                if (analysisRunId) p.set("analysis_run_id", analysisRunId);
+                                navigate(`/code-review-repos/${repo.name}?${p.toString()}`);
+                              }}
+                              disabled={!repoUrl}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                            >
+                              <FileText className="w-3.5 h-3.5" />Details
+                            </motion.button>
+                          </div>
+                        </motion.div>
+                      );
+                    })
+                  : [
+                      <motion.div
+                        key={report.id}
+                        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                        whileHover={{ backgroundColor: "rgba(37,99,235,0.03)" }}
+                        className="grid grid-cols-[2fr_1fr_1fr_auto] gap-4 items-center px-6 py-4 transition-colors duration-150"
+                      >
+                        <div className="flex items-center gap-2">
+                          <GitBranch className="w-4 h-4 text-slate-300 dark:text-slate-600" />
+                          <span className="text-sm text-slate-400 dark:text-slate-500">No repositories</span>
+                        </div>
+                        <StatusPill status={report.status} />
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">{report.openFindings + report.resolvedFindings} total</p>
+                          <p className="text-[11px] text-red-500">{report.openFindings} open</p>
+                          <p className="text-[11px] text-emerald-600">{report.resolvedFindings} resolved</p>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                          <motion.button
+                            whileHover={report.status === "completed" ? { scale: 1.04 } : {}}
+                            whileTap={report.status === "completed"  ? { scale: 0.96 } : {}}
+                            onClick={() => viewReport(report)}
+                            disabled={report.status !== "completed"}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 text-xs font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                          >
+                            <Eye className="w-3.5 h-3.5" />View Report
+                          </motion.button>
+                          <button disabled className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-300 dark:text-slate-600 text-xs font-medium opacity-40 cursor-not-allowed">
+                            <FileText className="w-3.5 h-3.5" />Details
+                          </button>
+                        </div>
+                      </motion.div>,
+                    ]
+              )}
+            </div>
+          </>
+        )}
       </motion.div>
     </div>
   );
 };
 
-export default CodeReviewScanReports; 
+export default CodeReviewScanReports;

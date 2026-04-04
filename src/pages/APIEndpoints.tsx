@@ -244,10 +244,10 @@ const APIEndpoints = () => {
                 Add Endpoint
               </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-xl rounded-2xl border border-slate-200/60 bg-white p-0 shadow-2xl dark:border-slate-800/60 dark:bg-slate-900">
-                <DialogHeader className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-transparent px-6 py-5 dark:border-slate-800/60 dark:from-slate-800/30">
-                  <DialogTitle className="text-xl">Add New Endpoint</DialogTitle>
-                  <DialogDescription>
+              <DialogContent className="max-w-xl rounded-2xl border border-slate-200/50 bg-white p-0 shadow-2xl dark:border-slate-800/50 dark:bg-slate-900">
+                <DialogHeader className="border-b border-slate-200/50 dark:border-slate-800/50 px-6 py-5">
+                  <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">Add New Endpoint</DialogTitle>
+                  <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
                     Register a new API endpoint for monitoring and protection
                   </DialogDescription>
                 </DialogHeader>
@@ -255,9 +255,9 @@ const APIEndpoints = () => {
                 <div className="space-y-5 p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="method">Method</Label>
+                      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Method</Label>
                       <Select>
-                        <SelectTrigger className="rounded-xl">
+                        <SelectTrigger className="rounded-xl border-slate-200/50 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
                           <SelectValue placeholder="Select method" />
                         </SelectTrigger>
                         <SelectContent>
@@ -270,23 +270,25 @@ const APIEndpoints = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="path">Endpoint Path</Label>
-                      <Input id="path" placeholder="/api/v1/resource" className="rounded-xl" />
+                      <Label htmlFor="path" className="text-xs font-semibold text-slate-600 dark:text-slate-400">Endpoint Path</Label>
+                      <Input id="path" placeholder="/api/v1/resource" className="rounded-xl border-slate-200/50 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 placeholder:text-slate-400" />
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
+                  <div className="rounded-xl border border-slate-200/50 bg-slate-50/70 dark:border-slate-700/50 dark:bg-slate-800/30 p-4">
                     <div className="flex items-center space-x-2">
                       <Switch id="protection" />
-                      <Label htmlFor="protection">Enable Protection</Label>
+                      <Label htmlFor="protection" className="text-sm text-slate-700 dark:text-slate-300">Enable Protection</Label>
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-2 border-t border-slate-200/60 pt-4 dark:border-slate-800/60">
-                    <Button variant="outline" className="rounded-xl">
+                  <div className="flex justify-end gap-2 border-t border-slate-200/50 dark:border-slate-800/50 pt-4">
+                    <Button variant="outline" className="rounded-xl border-slate-200/50 dark:border-slate-700 text-sm">
                       Cancel
                     </Button>
-                    <Button className="rounded-xl">Add Endpoint</Button>
+                    <Button className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20 text-sm">
+                      Add Endpoint
+                    </Button>
                   </div>
                 </div>
               </DialogContent>

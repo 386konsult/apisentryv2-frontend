@@ -657,27 +657,27 @@ const Incidents = () => {
 
   return (
     <div className="space-y-8 w-full min-w-0 max-w-full">
-                 <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 pt-7 pb-6 shadow-lg min-h-[140px]">
-  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.18),transparent_55%)]" />
-
-  <div className="relative z-10 flex flex-col justify-between h-full gap-4">
-    <div className="flex flex-wrap items-center gap-2">
-      <Badge className="border-white/20 bg-white/10 px-3 py-1 text-white hover:bg-white/10 text-xs font-medium rounded-full">
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 pt-5 pb-6 shadow-lg">
+  <div className="relative z-10">
+    {/* Top tags */}
+    <div className="flex flex-wrap items-center gap-2 mb-4">
+      <span className="px-3 py-1 rounded-full border border-white/40 text-white text-xs font-medium bg-white/10">
         Incident Response
-      </Badge>
+      </span>
       {platform && (
-        <Badge className="border-white/20 bg-white/10 px-3 py-1 text-white hover:bg-white/10 text-xs font-medium rounded-full">
+        <span className="px-3 py-1 rounded-full border border-white/40 text-white text-xs font-medium bg-white/10">
           {platform.name || selectedPlatformId}
-        </Badge>
+        </span>
       )}
     </div>
 
+    {/* Bottom: title + buttons */}
     <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight break-words">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
           Security Incidents
         </h1>
-        <p className="mt-1 text-sm text-blue-100 break-words max-w-xl">
+        <p className="mt-1 text-sm text-blue-100 max-w-xl">
           Manage, investigate, and document incident response activity across your protected APIs.
         </p>
       </div>
@@ -686,16 +686,18 @@ const Incidents = () => {
         <Button
           type="button"
           variant="outline"
-          className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-sm"
+          size="sm"
+          className="border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-xs h-9 font-medium"
         >
-          <Activity className="h-4 w-4 mr-2" />
+          <Activity className="h-3.5 w-3.5 mr-1.5" />
           Active Queue
         </Button>
         <Button
+          size="sm"
           onClick={() => setShowCreateModal(true)}
-          className="bg-white text-blue-700 hover:bg-white/90 shadow-md rounded-full px-4 text-sm font-semibold"
+          className="bg-white text-blue-700 hover:bg-white/90 shadow-md rounded-full px-4 text-xs font-semibold h-9"
         >
-          <Plus className="h-4 w-4 mr-2" />
+          <Plus className="h-3.5 w-3.5 mr-1.5" />
           Create Incident
         </Button>
       </div>

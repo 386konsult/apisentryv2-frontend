@@ -1,0 +1,4 @@
+static_sites:
+  - name: apisentryv2-frontend
+    error_document: index.html
+    catchall_document: index.html

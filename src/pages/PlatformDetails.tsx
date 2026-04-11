@@ -3,26 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, AreaChart, Area,
 } from 'recharts';
 import {
-  Shield,
-  AlertTriangle,
-  Activity,
-  TrendingUp,
-  Globe,
-  Eye,
-  Plus,
-  Search,
+  Shield, AlertTriangle, Activity, TrendingUp,
+  Globe, Eye, Plus, Search,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import apiService from '@/services/api';
@@ -55,12 +41,7 @@ type AnimatedNumberProps = {
   className?: string;
 };
 
-const AnimatedNumber = ({
-  value,
-  decimals = 0,
-  suffix = '',
-  className = '',
-}: AnimatedNumberProps) => {
+const AnimatedNumber = ({ value, decimals = 0, suffix = '', className = '' }: AnimatedNumberProps) => {
   const [displayValue, setDisplayValue] = useState(0);
 
   useEffect(() => {
@@ -68,17 +49,12 @@ const AnimatedNumber = ({
     const duration = 800;
     const start = performance.now();
     let frame = 0;
-
     const tick = (now: number) => {
       const progress = Math.min((now - start) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       setDisplayValue(target * eased);
-
-      if (progress < 1) {
-        frame = requestAnimationFrame(tick);
-      }
+      if (progress < 1) frame = requestAnimationFrame(tick);
     };
-
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [value]);
@@ -120,16 +96,10 @@ const PlatformDetails: React.FC = () => {
   ]);
   const [countryData, setCountryData] = useState<CountryData[]>([]);
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
-  const [trafficTimeRange, setTrafficTimeRange] = useState('7d');
-  const [threatTimeRange, setThreatTimeRange] = useState('7d');
-  const [trafficCustomRange, setTrafficCustomRange] = useState<{ start: Date | null; end: Date | null }>({
-    start: null,
-    end: null,
-  });
-  const [threatCustomRange, setThreatCustomRange] = useState<{ start: Date | null; end: Date | null }>({
-    start: null,
-    end: null,
-  });
+
+  // ── SINGLE universal time range ──────────────────────────────────────────
+  const [timeRange, setTimeRange] = useState('7d');
+
   const [isAlertClicked, setIsAlertClicked] = useState(false);
   const navigate = useNavigate();
 
@@ -139,19 +109,11 @@ const PlatformDetails: React.FC = () => {
     if (!id) return;
     setLoading(true);
 
-    apiService
-      .getPlatformDetails(id)
-      .then((data: any) => {
-        setPlatform(data);
-        setLoading(false);
-      })
-      .catch((err: any) => {
-        setError(err?.message ?? 'Failed to load workspace');
-        setLoading(false);
-      });
+    apiService.getPlatformDetails(id)
+      .then((data: any) => { setPlatform(data); setLoading(false); })
+      .catch((err: any) => { setError(err?.message ?? 'Failed to load workspace'); setLoading(false); });
 
-    apiService
-      .getAnalytics(id)
+    apiService.getAnalytics(id)
       .then((data: any) => {
         if (data?.success && data.analytics) {
           let analyticsData;
@@ -165,42 +127,36 @@ const PlatformDetails: React.FC = () => {
       })
       .catch(() => setAnalytics(null));
 
-    apiService
-      .getPlatformEndpoints(id)
+    apiService.getPlatformEndpoints(id)
       .then((res: any) => {
         const endpointsArr = Array.isArray(res) ? res : res?.results || [];
         setEndpoints(endpointsArr);
       })
       .catch(() => setEndpoints([]));
 
-    apiService
-      .getPlatformWAFRules(id)
+    apiService.getPlatformWAFRules(id)
       .then((data: any) => setWafRules(Array.isArray(data) ? data : data?.results || []))
       .catch(() => {});
   };
 
-  const fetchTrafficData = () => {
+  // ── Single fetch function using shared timeRange ──────────────────────────
+  const fetchAllRangedData = () => {
     if (!id) return;
 
-    const params =
-      trafficTimeRange === 'custom' && trafficCustomRange.start && trafficCustomRange.end
-        ? {
-            start: safeISO(trafficCustomRange.start),
-            end: safeISO(trafficCustomRange.end),
-          }
-        : { range: trafficTimeRange };
+    const params = { range: timeRange };
 
-    apiService
-      .getAnalytics(id, params)
+    // Traffic data
+    apiService.getAnalytics(id, params)
       .then((data: any) => {
         if (data?.success && data.analytics) {
           let analyticsData;
-          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && trafficTimeRange in data.analytics) {
-            analyticsData = data.analytics[trafficTimeRange];
+          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && timeRange in data.analytics) {
+            analyticsData = data.analytics[timeRange];
           } else {
             analyticsData = data.analytics;
           }
 
+          // Traffic chart
           if (analyticsData?.method_status_breakdown) {
             const trafficArr = HTTP_METHODS.map((method) => {
               const methodData = analyticsData.method_status_breakdown[method] || {};
@@ -210,131 +166,51 @@ const PlatformDetails: React.FC = () => {
           } else {
             setTrafficData([]);
           }
-        }
-      })
-      .catch(() => setTrafficData([]));
 
-    apiService
-      .getPlatformRequestLogs(id, { num: '10' })
-      .then((logs: any) => {
-        if (Array.isArray(logs)) {
-          setThreatLogs(logs);
-        } else if (logs?.logs && Array.isArray(logs.logs)) {
-          setThreatLogs(logs.logs);
-        } else {
-          setThreatLogs([]);
-        }
-      })
-      .catch(() => setThreatLogs([]));
-  };
-
-  const fetchThreatData = () => {
-    if (!id) return;
-
-    const params =
-      threatTimeRange === 'custom' && threatCustomRange.start && threatCustomRange.end
-        ? {
-            start: safeISO(threatCustomRange.start),
-            end: safeISO(threatCustomRange.end),
-          }
-        : { range: threatTimeRange };
-
-    apiService
-      .getAnalytics(id, params)
-      .then((data: any) => {
-        if (data?.success && data.analytics) {
-          let analyticsData;
-          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && threatTimeRange in data.analytics) {
-            analyticsData = data.analytics[threatTimeRange];
-          } else {
-            analyticsData = data.analytics;
-          }
-
+          // Response code breakdown
           if (analyticsData?.status_code_breakdown) {
             const colors: Record<string, string> = {
-              '200': '#22c55e',
-              '201': '#16a34a',
-              '204': '#10b981',
-              '400': '#f97316',
-              '403': '#ef4444',
-              '404': '#6366f1',
-              '500': '#eab308',
-              '504': '#06b6d4',
-              other: '#9ca3af',
+              '200': '#22c55e', '201': '#16a34a', '204': '#10b981',
+              '400': '#f97316', '403': '#ef4444', '404': '#6366f1',
+              '500': '#eab308', '504': '#06b6d4', other: '#9ca3af',
             };
-
             const responseCodeArr = Object.entries(analyticsData.status_code_breakdown).map(([name, value]) => ({
-              name,
-              value: Number(value),
-              color: colors[name] || colors.other,
+              name, value: Number(value), color: colors[name] || colors.other,
             }));
-
             setThreatTypes(responseCodeArr);
           } else {
             setThreatTypes([]);
           }
 
-          if (analyticsData?.threat_type_summary && typeof analyticsData.threat_type_summary === 'object') {
-            const threatTypeColors: Record<string, string> = {
-              'Malicious Payload': '#ef4444',
-              'XSS Attack Detected': '#f59e0b',
-              'Suspicious User Agent': '#8b5cf6',
-              'Brute Force Attempt': '#dc2626',
-              'SQL Injection Detection': '#ec4899',
-              'Command Injection': '#06b6d4',
-              'Path Traversal': '#10b981',
-              'Rate Limit Exceeded': '#3b82f6',
-              'Security Misconfiguration': '#f97316',
-              'Insecure Direct Object Reference': '#eab308',
-              'Broken Authentication': '#14b8a6',
-              'SQL Injection': '#ef4444',
-              XSS: '#f59e0b',
-              'Brute Force': '#dc2626',
-              CSRF: '#06b6d4',
-              XXE: '#10b981',
-              SSRF: '#3b82f6',
-              LFI: '#f97316',
-              RFI: '#eab308',
-            };
+          // Threat types by category
+          const threatTypeColors: Record<string, string> = {
+            'Malicious Payload': '#ef4444', 'XSS Attack Detected': '#f59e0b',
+            'Suspicious User Agent': '#8b5cf6', 'Brute Force Attempt': '#dc2626',
+            'SQL Injection Detection': '#ec4899', 'Command Injection': '#06b6d4',
+            'Path Traversal': '#10b981', 'Rate Limit Exceeded': '#3b82f6',
+            'Security Misconfiguration': '#f97316', 'Insecure Direct Object Reference': '#eab308',
+            'Broken Authentication': '#14b8a6', 'SQL Injection': '#ef4444',
+            XSS: '#f59e0b', 'Brute Force': '#dc2626', CSRF: '#06b6d4',
+            XXE: '#10b981', SSRF: '#3b82f6', LFI: '#f97316', RFI: '#eab308',
+          };
 
+          if (analyticsData?.threat_type_summary && typeof analyticsData.threat_type_summary === 'object') {
             const threatTypeArr = Object.entries(analyticsData.threat_type_summary)
-              .map(([name, value]) => ({
-                name,
-                value: Number(value),
-                color: threatTypeColors[name] || '#9ca3af',
-              }))
+              .map(([name, value]) => ({ name, value: Number(value), color: threatTypeColors[name] || '#9ca3af' }))
               .filter((item) => item.value > 0)
               .sort((a, b) => b.value - a.value);
-
             setThreatTypesByCategory(threatTypeArr);
           } else if (analyticsData?.threat_types && typeof analyticsData.threat_types === 'object') {
-            const threatTypeColors: Record<string, string> = {
-              'SQL Injection': '#ef4444',
-              XSS: '#f59e0b',
-              'Path Traversal': '#8b5cf6',
-              'Brute Force': '#dc2626',
-              'Command Injection': '#ec4899',
-              CSRF: '#06b6d4',
-              XXE: '#10b981',
-              SSRF: '#3b82f6',
-              LFI: '#f97316',
-              RFI: '#eab308',
-            };
-
             const threatTypeArr = Object.entries(analyticsData.threat_types)
-              .map(([name, value]) => ({
-                name,
-                value: Number(value),
-                color: threatTypeColors[name] || '#9ca3af',
-              }))
+              .map(([name, value]) => ({ name, value: Number(value), color: threatTypeColors[name] || '#9ca3af' }))
               .filter((item) => item.value > 0)
               .sort((a, b) => b.value - a.value);
-
             setThreatTypesByCategory(threatTypeArr);
           } else {
             setThreatTypesByCategory([]);
           }
 
+          // Country data
           if (analyticsData?.country_summary && Array.isArray(analyticsData.country_summary)) {
             const countryArr = analyticsData.country_summary
               .map((item: any) => ({
@@ -344,7 +220,6 @@ const PlatformDetails: React.FC = () => {
               }))
               .filter((item: CountryData) => item.count > 0 && item.code)
               .sort((a: CountryData, b: CountryData) => b.count - a.count);
-
             setCountryData(countryArr);
           } else if (analyticsData?.country_breakdown || analyticsData?.geographic_breakdown) {
             const countryBreakdown = analyticsData.country_breakdown || analyticsData.geographic_breakdown;
@@ -356,7 +231,6 @@ const PlatformDetails: React.FC = () => {
               TR: 'Turkey', SA: 'Saudi Arabia', PL: 'Poland', EG: 'Egypt',
               CH: 'Switzerland', NG: 'Nigeria',
             };
-
             const countryArr = Object.entries(countryBreakdown)
               .map(([code, count]) => ({
                 code: code.toUpperCase(),
@@ -365,12 +239,12 @@ const PlatformDetails: React.FC = () => {
               }))
               .filter((item) => item.count > 0)
               .sort((a, b) => b.count - a.count);
-
             setCountryData(countryArr);
           } else {
             setCountryData([]);
           }
 
+          // OWASP
           if (analyticsData?.owasp_top10_summary && Array.isArray(analyticsData.owasp_top10_summary)) {
             const owaspCategoryMap: Record<string, { name: string; category: string; severity: 'critical' | 'high' | 'medium' | 'low' }> = {
               'A01:2021 – Broken Access Control': { name: 'Broken Access Control', category: 'Access Control', severity: 'critical' },
@@ -384,7 +258,6 @@ const PlatformDetails: React.FC = () => {
               'A09:2021 – Security Logging and Monitoring Failures': { name: 'Security Logging Failures', category: 'Logging', severity: 'medium' },
               'A10:2021 – Server-Side Request Forgery': { name: 'Server-Side Request Forgery', category: 'SSRF', severity: 'high' },
             };
-
             const owaspArr = analyticsData.owasp_top10_summary
               .map((item: any) => {
                 const categoryInfo = owaspCategoryMap[item.category] || {
@@ -392,12 +265,7 @@ const PlatformDetails: React.FC = () => {
                   category: item.category.split(':')[0] || item.category,
                   severity: 'medium' as const,
                 };
-                return {
-                  name: categoryInfo.name,
-                  category: categoryInfo.category,
-                  count: Number(item.threat_count || 0),
-                  severity: categoryInfo.severity,
-                } as OWASPThreat;
+                return { name: categoryInfo.name, category: categoryInfo.category, count: Number(item.threat_count || 0), severity: categoryInfo.severity } as OWASPThreat;
               })
               .filter((item: OWASPThreat) => item.count > 0)
               .sort((a: OWASPThreat, b: OWASPThreat) => b.count - a.count);
@@ -414,21 +282,27 @@ const PlatformDetails: React.FC = () => {
               { name: 'Security Logging Failures', category: 'Logging', count: 0, severity: 'medium' },
               { name: 'Server-Side Request Forgery', category: 'SSRF', count: 0, severity: 'high' },
             ];
-
-            setOwaspThreats(
-              allOwaspItems.map((defaultItem) => {
-                const apiItem = owaspArr.find((item) => item.name === defaultItem.name);
-                return apiItem || defaultItem;
-              })
-            );
+            setOwaspThreats(allOwaspItems.map((defaultItem) => {
+              const apiItem = owaspArr.find((item) => item.name === defaultItem.name);
+              return apiItem || defaultItem;
+            }));
           }
         }
       })
       .catch(() => {
+        setTrafficData([]);
         setThreatTypes([]);
         setThreatTypesByCategory([]);
         setCountryData([]);
       });
+
+    apiService.getPlatformRequestLogs(id, { num: '10' })
+      .then((logs: any) => {
+        if (Array.isArray(logs)) setThreatLogs(logs);
+        else if (logs?.logs && Array.isArray(logs.logs)) setThreatLogs(logs.logs);
+        else setThreatLogs([]);
+      })
+      .catch(() => setThreatLogs([]));
   };
 
   const getOtherRequests = (a: any) => {
@@ -464,13 +338,11 @@ const PlatformDetails: React.FC = () => {
   };
 
   useEffect(() => { fetchData(); }, [id]);
-  useEffect(() => { fetchTrafficData(); }, [id, trafficTimeRange, trafficCustomRange]);
-  useEffect(() => { fetchThreatData(); }, [id, threatTimeRange, threatCustomRange]);
+  // ── Both traffic and threat data now re-fetch on the same timeRange change ─
+  useEffect(() => { fetchAllRangedData(); }, [id, timeRange]);
 
   const totalRequests = analytics ? Number(analytics.total_requests ?? 0) : 0;
   const blockedRequests = analytics ? Number(analytics.blocked_requests ?? 0) : 0;
-  const cleanRequests = getCleanRequests(analytics);
-  const otherRequests = getOtherRequests(analytics);
   const successRate = analytics && typeof analytics.success_rate === 'number' ? Number(analytics.success_rate) : 0;
   const blockedRate = totalRequests > 0 ? (blockedRequests / totalRequests) * 100 : 0;
   const activeEndpointCount = Array.isArray(endpoints)
@@ -496,21 +368,20 @@ const PlatformDetails: React.FC = () => {
   const maxThreat = Math.max(...topThreats.map((item: any) => Number(item.value || 0)), 1);
   const activeOwaspThreats = owaspThreats.filter((item) => item.count > 0);
 
-  const recentRows =
-    threatLogs.length > 0
-      ? threatLogs.slice(0, 4).map((log: any) => ({
-          id: log.id ?? `${log.path}-${Math.random()}`,
-          path: log.path || '-',
-          attack: log.waf_rule_triggered || (log.threat_level && log.threat_level !== 'none' ? `${String(log.threat_level).toUpperCase()} Threat` : log.waf_blocked ? 'Suspicious Request' : 'Clean'),
-          source: log.client_ip || '-',
-          status: log.waf_blocked ? 'blocked' : Number(log.status_code) >= 400 ? 'warning' : 'allowed',
-        }))
-      : [
-          { id: 'row-1', path: '/api/v1/users', attack: 'SQL Injection', source: '192.168.1.45', status: 'blocked' },
-          { id: 'row-2', path: '/api/v1/auth/login', attack: 'Brute Force', source: '10.0.0.12', status: 'warning' },
-          { id: 'row-3', path: '/api/v1/products', attack: 'Clean', source: '203.45.67.89', status: 'allowed' },
-          { id: 'row-4', path: '/api/v1/exec', attack: 'RCE Attempt', source: '45.33.32.156', status: 'blocked' },
-        ];
+  const recentRows = threatLogs.length > 0
+    ? threatLogs.slice(0, 4).map((log: any) => ({
+        id: log.id ?? `${log.path}-${Math.random()}`,
+        path: log.path || '-',
+        attack: log.waf_rule_triggered || (log.threat_level && log.threat_level !== 'none' ? `${String(log.threat_level).toUpperCase()} Threat` : log.waf_blocked ? 'Suspicious Request' : 'Clean'),
+        source: log.client_ip || '-',
+        status: log.waf_blocked ? 'blocked' : Number(log.status_code) >= 400 ? 'warning' : 'allowed',
+      }))
+    : [
+        { id: 'row-1', path: '/api/v1/users', attack: 'SQL Injection', source: '192.168.1.45', status: 'blocked' },
+        { id: 'row-2', path: '/api/v1/auth/login', attack: 'Brute Force', source: '10.0.0.12', status: 'warning' },
+        { id: 'row-3', path: '/api/v1/products', attack: 'Clean', source: '203.45.67.89', status: 'allowed' },
+        { id: 'row-4', path: '/api/v1/exec', attack: 'RCE Attempt', source: '45.33.32.156', status: 'blocked' },
+      ];
 
   const panelClass = 'border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none';
   const softPanelClass = 'border border-slate-200/70 bg-white dark:border-slate-800/80 dark:bg-slate-900';
@@ -545,17 +416,10 @@ const PlatformDetails: React.FC = () => {
     );
   }
 
-  if (error) {
-    return <div className="p-8 text-center text-red-600 dark:text-red-400">Error: {error}</div>;
-  }
-
-  if (!platform) {
-    return <div className="p-8 text-center text-slate-900 dark:text-white">Workspace not found.</div>;
-  }
+  if (error) return <div className="p-8 text-center text-red-600 dark:text-red-400">Error: {error}</div>;
+  if (!platform) return <div className="p-8 text-center text-slate-900 dark:text-white">Workspace not found.</div>;
 
   return (
-    // ✅ KEY FIX: removed -mx-4 -mt-4 negative margin hack.
-    // Now uses w-full so it naturally fills whatever space the sidebar layout gives it.
     <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
       <div className="w-full space-y-6">
 
@@ -589,7 +453,7 @@ const PlatformDetails: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-                            <Button
+              <Button
                 variant="outline"
                 onClick={() => navigate('/platforms')}
                 className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25 hover:!text-white hover:!border-white/70 backdrop-blur-sm transition-all"
@@ -607,7 +471,6 @@ const PlatformDetails: React.FC = () => {
             </div>
           </div>
 
-          {/* Status Badges */}
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <motion.span
               className="inline-flex items-center gap-2 rounded-full bg-emerald-500/30 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm border border-emerald-400/50"
@@ -643,21 +506,36 @@ const PlatformDetails: React.FC = () => {
               Alerts
             </motion.button>
 
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
-              <Activity className="h-3.5 w-3.5" />
-              AI analysing
-            </span>
+            <div className="relative group">
+              <span className="inline-flex cursor-default items-center gap-2 rounded-full bg-white/20 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition-all duration-200 group-hover:bg-white/30">
+                <Activity className="h-3.5 w-3.5" />
+                AI analysing
+              </span>
+              <div className="pointer-events-none absolute bottom-full left-1/2 mb-2.5 w-64 -translate-x-1/2 scale-95 opacity-0 transition-all duration-200 group-hover:scale-100 group-hover:opacity-100">
+                <div className="relative rounded-2xl border border-white/20 bg-[#0f172a]/90 p-4 text-left shadow-xl backdrop-blur-md">
+                  <div className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-sm border-b border-r border-white/20 bg-[#0f172a]/90" />
+                  <div className="mb-2 flex items-center gap-2">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400">
+                      <Activity className="h-3.5 w-3.5 text-white" />
+                    </div>
+                    <span className="text-xs font-semibold text-white">AI Analysing — Coming Soon</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-slate-300">
+                    A new AI-powered feature that gives you <span className="font-semibold text-cyan-400">real-time threat analysis</span>, live traffic insights, and intelligent security recommendations — all automatically.
+                  </p>
+                  <div className="mt-2.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
+                    <span className="text-[10px] font-medium text-cyan-400">Actively being developed</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </motion.div>
 
-        {/* MAIN GRID */}
+        {/* MAIN GRID — Traffic + Top Threats share the universal time range selector */}
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          {/* Traffic Overview */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.05 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
             <Card className={`rounded-2xl ${panelClass}`}>
               <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4">
                 <div className="flex items-center gap-3">
@@ -665,50 +543,35 @@ const PlatformDetails: React.FC = () => {
                     <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
-                      Traffic Overview
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Track request changes and protection metrics
-                    </CardDescription>
+                    <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Traffic Overview</CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">Track request changes and protection metrics</CardDescription>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Last 7 days</span>
-                  <select className={controlClass} value={trafficTimeRange} onChange={(e) => setTrafficTimeRange(e.target.value)}>
-                    {TIME_RANGES.map((range) => (
-                      <option key={range.value} value={range.value}>{range.label}</option>
-                    ))}
-                  </select>
-                </div>
+                {/* Universal time range selector */}
+                <select className={controlClass} value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
+                  {TIME_RANGES.map((range) => (
+                    <option key={range.value} value={range.value}>{range.label}</option>
+                  ))}
+                </select>
               </CardHeader>
-
               <CardContent className="p-6 pt-0">
                 <div className="mb-6 grid grid-cols-3 gap-4">
                   <div>
-                    <div className="text-4xl font-semibold text-slate-900 dark:text-white">
-                      {totalRequests.toLocaleString()}
-                    </div>
+                    <div className="text-4xl font-semibold text-slate-900 dark:text-white">{totalRequests.toLocaleString()}</div>
                     <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total requests</div>
                     <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
-                      <TrendingUp className="h-3 w-3" />
-                      +11% vs last week
+                      <TrendingUp className="h-3 w-3" />+11% vs last week
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Blocked</div>
-                    <div className="mt-1 text-2xl font-semibold text-red-500 dark:text-red-400">
-                      {blockedRequests.toLocaleString()}
-                    </div>
+                    <div className="mt-1 text-2xl font-semibold text-red-500 dark:text-red-400">{blockedRequests.toLocaleString()}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Block rate</div>
-                    <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
-                      {blockedRate ? `${blockedRate.toFixed(1)}%` : '--'}
-                    </div>
+                    <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{blockedRate ? `${blockedRate.toFixed(1)}%` : '--'}</div>
                   </div>
                 </div>
-
                 <div className="h-48 rounded-xl p-4">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={trafficChartDisplayData}>
@@ -730,12 +593,8 @@ const PlatformDetails: React.FC = () => {
             </Card>
           </motion.div>
 
-          {/* Top Threats */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-          >
+          {/* Top Threats — no separate selector, driven by universal timeRange */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
             <Card className={`rounded-2xl ${panelClass}`}>
               <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4">
                 <div>
@@ -746,7 +605,6 @@ const PlatformDetails: React.FC = () => {
                   view_all()
                 </button>
               </CardHeader>
-
               <CardContent className="p-6 pt-0">
                 {topThreats && topThreats.length > 0 ? (
                   <div className="space-y-3">
@@ -767,7 +625,6 @@ const PlatformDetails: React.FC = () => {
                       const threatBadgeClass = getThreatBadgeClass(threat.name);
                       const threatValue = Number(threat.value || 0);
                       const progressWidth = maxThreat > 0 ? (threatValue / maxThreat) * 100 : 0;
-
                       return (
                         <motion.div
                           key={`${threat.name}-${idx}`}
@@ -817,7 +674,7 @@ const PlatformDetails: React.FC = () => {
                 <TrendingUp className="mr-1 h-3.5 w-3.5" />+12.4% today
               </p>
               <div className="mt-4 h-1.5 rounded-full bg-blue-50 dark:bg-slate-800">
-                <div className="h-1.5 w-[72%] rounded-full bg-gradient-to-r from-blue-600 to-sky-500" />
+                <div className="h-1.5 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 transition-all duration-700" style={{ width: `${Math.min(100, (totalRequests / 200) * 100)}%` }} />
               </div>
             </CardContent>
           </Card>
@@ -833,7 +690,7 @@ const PlatformDetails: React.FC = () => {
                 +{Math.max(1, Math.floor(blockedRequests * 0.1))} new
               </p>
               <div className="mt-4 h-1.5 rounded-full bg-red-50 dark:bg-slate-800">
-                <div className="h-1.5 w-[28%] rounded-full bg-red-500" />
+                <div className="h-1.5 rounded-full bg-red-500 transition-all duration-700" style={{ width: `${totalRequests > 0 ? Math.min(100, (blockedRequests / totalRequests) * 100) : 0}%` }} />
               </div>
             </CardContent>
           </Card>
@@ -851,7 +708,7 @@ const PlatformDetails: React.FC = () => {
                 <AnimatedNumber value={successRate} decimals={2} suffix="% success rate" />
               </p>
               <div className="mt-4 h-1.5 rounded-full bg-cyan-50 dark:bg-slate-800">
-                <div className="h-1.5 w-[18%] rounded-full bg-cyan-500" />
+                <div className="h-1.5 rounded-full bg-cyan-500 transition-all duration-700" style={{ width: `${Math.min(100, Math.max(0, blockedRate ?? 0))}%` }} />
               </div>
             </CardContent>
           </Card>
@@ -865,29 +722,22 @@ const PlatformDetails: React.FC = () => {
               <div className="mt-4"><AnimatedNumber value={activeEndpointCount} className={metricNumberClass} /></div>
               <p className="mt-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400">Monitoring active</p>
               <div className="mt-4 h-1.5 rounded-full bg-emerald-50 dark:bg-slate-800">
-                <div className="h-1.5 w-[96%] rounded-full bg-emerald-500" />
+                <div className="h-1.5 rounded-full bg-emerald-500 transition-all duration-700" style={{ width: activeEndpointCount > 0 ? '100%' : '0%' }} />
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
         {/* THREAT EVENTS TABLE */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.18 }}
-        >
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.18 }}>
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-6 pb-4">
               <div>
                 <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Recent threat events</CardTitle>
                 <CardDescription className="mt-1 text-sm text-slate-500 dark:text-slate-400">Real-time security events</CardDescription>
               </div>
-              <button onClick={() => navigate('/threat-logs')} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
-                view_logs()
-              </button>
+              <button onClick={() => navigate('/threat-logs')} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">view_logs()</button>
             </CardHeader>
-
             <CardContent className="p-6 pt-0">
               <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800">
                 <div className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800">
@@ -913,11 +763,7 @@ const PlatformDetails: React.FC = () => {
         </motion.div>
 
         {/* LIVE THREAT ACTIVITY */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.22 }}
-        >
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.22 }}>
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4">
               <div className="flex items-start gap-3">
@@ -930,7 +776,6 @@ const PlatformDetails: React.FC = () => {
                 </div>
               </div>
             </CardHeader>
-
             <CardContent className="p-6 pt-0">
               {threatLogs && threatLogs.length > 0 ? (
                 <div className="space-y-3">
@@ -938,7 +783,6 @@ const PlatformDetails: React.FC = () => {
                     const isBlocked = log.waf_blocked;
                     const threatLevel = log.threat_level || 'none';
                     const statusColor = isBlocked ? 'text-red-600 dark:text-red-400' : threatLevel !== 'none' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
-
                     return (
                       <motion.div
                         key={log.id || idx}
@@ -982,21 +826,20 @@ const PlatformDetails: React.FC = () => {
           </Card>
         </motion.div>
 
-        {/* CHARTS */}
+        {/* CHARTS — Response code selector also uses universal timeRange */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.2 }}
           className="grid gap-4 xl:grid-cols-3"
         >
-          {/* Response Code Breakdown */}
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4">
               <div>
                 <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Response Code Breakdown</CardTitle>
                 <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">Distribution of response codes</CardDescription>
               </div>
-              <select className={controlClass} value={threatTimeRange} onChange={(e) => setThreatTimeRange(e.target.value)}>
+              <select className={controlClass} value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
                 {TIME_RANGES.map((range) => (<option key={range.value} value={range.value}>{range.label}</option>))}
               </select>
             </CardHeader>
@@ -1034,7 +877,6 @@ const PlatformDetails: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Requests by Countries */}
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardHeader className="p-6 pb-4">
               <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Requests by Countries</CardTitle>
@@ -1072,7 +914,6 @@ const PlatformDetails: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* OWASP Top 10 */}
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardHeader className="p-6 pb-4">
               <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">OWASP Top 10</CardTitle>
@@ -1119,26 +960,10 @@ const PlatformDetails: React.FC = () => {
             { title: 'Threat Logs', description: 'Review detailed security events', icon: <AlertTriangle className="h-5 w-5 text-amber-500 dark:text-amber-400" />, url: '/threat-logs' },
             { title: 'API Endpoints', description: 'Manage and monitor API endpoints', icon: <Globe className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />, url: '/api-endpoints' },
             { title: 'WAF Rules', description: 'Configure security rules and policies', icon: <Shield className="h-5 w-5 text-red-500 dark:text-red-400" />, url: '/waf-rules' },
-            {
-              title: 'User Management', description: 'Manage team access and permissions',
-              icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z" fill="#22c55e" /></svg>,
-              url: '/users',
-            },
-            {
-              title: 'Audit Logs', description: 'View system activity and changes',
-              icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M17 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H7V5h10v14Zm-5-2a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-4h-2V7h2v6Z" fill="#a78bfa" /></svg>,
-              url: '/audit-logs',
-            },
-            {
-              title: 'IP Blacklist', description: 'Manage blocked IP addresses',
-              icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59Z" fill="#ef4444" /></svg>,
-              url: '/ip-blacklist',
-            },
-            {
-              title: 'Security Alerts', description: 'Configure and manage security alerts',
-              icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11c0-3.07-1.63-5.64-5-6.32V4a1 1 0 1 0-2 0v.68C7.63 5.36 6 7.92 6 11v5l-1.29 1.29A1 1 0 0 0 6 19h12a1 1 0 0 0 .71-1.71L18 16Z" fill="#6366f1" /></svg>,
-              url: '/security-alerts',
-            },
+            { title: 'User Management', description: 'Manage team access and permissions', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z" fill="#22c55e" /></svg>, url: '/users' },
+            { title: 'Audit Logs', description: 'View system activity and changes', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M17 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H7V5h10v14Zm-5-2a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-4h-2V7h2v6Z" fill="#a78bfa" /></svg>, url: '/audit-logs' },
+            { title: 'IP Blacklist', description: 'Manage blocked IP addresses', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59Z" fill="#ef4444" /></svg>, url: '/ip-blacklist' },
+            { title: 'Security Alerts', description: 'Configure and manage security alerts', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11c0-3.07-1.63-5.64-5-6.32V4a1 1 0 1 0-2 0v.68C7.63 5.36 6 7.92 6 11v5l-1.29 1.29A1 1 0 0 0 6 19h12a1 1 0 0 0 .71-1.71L18 16Z" fill="#6366f1" /></svg>, url: '/security-alerts' },
           ].map((action) => (
             <motion.div key={action.title} whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
               <Card className={`cursor-pointer rounded-2xl transition-all hover:shadow-md ${panelClass}`} onClick={() => navigate(action.url)}>

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -283,9 +284,11 @@ const APIEndpoints = () => {
                   </div>
 
                   <div className="flex justify-end gap-2 border-t border-slate-200/50 dark:border-slate-800/50 pt-4">
-                    <Button variant="outline" className="rounded-xl border-slate-200/50 dark:border-slate-700 text-sm">
-                      Cancel
-                    </Button>
+                   <DialogClose asChild>
+                      <Button variant="outline" className="rounded-xl border-slate-200/50 dark:border-slate-700 text-sm">
+                       Cancel
+                       </Button>
+                    </DialogClose>
                     <Button className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20 text-sm">
                       Add Endpoint
                     </Button>

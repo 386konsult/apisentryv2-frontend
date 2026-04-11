@@ -113,7 +113,6 @@ const Platforms = () => {
     }
   };
 
-  // ── Design tokens — same as PlatformDetails ───────────────────────────────
   const panelClass =
     'border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-[#111827] dark:shadow-none';
   const softPanelClass =
@@ -132,10 +131,10 @@ const Platforms = () => {
 
   const getEnvironmentConfig = (environment: string) => {
     switch (environment) {
-      case 'production':  return { icon: <Globe className="h-3.5 w-3.5" />,          color: 'text-red-500 dark:text-red-400',    bg: 'bg-red-50 dark:bg-red-500/10',    border: 'border-red-200/70 dark:border-red-500/20',    label: 'Production'  };
-      case 'staging':     return { icon: <AlertTriangle className="h-3.5 w-3.5" />,  color: 'text-amber-500 dark:text-amber-400',bg: 'bg-amber-50 dark:bg-amber-500/10',border: 'border-amber-200/70 dark:border-amber-500/20',label: 'Staging'     };
-      case 'development': return { icon: <Settings className="h-3.5 w-3.5" />,       color: 'text-blue-500 dark:text-blue-400',  bg: 'bg-blue-50 dark:bg-blue-500/10',  border: 'border-blue-200/70 dark:border-blue-500/20',  label: 'Development' };
-      default:            return { icon: <Globe className="h-3.5 w-3.5" />,          color: 'text-slate-500 dark:text-slate-400',bg: 'bg-slate-100 dark:bg-slate-500/10',border: 'border-slate-200/70 dark:border-slate-500/20',label: environment   };
+      case 'production':  return { icon: <Globe className="h-3.5 w-3.5" />,         color: 'text-red-500 dark:text-red-400',    bg: 'bg-red-50 dark:bg-red-500/10',     border: 'border-red-200/70 dark:border-red-500/20',    label: 'Production'  };
+      case 'staging':     return { icon: <AlertTriangle className="h-3.5 w-3.5" />, color: 'text-amber-500 dark:text-amber-400',bg: 'bg-amber-50 dark:bg-amber-500/10', border: 'border-amber-200/70 dark:border-amber-500/20',label: 'Staging'     };
+      case 'development': return { icon: <Settings className="h-3.5 w-3.5" />,      color: 'text-blue-500 dark:text-blue-400',  bg: 'bg-blue-50 dark:bg-blue-500/10',   border: 'border-blue-200/70 dark:border-blue-500/20',  label: 'Development' };
+      default:            return { icon: <Globe className="h-3.5 w-3.5" />,         color: 'text-slate-500 dark:text-slate-400',bg: 'bg-slate-100 dark:bg-slate-500/10',border: 'border-slate-200/70 dark:border-slate-500/20',label: environment   };
     }
   };
 
@@ -143,7 +142,6 @@ const Platforms = () => {
   const totalBlocked     = platforms.reduce((s, p) => s + Number(p.blocked_threats || 0), 0);
   const activeWorkspaces = platforms.filter(p => p.status === 'active').length;
 
-  // ── Delete modal (portal — full-screen backdrop, no clipping) ─────────────
   const deleteModal = deleteTarget
     ? ReactDOM.createPortal(
         <div
@@ -199,10 +197,9 @@ const Platforms = () => {
       )
     : null;
 
-  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="-mx-4 -mt-4 min-h-[calc(100vh-64px)] bg-slate-50 px-4 py-10 dark:bg-[#060d1a] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="-mx-4 -mt-4 min-h-[calc(100vh-64px)] bg-[#F4F8FF] px-4 py-10 dark:bg-[#0F1724] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className={`flex h-72 items-center justify-center rounded-[24px] ${panelClass}`}>
           <div className="text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-200/70 bg-white dark:border-slate-700 dark:bg-[#172033]">
@@ -215,13 +212,11 @@ const Platforms = () => {
     );
   }
 
-  // ── Main render ───────────────────────────────────────────────────────────
   return (
     <>
-      <div className="-mx-4 -mt-4 min-h-[calc(100vh-64px)] bg-slate-50 px-4 pb-12 pt-6 dark:bg-[#060d1a] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="-mx-4 -mt-4 min-h-[calc(100vh-64px)] bg-[#F4F8FF] px-4 pb-12 pt-6 dark:bg-[#0F1724] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="space-y-6">
 
-          {/* ── Header panel ── */}
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -274,7 +269,6 @@ const Platforms = () => {
             </div>
           </motion.div>
 
-          {/* ── Empty state ── */}
           {platforms.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -295,8 +289,6 @@ const Platforms = () => {
               </Button>
             </motion.div>
           ) : (
-
-            /* ── Platform grid ── */
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -324,13 +316,9 @@ const Platforms = () => {
                       ${panelClass}
                     `}
                   >
-                    {/* Hover shimmer line */}
                     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
-                    {/* Body */}
                     <div className="flex-1 p-5">
-
-                      {/* Header */}
                       <div className="mb-4 flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
                           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-blue-200/70 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
@@ -353,7 +341,6 @@ const Platforms = () => {
                           </div>
                         </div>
 
-                        {/* Status + gear */}
                         <div className="flex flex-shrink-0 items-center gap-2">
                           <div className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ${statusCfg.bg} ${statusCfg.text} ${statusCfg.ring}`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot} ${statusCfg.pulse ? 'animate-pulse' : ''}`} />
@@ -387,15 +374,13 @@ const Platforms = () => {
                         </div>
                       </div>
 
-                      {/* Divider */}
                       <div className="mb-4 h-px bg-slate-200/70 dark:bg-slate-800" />
 
-                      {/* Stats row */}
                       <div className="grid grid-cols-3 gap-2.5">
                         {[
-                          { icon: <Activity className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />,        value: platform.total_requests?.toLocaleString()  || '0', label: 'Requests',  cls: 'text-slate-950 dark:text-white'       },
-                          { icon: <Zap      className="h-3.5 w-3.5 text-red-500 dark:text-red-400" />,          value: platform.blocked_threats?.toLocaleString() || '0', label: 'Blocked',   cls: 'text-red-500 dark:text-red-400'       },
-                          { icon: <Globe    className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />,  value: String(platform.active_endpoints || '0'),          label: 'Endpoints', cls: 'text-slate-950 dark:text-white'       },
+                          { icon: <Activity className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />,       value: platform.total_requests?.toLocaleString()  || '0', label: 'Requests',  cls: 'text-slate-950 dark:text-white' },
+                          { icon: <Zap      className="h-3.5 w-3.5 text-red-500 dark:text-red-400" />,         value: platform.blocked_threats?.toLocaleString() || '0', label: 'Blocked',   cls: 'text-red-500 dark:text-red-400' },
+                          { icon: <Globe    className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />, value: String(platform.active_endpoints || '0'),          label: 'Endpoints', cls: 'text-slate-950 dark:text-white' },
                         ].map(stat => (
                           <div key={stat.label} className={`rounded-xl p-3 text-center ${softPanelClass}`}>
                             <div className="mb-1 flex justify-center">{stat.icon}</div>
@@ -405,7 +390,6 @@ const Platforms = () => {
                         ))}
                       </div>
 
-                      {/* Block rate bar */}
                       {platform.total_requests ? (
                         <div className="mt-4">
                           <div className="mb-1.5 flex items-center justify-between text-xs">
@@ -422,11 +406,6 @@ const Platforms = () => {
                       ) : null}
                     </div>
 
-                    {/* ── View Dashboard button ──
-                        Card has overflow-hidden + rounded-[22px].
-                        The gradient button is contained inside px-5 pb-5 padding.
-                        overflow-hidden on the card clips the gradient at the card's
-                        own border-radius, eliminating the cyan-cap bleed permanently. */}
                     <div className="px-5 pb-5">
                       <Button
                         onClick={() => handleSelectPlatform(platform)}

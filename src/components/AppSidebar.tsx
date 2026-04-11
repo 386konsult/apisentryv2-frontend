@@ -295,7 +295,7 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
       <SidebarContent style={{ padding: collapsed ? "8px 6px" : "8px 8px", overflowX: "hidden", background: p.bg }}>
         {hasSelectedPlatform && (
           <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>
-            <SectionLabel label="// MONITOR" />
+            <SectionLabel label="/MONITOR" />
             <SidebarGroupContent>
               <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {monitorItems.map((item) => <NavItem key={item.title} {...item} />)}
@@ -306,7 +306,7 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
 
         {hasSelectedPlatform && (
           <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>
-            <SectionLabel label="// SECURITY" />
+            <SectionLabel label="/SECURITY" />
             <SidebarGroupContent>
               <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {securityItems.map((item) => <NavItem key={item.title} {...item} />)}
@@ -317,7 +317,7 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
 
         {hasSelectedPlatform && (
           <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>
-            <SectionLabel label="// SOURCE CODE" />
+            <SectionLabel label="/SOURCE CODE" />
             <SidebarGroupContent>
               <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {sourceCodeItems.map((item) => <NavItem key={item.title} {...item} />)}
@@ -328,7 +328,7 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
 
         {!hasSelectedPlatform && (
           <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>
-            <SectionLabel label="// WORKSPACES" />
+            <SectionLabel label="/WORKSPACES" />
             <SidebarGroupContent>
               <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <NavItem title="Workspaces" url="/platforms" icon={Shield} />

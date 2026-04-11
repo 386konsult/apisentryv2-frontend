@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,6 @@ import {
   XCircle,
   FlaskConical,
   Globe,
-  Clock,
   Terminal,
 } from "lucide-react";
 import { apiService } from "@/services/api";
@@ -77,6 +76,8 @@ const Playground = () => {
   const [portFieldTouched, setPortFieldTouched] = useState<boolean>(false);
   const { toast } = useToast();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const platformId = localStorage.getItem('selected_platform_id');
     if (!platformId) return;
@@ -119,6 +120,42 @@ const Playground = () => {
   const fullTargetUrl = useMemo(() => {
     return buildTargetUrl(effectiveBaseUrl, effectivePort || undefined, endpoint);
   }, [effectiveBaseUrl, effectivePort, endpoint]);
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (parsed.method) setMethod(parsed.method);
+        if (parsed.endpoint) setEndpoint(parsed.endpoint);
+        if (parsed.headers) setHeaders(
+          typeof parsed.headers === "string"
+            ? parsed.headers
+            : JSON.stringify(parsed.headers, null, 2)
+        );
+        if (parsed.body) setRequestBody(
+          typeof parsed.body === "string"
+            ? parsed.body
+            : JSON.stringify(parsed.body, null, 2)
+        );
+        toast({
+          title: "Import successful",
+          description: `Loaded configuration from ${file.name}`,
+        });
+      } catch {
+        toast({
+          title: "Import failed",
+          description: "File must be valid JSON",
+          variant: "destructive",
+        });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   const runTest = async () => {
     setIsLoading(true);
@@ -240,6 +277,15 @@ const Playground = () => {
   return (
     <div className="space-y-8 w-full min-w-0 max-w-full">
 
+      {/* Hidden file input for import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={handleImport}
+      />
+
       {/* ── Hero Banner ── */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 pt-7 pb-6 shadow-lg min-h-[140px]">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.18),transparent_55%)]" />
@@ -265,11 +311,20 @@ const Playground = () => {
               </p>
             </div>
             <div className="flex flex-row gap-2 shrink-0">
-              <Button variant="outline" size="sm" className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-sm">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-sm"
+              >
                 <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>
-              <Button variant="outline" size="sm" className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-sm">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 <Upload className="h-4 w-4 mr-2" />
                 Import
               </Button>

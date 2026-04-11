@@ -1,42 +1,36 @@
 import React from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Globe, Settings } from 'lucide-react';
+import { Globe, ChevronDown } from 'lucide-react';
 import { usePlatform } from '@/contexts/PlatformContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const PlatformIndicator: React.FC = () => {
-  const { selectedPlatformId, hasSelectedPlatform } = usePlatform();
+  const { hasSelectedPlatform } = usePlatform();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  if (!hasSelectedPlatform) {
-    return (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => navigate('/platforms')}
-        className="text-orange-600 border-orange-200 hover:bg-orange-50"
-      >
-        <Globe className="w-4 h-4 mr-2" />
-        Select Workspace
-      </Button>
-    );
-  }
+  const isOnPlatformsPage = location.pathname === '/platforms';
 
   return (
-    <div className="flex items-center space-x-2">
-      <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-        <Globe className="w-3 h-3 mr-1" />
-        Workspace Selected
-      </Badge>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate('/platforms')}
-        className="text-muted-foreground hover:text-foreground"
-      >
-        <Settings className="w-4 h-4" />
-      </Button>
+    <div className="flex items-center gap-2">
+      {isOnPlatformsPage || !hasSelectedPlatform ? (
+        <button
+          onClick={() => navigate('/platforms')}
+          className="flex items-center gap-1.5 rounded-full border border-orange-300 bg-white px-3 py-1 text-xs font-semibold text-orange-600 shadow-sm transition-all hover:border-orange-400 hover:bg-orange-50 hover:shadow-none dark:border-orange-700 dark:bg-orange-950 dark:text-orange-400 dark:hover:border-orange-600 dark:hover:bg-orange-900"
+        >
+          <Globe className="h-3.5 w-3.5" />
+          Select Workspace
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </button>
+      ) : (
+        <button
+          onClick={() => navigate('/platforms')}
+          className="flex items-center gap-1.5 rounded-full border border-blue-300 bg-white px-3 py-1 text-xs font-semibold text-blue-700 shadow-sm transition-all hover:border-blue-400 hover:bg-blue-50 hover:shadow-none dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300 dark:hover:border-blue-600 dark:hover:bg-blue-900"
+        >
+          <Globe className="h-3.5 w-3.5" />
+          Workspace Selected
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </button>
+      )}
     </div>
   );
 };

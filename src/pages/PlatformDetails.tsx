@@ -103,8 +103,6 @@ const PlatformDetails: React.FC = () => {
   const [isAlertClicked, setIsAlertClicked] = useState(false);
   const navigate = useNavigate();
 
-  const safeISO = (d: Date | null) => (d instanceof Date ? d.toISOString() : undefined);
-
   const fetchData = () => {
     if (!id) return;
     setLoading(true);
@@ -305,42 +303,10 @@ const PlatformDetails: React.FC = () => {
       .catch(() => setThreatLogs([]));
   };
 
-  const getOtherRequests = (a: any) => {
-    if (!a) return null;
-    if (typeof a.failed_requests === 'number' && typeof a.blocked_requests === 'number') {
-      return Number(a.failed_requests) - Number(a.blocked_requests);
-    }
-    if (a.status_code_breakdown && typeof a.status_code_breakdown === 'object') {
-      const blockedCodes = ['403'];
-      return Object.entries(a.status_code_breakdown).reduce((sum: number, [code, val]) => {
-        if (code === '200' || code === '201' || code === '204' || blockedCodes.includes(code)) return sum;
-        return sum + Number(val || 0);
-      }, 0);
-    }
-    if (typeof a.total_requests === 'number' && typeof a.successful_requests === 'number' && typeof a.blocked_requests === 'number') {
-      const inferred = Number(a.total_requests) - Number(a.successful_requests) - Number(a.blocked_requests);
-      return inferred >= 0 ? inferred : 0;
-    }
-    return null;
-  };
-
-  const getCleanRequests = (a: any) => {
-    if (!a) return null;
-    const total = typeof a.total_requests === 'number' ? Number(a.total_requests) : null;
-    const blocked = typeof a.blocked_requests === 'number' ? Number(a.blocked_requests) : 0;
-    const other = getOtherRequests(a);
-    if (total !== null && other !== null) {
-      const clean = total - blocked - other;
-      return clean >= 0 ? clean : 0;
-    }
-    if (typeof a.successful_requests === 'number') return Number(a.successful_requests);
-    return null;
-  };
-
   useEffect(() => { fetchData(); }, [id]);
-  // ── Both traffic and threat data now re-fetch on the same timeRange change ─
   useEffect(() => { fetchAllRangedData(); }, [id, timeRange]);
 
+  // ── Derived values — all real, never faked ────────────────────────────────
   const totalRequests = analytics ? Number(analytics.total_requests ?? 0) : 0;
   const blockedRequests = analytics ? Number(analytics.blocked_requests ?? 0) : 0;
   const successRate = analytics && typeof analytics.success_rate === 'number' ? Number(analytics.success_rate) : 0;
@@ -349,6 +315,7 @@ const PlatformDetails: React.FC = () => {
     ? endpoints.filter((e: any) => e.status === 'active' || e.is_active).length
     : 0;
 
+  // Traffic chart — real data only, all zeros if no real traffic
   const trafficOverviewData = HTTP_METHODS.map((method) => {
     const row = trafficData.find((item: any) => item.method === method) || { method };
     const total = Object.entries(row).reduce((sum: number, [key, value]) => {
@@ -358,37 +325,27 @@ const PlatformDetails: React.FC = () => {
     return { method, total };
   });
 
-  const hasTrafficData = trafficOverviewData.some((item) => item.total > 0);
-  const trafficChartDisplayData = hasTrafficData
-    ? trafficOverviewData
-    : HTTP_METHODS.map((method) => ({ method, total: method === 'PUT' ? 4 : 0 }));
-
-  const maxTraffic = Math.max(...trafficOverviewData.map((item) => item.total), 1);
   const topThreats = threatTypesByCategory.slice(0, 4);
   const maxThreat = Math.max(...topThreats.map((item: any) => Number(item.value || 0)), 1);
   const activeOwaspThreats = owaspThreats.filter((item) => item.count > 0);
 
-  const recentRows = threatLogs.length > 0
-    ? threatLogs.slice(0, 4).map((log: any) => ({
-        id: log.id ?? `${log.path}-${Math.random()}`,
-        path: log.path || '-',
-        attack: log.waf_rule_triggered || (log.threat_level && log.threat_level !== 'none' ? `${String(log.threat_level).toUpperCase()} Threat` : log.waf_blocked ? 'Suspicious Request' : 'Clean'),
-        source: log.client_ip || '-',
-        status: log.waf_blocked ? 'blocked' : Number(log.status_code) >= 400 ? 'warning' : 'allowed',
-      }))
-    : [
-        { id: 'row-1', path: '/api/v1/users', attack: 'SQL Injection', source: '192.168.1.45', status: 'blocked' },
-        { id: 'row-2', path: '/api/v1/auth/login', attack: 'Brute Force', source: '10.0.0.12', status: 'warning' },
-        { id: 'row-3', path: '/api/v1/products', attack: 'Clean', source: '203.45.67.89', status: 'allowed' },
-        { id: 'row-4', path: '/api/v1/exec', attack: 'RCE Attempt', source: '45.33.32.156', status: 'blocked' },
-      ];
+  // Threat logs — real only, no fallback rows
+  const recentRows = threatLogs.slice(0, 4).map((log: any) => ({
+    id: log.id ?? `${log.path}-${Math.random()}`,
+    path: log.path || '-',
+    attack: log.waf_rule_triggered || (log.threat_level && log.threat_level !== 'none'
+      ? `${String(log.threat_level).toUpperCase()} Threat`
+      : log.waf_blocked ? 'Suspicious Request' : 'Clean'),
+    source: log.client_ip || '-',
+    status: log.waf_blocked ? 'blocked' : Number(log.status_code) >= 400 ? 'warning' : 'allowed',
+  }));
 
+  // ── Style constants ───────────────────────────────────────────────────────
   const panelClass = 'border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none';
   const softPanelClass = 'border border-slate-200/70 bg-white dark:border-slate-800/80 dark:bg-slate-900';
   const controlClass = 'rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-blue-400';
   const metricNumberClass = 'font-sans tabular-nums text-3xl font-semibold leading-none tracking-[-0.05em] text-slate-900 dark:text-white';
   const secondaryButtonClass = 'border-slate-200 bg-white text-slate-900 hover:!bg-slate-50 hover:!text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:!bg-slate-700 dark:hover:!text-white';
-  const primaryButtonClass = 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md hover:from-blue-500 hover:to-cyan-400 hover:text-white';
 
   const getStatusClass = (status: string) => {
     if (status === 'blocked') return 'border border-red-200/60 bg-red-50 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400';
@@ -533,7 +490,7 @@ const PlatformDetails: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* MAIN GRID — Traffic + Top Threats share the universal time range selector */}
+        {/* MAIN GRID — Traffic + Top Threats */}
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
             <Card className={`rounded-2xl ${panelClass}`}>
@@ -547,7 +504,6 @@ const PlatformDetails: React.FC = () => {
                     <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">Track request changes and protection metrics</CardDescription>
                   </div>
                 </div>
-                {/* Universal time range selector */}
                 <select className={controlClass} value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
                   {TIME_RANGES.map((range) => (
                     <option key={range.value} value={range.value}>{range.label}</option>
@@ -557,24 +513,34 @@ const PlatformDetails: React.FC = () => {
               <CardContent className="p-6 pt-0">
                 <div className="mb-6 grid grid-cols-3 gap-4">
                   <div>
-                    <div className="text-4xl font-semibold text-slate-900 dark:text-white">{totalRequests.toLocaleString()}</div>
-                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total requests</div>
-                    <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
-                      <TrendingUp className="h-3 w-3" />+11% vs last week
+                    <div className="text-4xl font-semibold text-slate-900 dark:text-white">
+                      {totalRequests.toLocaleString()}
                     </div>
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total requests</div>
+                    {/* Only show trend badge if there is real data */}
+                    {totalRequests > 0 && (
+                      <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
+                        <Activity className="h-3 w-3" />
+                        Active
+                      </div>
+                    )}
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Blocked</div>
-                    <div className="mt-1 text-2xl font-semibold text-red-500 dark:text-red-400">{blockedRequests.toLocaleString()}</div>
+                    <div className="mt-1 text-2xl font-semibold text-red-500 dark:text-red-400">
+                      {blockedRequests.toLocaleString()}
+                    </div>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Block rate</div>
-                    <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{blockedRate ? `${blockedRate.toFixed(1)}%` : '--'}</div>
+                    <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
+                      {totalRequests > 0 ? `${blockedRate.toFixed(1)}%` : '0.00%'}
+                    </div>
                   </div>
                 </div>
                 <div className="h-48 rounded-xl p-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trafficChartDisplayData}>
+                    <AreaChart data={trafficOverviewData}>
                       <defs>
                         <linearGradient id="trafficGradient" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4} />
@@ -583,9 +549,17 @@ const PlatformDetails: React.FC = () => {
                       </defs>
                       <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
                       <XAxis dataKey="method" tick={{ fontSize: 12, fill: '#64748B' }} />
-                      <YAxis tick={{ fontSize: 12, fill: '#64748B' }} />
+                      <YAxis tick={{ fontSize: 12, fill: '#64748B' }} allowDecimals={false} />
                       <Tooltip />
-                      <Area type="natural" dataKey="total" stroke="#2563EB" fill="url(#trafficGradient)" strokeWidth={3} isAnimationActive={true} animationDuration={800} />
+                      <Area
+                        type="natural"
+                        dataKey="total"
+                        stroke="#2563EB"
+                        fill="url(#trafficGradient)"
+                        strokeWidth={3}
+                        isAnimationActive={true}
+                        animationDuration={800}
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -593,7 +567,7 @@ const PlatformDetails: React.FC = () => {
             </Card>
           </motion.div>
 
-          {/* Top Threats — no separate selector, driven by universal timeRange */}
+          {/* Top Threats */}
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
             <Card className={`rounded-2xl ${panelClass}`}>
               <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4">
@@ -608,7 +582,7 @@ const PlatformDetails: React.FC = () => {
               <CardContent className="p-6 pt-0">
                 {topThreats && topThreats.length > 0 ? (
                   <div className="space-y-3">
-                    {topThreats.slice(0, 4).map((threat: any, idx: number) => {
+                    {topThreats.map((threat: any, idx: number) => {
                       const getThreatCode = (name: string) => {
                         const words = (name || '').split(' ');
                         if (words.length === 1) return (words[0] || '').slice(0, 3).toUpperCase();
@@ -663,6 +637,7 @@ const PlatformDetails: React.FC = () => {
           transition={{ duration: 0.3, delay: 0.15 }}
           className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
         >
+          {/* Total Requests */}
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
@@ -670,15 +645,20 @@ const PlatformDetails: React.FC = () => {
                 <Activity className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="mt-4"><AnimatedNumber value={totalRequests} className={metricNumberClass} /></div>
-              <p className="mt-3 flex items-center text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                <TrendingUp className="mr-1 h-3.5 w-3.5" />+12.4% today
+              {/* No hardcoded percentage — only show if real comparison data exists */}
+              <p className="mt-3 text-sm font-medium text-slate-400 dark:text-slate-500">
+                {totalRequests > 0 ? 'Requests received' : 'No traffic yet'}
               </p>
               <div className="mt-4 h-1.5 rounded-full bg-blue-50 dark:bg-slate-800">
-                <div className="h-1.5 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 transition-all duration-700" style={{ width: `${Math.min(100, (totalRequests / 200) * 100)}%` }} />
+                <div
+                  className="h-1.5 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 transition-all duration-700"
+                  style={{ width: totalRequests > 0 ? '100%' : '0%' }}
+                />
               </div>
             </CardContent>
           </Card>
 
+          {/* Threats Blocked */}
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
@@ -686,15 +666,20 @@ const PlatformDetails: React.FC = () => {
                 <Shield className="h-4 w-4 text-red-500 dark:text-red-400" />
               </div>
               <div className="mt-4"><AnimatedNumber value={blockedRequests} className={metricNumberClass} /></div>
-              <p className="mt-3 text-sm font-semibold text-red-500 dark:text-red-400">
-                +{Math.max(1, Math.floor(blockedRequests * 0.1))} new
+              {/* Only show "new" label if there are actual blocked requests */}
+              <p className="mt-3 text-sm font-medium text-slate-400 dark:text-slate-500">
+                {blockedRequests > 0 ? 'Threats mitigated' : 'No threats blocked'}
               </p>
               <div className="mt-4 h-1.5 rounded-full bg-red-50 dark:bg-slate-800">
-                <div className="h-1.5 rounded-full bg-red-500 transition-all duration-700" style={{ width: `${totalRequests > 0 ? Math.min(100, (blockedRequests / totalRequests) * 100) : 0}%` }} />
+                <div
+                  className="h-1.5 rounded-full bg-red-500 transition-all duration-700"
+                  style={{ width: `${totalRequests > 0 ? Math.min(100, (blockedRequests / totalRequests) * 100) : 0}%` }}
+                />
               </div>
             </CardContent>
           </Card>
 
+          {/* Blocked Rate */}
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
@@ -708,11 +693,15 @@ const PlatformDetails: React.FC = () => {
                 <AnimatedNumber value={successRate} decimals={2} suffix="% success rate" />
               </p>
               <div className="mt-4 h-1.5 rounded-full bg-cyan-50 dark:bg-slate-800">
-                <div className="h-1.5 rounded-full bg-cyan-500 transition-all duration-700" style={{ width: `${Math.min(100, Math.max(0, blockedRate ?? 0))}%` }} />
+                <div
+                  className="h-1.5 rounded-full bg-cyan-500 transition-all duration-700"
+                  style={{ width: `${Math.min(100, Math.max(0, blockedRate ?? 0))}%` }}
+                />
               </div>
             </CardContent>
           </Card>
 
+          {/* Active Endpoints */}
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
@@ -720,9 +709,14 @@ const PlatformDetails: React.FC = () => {
                 <Globe className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
               </div>
               <div className="mt-4"><AnimatedNumber value={activeEndpointCount} className={metricNumberClass} /></div>
-              <p className="mt-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400">Monitoring active</p>
+              <p className="mt-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                {activeEndpointCount > 0 ? 'Monitoring active' : 'No endpoints yet'}
+              </p>
               <div className="mt-4 h-1.5 rounded-full bg-emerald-50 dark:bg-slate-800">
-                <div className="h-1.5 rounded-full bg-emerald-500 transition-all duration-700" style={{ width: activeEndpointCount > 0 ? '100%' : '0%' }} />
+                <div
+                  className="h-1.5 rounded-full bg-emerald-500 transition-all duration-700"
+                  style={{ width: activeEndpointCount > 0 ? '100%' : '0%' }}
+                />
               </div>
             </CardContent>
           </Card>
@@ -739,25 +733,34 @@ const PlatformDetails: React.FC = () => {
               <button onClick={() => navigate('/threat-logs')} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">view_logs()</button>
             </CardHeader>
             <CardContent className="p-6 pt-0">
-              <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800">
-                <div className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800">
-                  {['Endpoint', 'Attack Type', 'Source IP', 'Status'].map((h) => (
-                    <span key={h} className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">{h}</span>
-                  ))}
+              {recentRows.length > 0 ? (
+                <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800">
+                  <div className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800">
+                    {['Endpoint', 'Attack Type', 'Source IP', 'Status'].map((h) => (
+                      <span key={h} className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">{h}</span>
+                    ))}
+                  </div>
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {recentRows.map((row) => (
+                      <div key={row.id} className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">
+                        <span className="font-mono text-sm font-medium text-blue-600 dark:text-blue-400">{row.path}</span>
+                        <span className={`text-sm font-semibold ${getAttackTextClass(row.attack)}`}>{row.attack}</span>
+                        <span className="font-mono text-sm text-slate-400 dark:text-slate-500">{row.source}</span>
+                        <span className={`inline-flex w-fit rounded-lg px-3 py-1 text-[11px] font-bold ${getStatusClass(row.status)}`}>
+                          {row.status === 'blocked' ? 'Blocked' : row.status === 'allowed' ? 'Allowed' : 'Warning'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {recentRows.map((row) => (
-                    <div key={row.id} className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">
-                      <span className="font-mono text-sm font-medium text-blue-600 dark:text-blue-400">{row.path}</span>
-                      <span className={`text-sm font-semibold ${getAttackTextClass(row.attack)}`}>{row.attack}</span>
-                      <span className="font-mono text-sm text-slate-400 dark:text-slate-500">{row.source}</span>
-                      <span className={`inline-flex w-fit rounded-lg px-3 py-1 text-[11px] font-bold ${getStatusClass(row.status)}`}>
-                        {row.status === 'blocked' ? 'Blocked' : row.status === 'allowed' ? 'Allowed' : 'Warning'}
-                      </span>
-                    </div>
-                  ))}
+              ) : (
+                <div className="flex h-32 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+                  <div className="text-center">
+                    <Shield className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
+                    <p className="text-sm text-slate-500 dark:text-slate-400">No threat events recorded yet</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -782,7 +785,11 @@ const PlatformDetails: React.FC = () => {
                   {threatLogs.slice(0, 8).map((log: any, idx: number) => {
                     const isBlocked = log.waf_blocked;
                     const threatLevel = log.threat_level || 'none';
-                    const statusColor = isBlocked ? 'text-red-600 dark:text-red-400' : threatLevel !== 'none' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
+                    const statusColor = isBlocked
+                      ? 'text-red-600 dark:text-red-400'
+                      : threatLevel !== 'none'
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-emerald-600 dark:text-emerald-400';
                     return (
                       <motion.div
                         key={log.id || idx}
@@ -790,8 +797,10 @@ const PlatformDetails: React.FC = () => {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.2, delay: idx * 0.05 }}
                         className={`flex items-center justify-between rounded-lg border px-4 py-3 transition-colors ${
-                          isBlocked ? 'border-red-200/60 bg-red-50 dark:border-red-500/20 dark:bg-red-500/10'
-                            : threatLevel !== 'none' ? 'border-amber-200/60 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10'
+                          isBlocked
+                            ? 'border-red-200/60 bg-red-50 dark:border-red-500/20 dark:bg-red-500/10'
+                            : threatLevel !== 'none'
+                            ? 'border-amber-200/60 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10'
                             : 'border-emerald-200/60 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10'
                         }`}
                       >
@@ -803,7 +812,9 @@ const PlatformDetails: React.FC = () => {
                           <div className="flex items-center gap-2 text-xs">
                             <span className="text-slate-500 dark:text-slate-400">{log.client_ip || 'Unknown IP'}</span>
                             <span className="text-slate-400 dark:text-slate-500">·</span>
-                            <span className={statusColor}>{isBlocked ? 'Blocked' : threatLevel !== 'none' ? `${threatLevel.toUpperCase()} Threat` : 'Clean'}</span>
+                            <span className={statusColor}>
+                              {isBlocked ? 'Blocked' : threatLevel !== 'none' ? `${threatLevel.toUpperCase()} Threat` : 'Clean'}
+                            </span>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 ml-4 flex-shrink-0">
@@ -818,7 +829,7 @@ const PlatformDetails: React.FC = () => {
                 <div className="flex h-32 items-center justify-center rounded-lg border border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
                   <div className="text-center">
                     <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-slate-400 dark:text-slate-500" />
-                    <p className="text-sm text-slate-500 dark:text-slate-400">No threat logs found.</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">No live activity yet</p>
                   </div>
                 </div>
               )}
@@ -826,13 +837,14 @@ const PlatformDetails: React.FC = () => {
           </Card>
         </motion.div>
 
-        {/* CHARTS — Response code selector also uses universal timeRange */}
+        {/* CHARTS */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.2 }}
           className="grid gap-4 xl:grid-cols-3"
         >
+          {/* Response Code Breakdown */}
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4">
               <div>
@@ -877,6 +889,7 @@ const PlatformDetails: React.FC = () => {
             </CardContent>
           </Card>
 
+          {/* Requests by Countries */}
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardHeader className="p-6 pb-4">
               <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Requests by Countries</CardTitle>
@@ -899,7 +912,10 @@ const PlatformDetails: React.FC = () => {
                       <span className="font-sans tabular-nums text-xs font-semibold text-slate-500 dark:text-slate-400">{country.count.toLocaleString()}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-blue-50 dark:bg-slate-800">
-                      <div className="h-1.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500" style={{ width: `${(country.count / Math.max(...countryData.map((item) => item.count), 1)) * 100}%` }} />
+                      <div
+                        className="h-1.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500"
+                        style={{ width: `${(country.count / Math.max(...countryData.map((item) => item.count), 1)) * 100}%` }}
+                      />
                     </div>
                   </div>
                 ))
@@ -914,6 +930,7 @@ const PlatformDetails: React.FC = () => {
             </CardContent>
           </Card>
 
+          {/* OWASP Top 10 */}
           <Card className={`rounded-2xl ${panelClass}`}>
             <CardHeader className="p-6 pb-4">
               <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">OWASP Top 10</CardTitle>
@@ -940,7 +957,7 @@ const PlatformDetails: React.FC = () => {
                 <div className="flex h-[240px] items-center justify-center">
                   <div className="text-center">
                     <Shield className="mx-auto mb-4 h-10 w-10 opacity-35" />
-                    <p className="text-sm text-slate-500 dark:text-slate-400">No data available</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">No OWASP threats detected</p>
                   </div>
                 </div>
               )}
@@ -974,7 +991,12 @@ const PlatformDetails: React.FC = () => {
                   <h3 className="text-base font-semibold text-slate-900 dark:text-white">{action.title}</h3>
                   <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{action.description}</p>
                   <div className="mt-6">
-                    <Button variant="outline" size="sm" className={`w-full ${secondaryButtonClass} rounded-lg font-medium`} onClick={(e) => { e.stopPropagation(); navigate(action.url); }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`w-full ${secondaryButtonClass} rounded-lg font-medium`}
+                      onClick={(e) => { e.stopPropagation(); navigate(action.url); }}
+                    >
                       Open
                     </Button>
                   </div>

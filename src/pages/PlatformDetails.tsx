@@ -21,6 +21,9 @@ const TIME_RANGES = [
   { label: 'Last Year', value: '1y' },
 ];
 
+// ── localStorage key scoped per platform ─────────────────────────────────────
+const getStorageKey = (id: string | undefined) => `heimdall_timeRange_${id ?? 'default'}`;
+
 interface OWASPThreat {
   name: string;
   category: string;
@@ -97,8 +100,23 @@ const PlatformDetails: React.FC = () => {
   const [countryData, setCountryData] = useState<CountryData[]>([]);
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
 
-  // ── SINGLE universal time range ──────────────────────────────────────────
-  const [timeRange, setTimeRange] = useState('7d');
+  // ── Time range — initialised from localStorage, scoped per platform id ────
+  const [timeRange, setTimeRange] = useState<string>(() => {
+    try {
+      return localStorage.getItem(getStorageKey(id)) || '7d';
+    } catch {
+      return '7d';
+    }
+  });
+
+  // ── Persist timeRange to localStorage whenever it changes ─────────────────
+  useEffect(() => {
+    try {
+      localStorage.setItem(getStorageKey(id), timeRange);
+    } catch {
+      // localStorage unavailable (private browsing, storage full) — silently ignore
+    }
+  }, [timeRange, id]);
 
   const [isAlertClicked, setIsAlertClicked] = useState(false);
   const navigate = useNavigate();
@@ -517,7 +535,6 @@ const PlatformDetails: React.FC = () => {
                       {totalRequests.toLocaleString()}
                     </div>
                     <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total requests</div>
-                    {/* Only show trend badge if there is real data */}
                     {totalRequests > 0 && (
                       <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
                         <Activity className="h-3 w-3" />
@@ -645,7 +662,6 @@ const PlatformDetails: React.FC = () => {
                 <Activity className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="mt-4"><AnimatedNumber value={totalRequests} className={metricNumberClass} /></div>
-              {/* No hardcoded percentage — only show if real comparison data exists */}
               <p className="mt-3 text-sm font-medium text-slate-400 dark:text-slate-500">
                 {totalRequests > 0 ? 'Requests received' : 'No traffic yet'}
               </p>
@@ -666,7 +682,6 @@ const PlatformDetails: React.FC = () => {
                 <Shield className="h-4 w-4 text-red-500 dark:text-red-400" />
               </div>
               <div className="mt-4"><AnimatedNumber value={blockedRequests} className={metricNumberClass} /></div>
-              {/* Only show "new" label if there are actual blocked requests */}
               <p className="mt-3 text-sm font-medium text-slate-400 dark:text-slate-500">
                 {blockedRequests > 0 ? 'Threats mitigated' : 'No threats blocked'}
               </p>

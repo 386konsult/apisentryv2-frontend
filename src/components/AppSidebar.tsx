@@ -136,6 +136,9 @@ const sourceCodeItems = [
   { title: "Scan Reports", url: "/code-review-scan-reports", icon: FileText },
   { title: "Git Auto Scan", url: "/git-automated-scan", icon: Clock },
 ];
+// ── Feature flag — flip to true to re-enable the Source Code section ─────────
+const SHOW_SOURCE_CODE = false;
+
 const settingItems = [
   { title: "Users & Teams", url: "/users", icon: Users },
   { title: "Settings", url: "/settings", icon: Settings },
@@ -315,7 +318,7 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
           </SidebarGroup>
         )}
 
-        {hasSelectedPlatform && (
+        {SHOW_SOURCE_CODE && hasSelectedPlatform && (
           <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>
             <SectionLabel label="/SOURCE CODE" />
             <SidebarGroupContent>

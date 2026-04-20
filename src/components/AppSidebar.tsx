@@ -3,7 +3,7 @@ import { useState, useCallback } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Shield, AlertTriangle, Globe, Settings, Users, Code, LogOut,
-  Search, Clock, FileText, LayoutDashboard, Link2, BookOpen, Bell, BarChart3,
+  Search, Clock, FileText, LayoutDashboard, Link2, BookOpen, Bell, BarChart3, Mail,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -17,103 +17,29 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlatform } from "@/contexts/PlatformContext";
 
-
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Unique click animations — keyed by nav item TITLE so duplicate icons
-// (FileText appears twice, Clock appears twice) each get their own motion.
+// Unique click animations
 // ─────────────────────────────────────────────────────────────────────────────
 const ANIM: Record<string, { a: object; ms: number }> = {
-  // BarChart3 — bars rocket up then crash back down like a stock chart
-  "Dashboard": {
-    a: { scaleY: [1, 0.25, 1.7, 0.8, 1.15, 1], originY: 1 },
-    ms: 600,
-  },
-  // Search — magnifier sweeps right as if scanning, then snaps home
-  "Security Hub": {
-    a: { x: [0, 11, -4, 7, 0], rotate: [0, 14, -8, 3, 0] },
-    ms: 500,
-  },
-  // AlertTriangle — jackhammer shudder, y vibrates too (double-axis panic)
-  "Threat Logs": {
-    a: { x: [0, -8, 8, -6, 6, -4, 4, -2, 0], y: [0, -3, 3, -2, 2, 0] },
-    ms: 480,
-  },
-  // Bell — long pendulum decay ring (big initial arc, slowly calms)
-  "Security Alerts": {
-    a: { rotate: [0, 32, -26, 18, -13, 9, -5, 2, 0], originY: 0 },
-    ms: 720,
-  },
-  // FileText (Incidents) — page flips over on Y axis like a card turn
-  "Incidents": {
-    a: { rotateY: [0, 90, 180, 270, 360] },
-    ms: 560,
-  },
-  // Globe — full axial spin, slows into place
-  "API Endpoints": {
-    a: { rotate: [0, 270, 340, 355, 360] },
-    ms: 680,
-  },
-  // Shield — hit-absorption: squishes in, explodes out, rebounds
-  "IP Blacklist": {
-    a: { scale: [1, 0.65, 1.5, 0.85, 1.15, 1], rotate: [0, -5, 5, -2, 0] },
-    ms: 580,
-  },
-  // Code — brackets glitch apart like a compilation error, then reassemble
-  "Playground": {
-    a: { scaleX: [1, 0.7, 1.4, 0.85, 1.12, 1], x: [0, -5, 5, -3, 3, 0] },
-    ms: 520,
-  },
-  // LayoutDashboard — tiles implode to a singularity then burst back
-  "Dashboard ": {
-    a: { scale: [1, 0.45, 1.5, 0.88, 1.1, 1], rotate: [0, -12, 8, -3, 0] },
-    ms: 620,
-  },
-  // Link2 — chain links stretch then snap together with a clunk
-  "Connect Repo": {
-    a: { scaleX: [1, 0.55, 1.4, 0.85, 1.1, 1], y: [0, -4, 4, -2, 0] },
-    ms: 540,
-  },
-  // BookOpen — book fans wide open then slams shut
-  "Repositories": {
-    a: { scaleX: [1, 1.55, 0.7, 1.25, 0.88, 1.06, 1] },
-    ms: 580,
-  },
-  // FileText (Scan Reports) — stamp drops down hard and bounces like a rubber stamp
-  "Scan Reports": {
-    a: { y: [0, 9, -12, 5, -3, 1, 0], scaleY: [1, 1.12, 0.82, 1.06, 1] },
-    ms: 540,
-  },
-  // Clock (Git Auto Scan) — time-lapse: 3 full spins, decelerating
-  "Git Auto Scan": {
-    a: { rotate: [0, 360, 720, 1080] },
-    ms: 750,
-  },
-  // Users — people jump up with a group hop (staggered feel via y curve)
-  "Users & Teams": {
-    a: { y: [0, -10, 3, -6, 1, -2, 0], scale: [1, 1.14, 0.9, 1.06, 1] },
-    ms: 580,
-  },
-  // Settings — gear wobbles left-right erratically then settles on a click
-  "Settings": {
-    a: { rotate: [0, -55, 85, -35, 55, -18, 28, -8, 0] },
-    ms: 680,
-  },
-  // Clock (Audit Logs) — rewinds counter-clockwise then snaps forward
-  "Audit Logs": {
-    a: { rotate: [0, -200, -90, -180, 0], scale: [1, 0.88, 1.08, 1] },
-    ms: 700,
-  },
-  // LogOut — icon shoots out to the right, fades, re-enters from the left
-  "Log out": {
-    a: { x: [0, 18, -16, 8, -4, 2, 0], opacity: [1, 0.2, 1, 0.6, 1] },
-    ms: 580,
-  },
-  // Shield (Workspaces) — force-field ripple with a twist
-  "Workspaces": {
-    a: { scale: [1, 1.3, 0.82, 1.18, 0.92, 1.06, 1], rotate: [0, 6, -5, 2, 0] },
-    ms: 620,
-  },
+  "Dashboard": { a: { scaleY: [1, 0.25, 1.7, 0.8, 1.15, 1], originY: 1 }, ms: 600 },
+  "Security Hub": { a: { x: [0, 11, -4, 7, 0], rotate: [0, 14, -8, 3, 0] }, ms: 500 },
+  "Threat Logs": { a: { x: [0, -8, 8, -6, 6, -4, 4, -2, 0], y: [0, -3, 3, -2, 2, 0] }, ms: 480 },
+  "Security Alerts": { a: { rotate: [0, 32, -26, 18, -13, 9, -5, 2, 0], originY: 0 }, ms: 720 },
+  "Incidents": { a: { rotateY: [0, 90, 180, 270, 360] }, ms: 560 },
+  "API Endpoints": { a: { rotate: [0, 270, 340, 355, 360] }, ms: 680 },
+  "IP Blacklist": { a: { scale: [1, 0.65, 1.5, 0.85, 1.15, 1], rotate: [0, -5, 5, -2, 0] }, ms: 580 },
+  "Playground": { a: { scaleX: [1, 0.7, 1.4, 0.85, 1.12, 1], x: [0, -5, 5, -3, 3, 0] }, ms: 520 },
+  "Dashboard ": { a: { scale: [1, 0.45, 1.5, 0.88, 1.1, 1], rotate: [0, -12, 8, -3, 0] }, ms: 620 },
+  "Connect Repo": { a: { scaleX: [1, 0.55, 1.4, 0.85, 1.1, 1], y: [0, -4, 4, -2, 0] }, ms: 540 },
+  "Repositories": { a: { scaleX: [1, 1.55, 0.7, 1.25, 0.88, 1.06, 1] }, ms: 580 },
+  "Scan Reports": { a: { y: [0, 9, -12, 5, -3, 1, 0], scaleY: [1, 1.12, 0.82, 1.06, 1] }, ms: 540 },
+  "Git Auto Scan": { a: { rotate: [0, 360, 720, 1080] }, ms: 750 },
+  "Users & Teams": { a: { y: [0, -10, 3, -6, 1, -2, 0], scale: [1, 1.14, 0.9, 1.06, 1] }, ms: 580 },
+  "Settings": { a: { rotate: [0, -55, 85, -35, 55, -18, 28, -8, 0] }, ms: 680 },
+  "Audit Logs": { a: { rotate: [0, -200, -90, -180, 0], scale: [1, 0.88, 1.08, 1] }, ms: 700 },
+  "Log out": { a: { x: [0, 18, -16, 8, -4, 2, 0], opacity: [1, 0.2, 1, 0.6, 1] }, ms: 580 },
+  "Workspaces": { a: { scale: [1, 1.3, 0.82, 1.18, 0.92, 1.06, 1], rotate: [0, 6, -5, 2, 0] }, ms: 620 },
+  "Invitations": { a: { y: [0, -6, 2, -3, 1, 0], rotate: [0, -8, 4, -2, 0] }, ms: 500 },
 };
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -136,11 +62,11 @@ const sourceCodeItems = [
   { title: "Scan Reports", url: "/code-review-scan-reports", icon: FileText },
   { title: "Git Auto Scan", url: "/git-automated-scan", icon: Clock },
 ];
-// ── Feature flag — flip to true to re-enable the Source Code section ─────────
 const SHOW_SOURCE_CODE = false;
 
 const settingItems = [
   { title: "Users & Teams", url: "/users", icon: Users },
+  { title: "Invitations", url: "/invitations", icon: Mail },
   { title: "Settings", url: "/settings", icon: Settings },
   { title: "Audit Logs", url: "/audit-logs", icon: Clock },
 ];
@@ -188,7 +114,6 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
     setTimeout(() => setAnimating((prev) => ({ ...prev, [title]: false })), cfg.ms + 80);
   }, []);
 
-  // Animated icon — closes over `animating` and `p`
   const AnimIcon = ({ Icon, active, title }: { Icon: ElementType; active: boolean; title: string }) => {
     const cfg = ANIM[title];
     const on = !!animating[title];

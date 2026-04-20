@@ -4,6 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -111,6 +119,13 @@ const Users = () => {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [cancelInviteId, setCancelInviteId] = useState<number | null>(null);
   const [removeMemberId, setRemoveMemberId] = useState<number | null>(null);
+
+  // New state for organisation‑level invitations
+  const [inviteRole, setInviteRole] = useState<"org_admin" | "org_member">("org_member");
+  const [inviteWorkspaceIds, setInviteWorkspaceIds] = useState<string[]>([]);
+  const [availableWorkspaces, setAvailableWorkspaces] = useState<any[]>([]);
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
+
   const { toast } = useToast();
   const { selectedPlatformId } = usePlatform();
 
@@ -154,13 +169,30 @@ const Users = () => {
   useEffect(() => { loadData(); }, [selectedPlatformId]);
 
   const handleSendInvitation = async () => {
-    if (!selectedPlatformId) { toast({ title: "Error", description: "Please select a platform first", variant: "destructive" }); return; }
-    if (!inviteEmail || !inviteEmail.includes('@')) { toast({ title: "Invalid email", description: "Please enter a valid email address", variant: "destructive" }); return; }
+    if (!selectedPlatformId) {
+      toast({ title: "Error", description: "Please select a platform first", variant: "destructive" });
+      return;
+    }
+    if (!inviteEmail || !inviteEmail.includes('@')) {
+      toast({ title: "Invalid email", description: "Please enter a valid email address", variant: "destructive" });
+      return;
+    }
     setInviteLoading(true);
     try {
-      await apiService.sendInvitation(selectedPlatformId, { email: inviteEmail, message: inviteMessage || undefined });
-      toast({ title: "Invitation sent", description: `Invitation has been sent to ${inviteEmail}` });
-      setInviteEmail(""); setInviteMessage(""); setInviteDialogOpen(false);
+      const payload: any = {
+        email: inviteEmail,
+        role: inviteRole,
+      };
+      if (inviteRole === "org_member" && inviteWorkspaceIds.length > 0) {
+        payload.workspace_ids = inviteWorkspaceIds;
+      }
+      await apiService.createOrganisationInvitation(payload);
+      toast({ title: "Invitation sent", description: `Invitation sent to ${inviteEmail}` });
+      setInviteDialogOpen(false);
+      setInviteEmail("");
+      setInviteMessage("");
+      setInviteRole("org_member");
+      setInviteWorkspaceIds([]);
       await loadData();
     } catch (error: any) {
       toast({ title: "Error sending invitation", description: error.message || "Failed to send invitation", variant: "destructive" });
@@ -268,7 +300,27 @@ const Users = () => {
                   <Key className="h-4 w-4 mr-2" />
                   Generate Token
                 </Button>
-                <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+                <Dialog open={inviteDialogOpen} onOpenChange={async (open) => {
+                  setInviteDialogOpen(open);
+                  if (open) {
+                    // Fetch workspaces when dialog opens
+                    setLoadingWorkspaces(true);
+                    try {
+                      const workspaces = await apiService.getWorkspaces();
+                      setAvailableWorkspaces(workspaces);
+                    } catch (error) {
+                      toast({ title: "Error", description: "Failed to load workspaces", variant: "destructive" });
+                    } finally {
+                      setLoadingWorkspaces(false);
+                    }
+                  } else {
+                    // Reset form when closed
+                    setInviteEmail("");
+                    setInviteMessage("");
+                    setInviteRole("org_member");
+                    setInviteWorkspaceIds([]);
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <Button
                       size="sm"
@@ -297,6 +349,52 @@ const Users = () => {
                           className="rounded-xl border-slate-200/70 bg-slate-50/80 dark:border-slate-700/70 dark:bg-slate-800/50"
                         />
                       </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Role</Label>
+                        <Select value={inviteRole} onValueChange={(val) => setInviteRole(val as "org_admin" | "org_member")}>
+                          <SelectTrigger className="rounded-xl">
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="org_admin">Organisation Admin – full access to all workspaces</SelectItem>
+                            <SelectItem value="org_member">Organisation Member – access only to selected workspaces</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {inviteRole === "org_member" && (
+                        <div className="space-y-2">
+                          <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Workspace Access</Label>
+                          {loadingWorkspaces ? (
+                            <div className="text-sm text-muted-foreground">Loading workspaces...</div>
+                          ) : availableWorkspaces.length === 0 ? (
+                            <div className="text-sm text-muted-foreground">No workspaces available. Create one first.</div>
+                          ) : (
+                            <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
+                              {availableWorkspaces.map((ws) => (
+                                <div key={ws.id} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={ws.id}
+                                    checked={inviteWorkspaceIds.includes(ws.id)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setInviteWorkspaceIds([...inviteWorkspaceIds, ws.id]);
+                                      } else {
+                                        setInviteWorkspaceIds(inviteWorkspaceIds.filter(id => id !== ws.id));
+                                      }
+                                    }}
+                                  />
+                                  <label htmlFor={ws.id} className="text-sm font-medium leading-none">
+                                    {ws.name}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Message (Optional)</Label>
                         <Textarea
@@ -308,9 +406,10 @@ const Users = () => {
                         />
                         <p className="text-xs text-slate-400 dark:text-slate-500">{inviteMessage.length}/500 characters</p>
                       </div>
+
                       <div className="flex justify-end gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-800/50">
                         <Button variant="outline" className="rounded-xl border-slate-200/70 dark:border-slate-700"
-                          onClick={() => { setInviteDialogOpen(false); setInviteEmail(""); setInviteMessage(""); }}>
+                          onClick={() => { setInviteDialogOpen(false); setInviteEmail(""); setInviteMessage(""); setInviteRole("org_member"); setInviteWorkspaceIds([]); }}>
                           Cancel
                         </Button>
                         <Button

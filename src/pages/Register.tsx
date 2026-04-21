@@ -19,7 +19,6 @@ const Register = () => {
     firstName: '',
     lastName: '',
     companyName: '',
-    phoneNumber: '',
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -33,14 +32,32 @@ const Register = () => {
 
   const returnUrl = searchParams.get('returnUrl');
 
-  const validateForm = () => {
+  // Validation for account step (called before moving to security step)
+  const validateAccountStep = () => {
     const newErrors: Record<string, string> = {};
 
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
+    }
     if (!formData.email) {
       newErrors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
+    if (!formData.companyName.trim()) {
+      newErrors.companyName = 'Company name is required';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Full validation before submitting (security step)
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
 
     if (!formData.password) {
       newErrors.password = 'Password is required';
@@ -56,30 +73,29 @@ const Register = () => {
       newErrors.confirmPassword = 'Passwords do not match';
     }
 
-    if (!formData.firstName.trim()) {
-      newErrors.firstName = 'First name is required';
-    }
-
-    if (!formData.lastName.trim()) {
-      newErrors.lastName = 'Last name is required';
-    }
-
-    if (formData.phoneNumber && !/^[\d\s\-\+\(\)]+$/.test(formData.phoneNumber)) {
-      newErrors.phoneNumber = 'Please enter a valid phone number';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-
     if (errors[field]) {
       setErrors((prev) => {
         const next = { ...prev };
         delete next[field];
         return next;
+      });
+    }
+  };
+
+  const handleAccountContinue = () => {
+    if (validateAccountStep()) {
+      setActiveStep('security');
+    } else {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fix the errors before continuing.',
+        variant: 'destructive',
       });
     }
   };
@@ -99,24 +115,20 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      const username = formData.email;
-
       const userData = {
         email: formData.email,
         password: formData.password,
         password_confirm: formData.confirmPassword,
         first_name: formData.firstName,
         last_name: formData.lastName,
-        username,
-        phone_number: formData.phoneNumber || undefined,
-        company_name: formData.companyName || undefined,
+        company_name: formData.companyName,
       };
 
       const response = await apiService.register(userData);
 
       toast({
         title: 'Registration successful',
-        description: response.message || 'Your account has been created successfully',
+        description: response.message || 'Your account has been created successfully. Please check your email to verify your account.',
       });
 
       setTimeout(() => {
@@ -124,13 +136,31 @@ const Register = () => {
           ? `/login?returnUrl=${encodeURIComponent(returnUrl)}`
           : '/login';
         navigate(loginUrl, { replace: true });
-      }, 1500);
+      }, 2000);
     } catch (error: any) {
       console.error('Registration error:', error);
-
+      // Extract detailed error message from backend response
+      let errorMessage = 'Registration failed. Please try again.';
+      if (error.body) {
+        // If the backend returns a field-specific error (e.g., { email: ["already exists"] })
+        if (typeof error.body === 'object') {
+          const firstField = Object.keys(error.body)[0];
+          if (firstField && error.body[firstField][0]) {
+            errorMessage = error.body[firstField][0];
+          } else if (error.body.detail) {
+            errorMessage = error.body.detail;
+          } else if (error.body.message) {
+            errorMessage = error.body.message;
+          }
+        } else if (typeof error.body === 'string') {
+          errorMessage = error.body;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
       toast({
         title: 'Registration failed',
-        description: error?.body?.message || error?.message || 'Registration failed. Please try again.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -243,7 +273,7 @@ const Register = () => {
                     </p>
                   </div>
 
-                  <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-4 mt-6">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="firstName" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
@@ -323,25 +353,32 @@ const Register = () => {
                       <Input
                         id="companyName"
                         type="text"
-                        placeholder="Company name (optional)"
+                        placeholder="Your company name"
                         value={formData.companyName}
                         onChange={(e) => handleChange('companyName', e.target.value)}
-                        className="h-12 rounded-xl border-blue-200/60 bg-white/70 px-4 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:border-blue-400 focus-visible:ring-2 focus-visible:ring-blue-500/30 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500"
+                        className={`h-12 rounded-xl border-blue-200/60 bg-white/70 px-4 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:border-blue-400 focus-visible:ring-2 focus-visible:ring-blue-500/30 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 ${
+                          errors.companyName ? 'border-red-400 focus-visible:ring-red-500/20' : ''
+                        }`}
+                        required
                       />
+                      {errors.companyName && (
+                        <p className="flex items-center gap-1 text-xs text-red-500">
+                          <XCircle className="h-3 w-3" />
+                          {errors.companyName}
+                        </p>
+                      )}
                     </div>
 
                     <Button
                       type="button"
-                      onClick={() => setActiveStep('security')}
+                      onClick={handleAccountContinue}
                       className="mt-2 h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-500 hover:to-sky-400"
                     >
                       Continue →
                     </Button>
-                  </form>
+                  </div>
                 </>
               )}
-
-
 
               {activeStep === 'security' && (
                 <div className="space-y-6">
@@ -355,28 +392,6 @@ const Register = () => {
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="phoneNumber" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-                        Phone number
-                      </Label>
-                      <Input
-                        id="phoneNumber"
-                        type="tel"
-                        placeholder="+1 (555) 123-4567"
-                        value={formData.phoneNumber}
-                        onChange={(e) => handleChange('phoneNumber', e.target.value)}
-                        className={`h-12 rounded-xl border-blue-200/60 bg-white/70 px-4 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:border-blue-400 focus-visible:ring-2 focus-visible:ring-blue-500/30 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 ${
-                          errors.phoneNumber ? 'border-red-400 focus-visible:ring-red-500/20' : ''
-                        }`}
-                      />
-                      {errors.phoneNumber && (
-                        <p className="flex items-center gap-1 text-xs text-red-500">
-                          <XCircle className="h-3 w-3" />
-                          {errors.phoneNumber}
-                        </p>
-                      )}
-                    </div>
-
                     <div className="space-y-2">
                       <Label htmlFor="password" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                         Password
@@ -462,10 +477,6 @@ const Register = () => {
                           autoComplete="new-password"
                           className={`h-12 rounded-xl border-blue-200/60 bg-white/70 px-4 pr-12 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:border-blue-400 focus-visible:ring-2 focus-visible:ring-blue-500/30 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 ${
                             errors.confirmPassword ? 'border-red-400 focus-visible:ring-red-500/20' : ''
-                          } ${
-                            formData.confirmPassword && formData.password === formData.confirmPassword
-                              ? 'border-emerald-400'
-                              : ''
                           }`}
                           required
                         />

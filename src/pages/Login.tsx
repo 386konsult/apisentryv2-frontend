@@ -7,7 +7,7 @@ import { Shield, Eye, EyeOff, Sun, Moon } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { API_BASE_URL } from '@/services/api';
+import { apiService } from '@/services/api';
 
 const THEME_STORAGE_KEY = 'app-theme';
 
@@ -46,20 +46,11 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await apiService.login({ email, password });
 
-      const data = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(data?.message || data?.detail || 'Login failed');
-      }
-
-      localStorage.setItem('auth_token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Store token and user (apiService.login already does this, but we also need to set rememberMe)
+      localStorage.setItem('auth_token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
 
       if (rememberMe) {
         localStorage.setItem('remembered_email', email);
@@ -81,11 +72,34 @@ const Login = () => {
       } else {
         window.location.href = '/';
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
+      let errorMessage = 'Invalid credentials';
+      if (error.body) {
+        // Handle different error structures
+        if (typeof error.body === 'object') {
+          if (error.body.error) {
+            errorMessage = error.body.error;
+          } else if (error.body.detail) {
+            errorMessage = error.body.detail;
+          } else if (error.body.message) {
+            errorMessage = error.body.message;
+          } else {
+            // Try to get first field error (e.g., non_field_errors)
+            const firstKey = Object.keys(error.body)[0];
+            if (firstKey && error.body[firstKey] && error.body[firstKey][0]) {
+              errorMessage = error.body[firstKey][0];
+            }
+          }
+        } else if (typeof error.body === 'string') {
+          errorMessage = error.body;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
       toast({
         title: 'Login failed',
-        description: error instanceof Error ? error.message : 'Invalid credentials',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {

@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { apiService, User, Invitation, InviteRequest } from "@/services/api";
+import { apiService, User, Invitation, InviteRequest, OrganisationInvitation } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { usePlatform } from "@/contexts/PlatformContext";
 import {
@@ -111,13 +111,14 @@ interface NormalizedMember {
 const Users = () => {
   const [activeTab, setActiveTab] = useState("members");
   const [members, setMembers] = useState<NormalizedMember[]>([]);
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [sentInvitations, setSentInvitations] = useState<OrganisationInvitation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingSentInvites, setLoadingSentInvites] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [cancelInviteId, setCancelInviteId] = useState<number | null>(null);
+  const [cancelInviteId, setCancelInviteId] = useState<string | null>(null);
   const [removeMemberId, setRemoveMemberId] = useState<number | null>(null);
 
   // New state for organisation‑level invitations
@@ -152,13 +153,6 @@ const Users = () => {
           })
         : [];
       setMembers(normalizedMembers);
-
-      const invitationsData = await apiService.getInvitations(selectedPlatformId);
-      setInvitations(invitationsData);
-
-      try {
-        await apiService.getUsers();
-      } catch { /* optional */ }
     } catch (error: any) {
       toast({ title: "Error loading data", description: error.message || "Failed to fetch members", variant: "destructive" });
     } finally {
@@ -166,7 +160,22 @@ const Users = () => {
     }
   };
 
-  useEffect(() => { loadData(); }, [selectedPlatformId]);
+  const loadSentInvitations = async () => {
+    setLoadingSentInvites(true);
+    try {
+      const data = await apiService.getMyInvitations('sent');
+      setSentInvitations(Array.isArray(data) ? data : []);
+    } catch (error: any) {
+      toast({ title: "Error loading invitations", description: error.message || "Failed to load sent invitations", variant: "destructive" });
+    } finally {
+      setLoadingSentInvites(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    loadSentInvitations();
+  }, [selectedPlatformId]);
 
   const handleSendInvitation = async () => {
     if (!selectedPlatformId) {
@@ -193,7 +202,7 @@ const Users = () => {
       setInviteMessage("");
       setInviteRole("org_member");
       setInviteWorkspaceIds([]);
-      await loadData();
+      await loadSentInvitations(); // refresh sent list
     } catch (error: any) {
       toast({ title: "Error sending invitation", description: error.message || "Failed to send invitation", variant: "destructive" });
     } finally {
@@ -202,22 +211,25 @@ const Users = () => {
   };
 
   const handleCancelInvitation = async () => {
-    if (!cancelInviteId) return;
-    try {
-      await apiService.cancelInvitation(cancelInviteId);
-      toast({ title: "Invitation cancelled", description: "The invitation has been cancelled" });
-      setCancelInviteId(null); await loadData();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to cancel invitation", variant: "destructive" });
-    }
-  };
+  if (!cancelInviteId) return;
+  try {
+    // ❌ Remove Number() conversion
+    await apiService.cancelInvitation(cancelInviteId);
+    toast({ title: "Invitation cancelled", description: "The invitation has been cancelled" });
+    setCancelInviteId(null);
+    await loadSentInvitations();
+  } catch (error: any) {
+    toast({ title: "Error", description: error.message || "Failed to cancel invitation", variant: "destructive" });
+  }
+};
 
   const handleRemoveMember = async () => {
     if (!selectedPlatformId || !removeMemberId) return;
     try {
       await apiService.removeMember(selectedPlatformId, removeMemberId);
       toast({ title: "Member removed", description: "The member has been removed from the platform" });
-      setRemoveMemberId(null); await loadData();
+      setRemoveMemberId(null);
+      await loadData();
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to remove member", variant: "destructive" });
     }
@@ -253,7 +265,7 @@ const Users = () => {
   ];
 
   const statCards = [
-    { label: "Team Members",  value: members.length,                                     icon: UsersIcon,  via: "via-blue-500/30",    iconBg: "bg-blue-50 dark:bg-blue-500/10",    iconColor: "text-blue-500",    border: "border-blue-200/50 dark:border-blue-800/30",    sub: `${invitations.filter(i => i.status === 'pending').length} pending invitations` },
+    { label: "Team Members",  value: members.length,                                     icon: UsersIcon,  via: "via-blue-500/30",    iconBg: "bg-blue-50 dark:bg-blue-500/10",    iconColor: "text-blue-500",    border: "border-blue-200/50 dark:border-blue-800/30",    sub: `${sentInvitations.filter(i => i.status === 'pending').length} pending invitations` },
     { label: "Active Users",  value: members.length,                                     icon: CheckCircle,via: "via-green-500/30",   iconBg: "bg-green-50 dark:bg-green-500/10",  iconColor: "text-green-500",   border: "border-green-200/50 dark:border-green-800/30",   sub: "All members active"     },
     { label: "Admin Users",   value: members.filter(m => m.role === 'admin').length,      icon: Shield,     via: "via-red-500/30",     iconBg: "bg-red-50 dark:bg-red-500/10",      iconColor: "text-red-500",     border: "border-red-200/50 dark:border-red-800/30",       sub: "Full access granted"    },
     { label: "API Tokens",    value: 0,                                                   icon: Key,        via: "via-violet-500/30",  iconBg: "bg-violet-50 dark:bg-violet-500/10",iconColor: "text-violet-500",  border: "border-violet-200/50 dark:border-violet-800/30", sub: "Coming soon"            },
@@ -261,7 +273,7 @@ const Users = () => {
 
   const tabs = [
     { id: "members",     label: "Members",     icon: UsersIcon,   count: members.length },
-    { id: "invitations", label: "Invitations", icon: Mail,        count: invitations.filter(i => i.status === 'pending').length },
+    { id: "invitations", label: "Invitations", icon: Mail,        count: sentInvitations.filter(i => i.status === 'pending').length },
     { id: "tokens",      label: "API Tokens",  icon: Key,         count: null },
   ];
 
@@ -303,7 +315,6 @@ const Users = () => {
                 <Dialog open={inviteDialogOpen} onOpenChange={async (open) => {
                   setInviteDialogOpen(open);
                   if (open) {
-                    // Fetch workspaces when dialog opens
                     setLoadingWorkspaces(true);
                     try {
                       const workspaces = await apiService.getWorkspaces();
@@ -314,7 +325,6 @@ const Users = () => {
                       setLoadingWorkspaces(false);
                     }
                   } else {
-                    // Reset form when closed
                     setInviteEmail("");
                     setInviteMessage("");
                     setInviteRole("org_member");
@@ -554,7 +564,7 @@ const Users = () => {
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={() => setRemoveMemberId(Number(member.id))}
+                          onClick={() => setRemoveMemberId(member.id)} 
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200/50 dark:border-red-800/30 bg-red-50/60 dark:bg-red-900/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -569,7 +579,7 @@ const Users = () => {
         </motion.div>
       )}
 
-      {/* ── Invitations Tab ── */}
+      {/* ── Invitations Tab (sent by current user) ── */}
       {activeTab === "invitations" && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <Card className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
@@ -578,15 +588,15 @@ const Users = () => {
                 <div className="rounded-xl bg-cyan-50 dark:bg-cyan-500/10 p-2">
                   <Mail className="h-4 w-4 text-cyan-500" />
                 </div>
-                Pending Invitations
+                Sent Invitations
                 <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-500/20 px-2 text-xs font-bold text-blue-700 dark:text-blue-300">
-                  <AnimatedNumber value={invitations.filter(i => i.status === 'pending').length} />
+                  <AnimatedNumber value={sentInvitations.filter(i => i.status === 'pending').length} />
                 </span>
               </CardTitle>
-              <CardDescription>Manage invitations sent to team members</CardDescription>
+              <CardDescription>Invitations you have sent to others</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              {loading ? (
+              {loadingSentInvites ? (
                 <div className="flex flex-col items-center justify-center py-16">
                   <div className="relative mb-4 h-14 w-14">
                     <div className="absolute inset-0 rounded-full bg-blue-100 dark:bg-blue-500/20 animate-pulse" />
@@ -594,17 +604,17 @@ const Users = () => {
                   </div>
                   <p className="font-medium text-slate-700 dark:text-slate-300">Loading invitations...</p>
                 </div>
-              ) : invitations.length === 0 ? (
+              ) : sentInvitations.length === 0 ? (
                 <div className="text-center py-16 px-6">
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
                     <Mail className="h-8 w-8 text-slate-400" />
                   </div>
-                  <p className="font-semibold text-slate-700 dark:text-slate-300">No invitations found</p>
+                  <p className="font-semibold text-slate-700 dark:text-slate-300">No invitations sent</p>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Invite team members to get started</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-200/40 dark:divide-slate-800/40">
-                  {invitations.map((invitation, idx) => (
+                  {sentInvitations.map((invitation, idx) => (
                     <motion.div
                       key={invitation.id}
                       initial={{ opacity: 0, y: 6 }}
@@ -617,13 +627,17 @@ const Users = () => {
                           <Mail className="h-4 w-4 text-cyan-500" />
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-slate-900 dark:text-white">{invitation.email}</p>
-                          {invitation.message && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs">{invitation.message}</p>
+                          <p className="font-medium text-slate-900 dark:text-white">To: {invitation.email || 'Unknown'}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            Role: <span className="capitalize">{invitation.role === 'org_admin' ? 'Admin' : 'Member'}</span>
+                          </p>
+                          {invitation.organisation_name && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              Organisation: {invitation.organisation_name}
+                            </p>
                           )}
                           <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                            Invited by {invitation.invited_by} · {new Date(invitation.created_at).toLocaleDateString()}
-                            {invitation.expires_at && ` · Expires ${new Date(invitation.expires_at).toLocaleDateString()}`}
+                            Sent: {new Date(invitation.created_at).toLocaleDateString()} · Expires: {new Date(invitation.expires_at).toLocaleDateString()}
                           </p>
                         </div>
                       </div>

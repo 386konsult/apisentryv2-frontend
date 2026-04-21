@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlatformProvider } from "@/contexts/PlatformContext";
 
+
+
 // Auth Pages
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -58,8 +60,7 @@ import SecurityHub from "./pages/SecurityHub";
 import Incidents from "./pages/Incidents";
 import AuditLogs from "./pages/AuditLogs";
 import AcceptInvitation from "./pages/AcceptInvitation";
-
-
+import Invitations from "./components/Invitations"; // Import the Invitations component
 
 const queryClient = new QueryClient();
 
@@ -143,7 +144,6 @@ const AppContent = () => {
                 <div className="min-h-screen flex w-full overflow-hidden bg-[#f4f8ff] dark:bg-[#0f1724]">
                   <AppSidebar isDark={isDark} />
 
-
                   <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
                     <header className="h-16 border-b border-slate-200/70 bg-[#f4f8ff] flex items-center justify-between px-6 flex-shrink-0 dark:border-slate-800/80 dark:bg-[#0f1724]">
                       <div className="flex items-center space-x-4 min-w-0">
@@ -216,6 +216,8 @@ const AppContent = () => {
                         />
 
                         <Route path="/users" element={<Users />} />
+
+                        <Route path="/invitations" element={<Invitations />} />
 
                         <Route
                           path="/settings"

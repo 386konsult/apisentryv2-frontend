@@ -189,6 +189,8 @@ export interface EndpointStatus {
 
 // API service class
 class APIService {
+  
+  
   // Dashboard stats for selected platform
   async getDashboardStats(): Promise<any> {
     const platformId = localStorage.getItem('selected_platform_id');
@@ -908,11 +910,76 @@ private getCSRFToken = () => {
       body: JSON.stringify(invitationData),
     });
   }
+  // Get all workspaces (platforms) for the current organisation
+async getWorkspaces(): Promise<any[]> {
+  const token = localStorage.getItem('auth_token');
+  const res = await fetch(`${this.baseURL}/platforms/`, {
+    credentials: 'include',
+    headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+  });
+  if (!res.ok) {
+    throw new Error('Failed to fetch workspaces');
+  }
+  const data = await res.json();
+  // The response may be an array or an object with results
+  return Array.isArray(data) ? data : (data.results || []);
+}
+
+// Create an organisation‑level invitation
+async createOrganisationInvitation(data: {
+  email: string;
+  role: 'org_admin' | 'org_member';
+  workspace_ids?: string[];
+}): Promise<any> {
+  const token = localStorage.getItem('auth_token');
+  const res = await fetch(`${this.baseURL}/auth/invitations/create/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Token ${token}` } : {}),
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || error.message || 'Failed to send invitation');
+  }
+  return res.json();
+}
 
   // List invitations for a platform
   async getInvitations(platformId: string): Promise<Invitation[]> {
     return await this.request<Invitation[]>(`/platforms/${platformId}/invitations/`);
+  } 
+
+  // Organisation‑level invitations (for user's own pending invites)
+async getMyInvitations(): Promise<any[]> {
+  const token = localStorage.getItem('auth_token');
+  const res = await fetch(`${this.baseURL}/auth/invitations/`, {
+    headers: {
+      Authorization: `Token ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!res.ok) throw new Error('Failed to fetch invitations');
+  return res.json();
+}
+
+async acceptOrganisationInvitation(token: string): Promise<any> {
+  const authToken = localStorage.getItem('auth_token');
+  const res = await fetch(`${this.baseURL}/auth/invitations/accept/${token}/`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Token ${authToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to accept invitation');
   }
+  return res.json();
+}
 
   // Cancel an invitation
   async cancelInvitation(invitationId: number): Promise<void> {
@@ -1048,6 +1115,8 @@ private getCSRFToken = () => {
     return res.json();
   }
 
+  
+
   // Get automated run details
   async getAutomatedRunDetails(automatedRunId: string): Promise<any> {
     const token = localStorage.getItem('auth_token');
@@ -1064,6 +1133,7 @@ private getCSRFToken = () => {
     return res.json();
   }
 }
+
 
 // Create and export a singleton instance
 export const apiService = new APIService();

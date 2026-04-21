@@ -22,9 +22,15 @@ const ForgotPassword = () => {
         body: JSON.stringify({ email }),
       });
 
+      const data = await response.json().catch(() => null);
+
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to send password reset email.");
+        // Extract specific error message from backend
+        let errorMsg = "Failed to send password reset email.";
+        if (data) {
+          errorMsg = data.error || data.detail || data.message || errorMsg;
+        }
+        throw new Error(errorMsg);
       }
 
       toast({

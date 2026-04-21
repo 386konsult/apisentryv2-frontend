@@ -119,7 +119,7 @@ const Users = () => {
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [cancelInviteId, setCancelInviteId] = useState<string | null>(null);
-  const [removeMemberId, setRemoveMemberId] = useState<number | null>(null);
+  const [removeMemberId, setRemoveMemberId] = useState<string | null>(null); // Changed to string
 
   // New state for organisation‑level invitations
   const [inviteRole, setInviteRole] = useState<"org_admin" | "org_member">("org_member");
@@ -131,7 +131,11 @@ const Users = () => {
   const { selectedPlatformId } = usePlatform();
 
   const loadData = async () => {
-    if (!selectedPlatformId) { setLoading(false); return; }
+    if (!selectedPlatformId) {
+      setLoading(false);
+      setMembers([]);
+      return;
+    }
     setLoading(true);
     try {
       const membersData = await apiService.getPlatformMembers(selectedPlatformId);
@@ -154,7 +158,12 @@ const Users = () => {
         : [];
       setMembers(normalizedMembers);
     } catch (error: any) {
-      toast({ title: "Error loading data", description: error.message || "Failed to fetch members", variant: "destructive" });
+      let errorMessage = error.message || "Failed to fetch members";
+      // Handle the specific "no access" error
+      if (error.body?.error === "You do not have access to this platform") {
+        errorMessage = "You don't have access to this workspace. Please select a valid workspace or create one.";
+      }
+      toast({ title: "Error loading data", description: errorMessage, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -202,7 +211,7 @@ const Users = () => {
       setInviteMessage("");
       setInviteRole("org_member");
       setInviteWorkspaceIds([]);
-      await loadSentInvitations(); // refresh sent list
+      await loadSentInvitations();
     } catch (error: any) {
       toast({ title: "Error sending invitation", description: error.message || "Failed to send invitation", variant: "destructive" });
     } finally {
@@ -211,17 +220,16 @@ const Users = () => {
   };
 
   const handleCancelInvitation = async () => {
-  if (!cancelInviteId) return;
-  try {
-    // ❌ Remove Number() conversion
-    await apiService.cancelInvitation(cancelInviteId);
-    toast({ title: "Invitation cancelled", description: "The invitation has been cancelled" });
-    setCancelInviteId(null);
-    await loadSentInvitations();
-  } catch (error: any) {
-    toast({ title: "Error", description: error.message || "Failed to cancel invitation", variant: "destructive" });
-  }
-};
+    if (!cancelInviteId) return;
+    try {
+      await apiService.cancelInvitation(cancelInviteId);
+      toast({ title: "Invitation cancelled", description: "The invitation has been cancelled" });
+      setCancelInviteId(null);
+      await loadSentInvitations();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to cancel invitation", variant: "destructive" });
+    }
+  };
 
   const handleRemoveMember = async () => {
     if (!selectedPlatformId || !removeMemberId) return;
@@ -276,6 +284,28 @@ const Users = () => {
     { id: "invitations", label: "Invitations", icon: Mail,        count: sentInvitations.filter(i => i.status === 'pending').length },
     { id: "tokens",      label: "API Tokens",  icon: Key,         count: null },
   ];
+
+  // If no platform is selected, show a helpful message
+  if (!selectedPlatformId) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="max-w-md w-full">
+          <CardContent className="text-center py-12">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-500/10">
+              <UsersIcon className="h-8 w-8 text-blue-400" />
+            </div>
+            <p className="font-semibold text-slate-700 dark:text-slate-300">No workspace selected</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              You don't have any workspaces yet. Create your first workspace to start using Heimdall.
+            </p>
+            <Button className="mt-4" onClick={() => window.location.href = '/platforms'}>
+              Create Workspace
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   /* ════════════════════════════════════════════════════════════════════════ */
   return (
@@ -519,14 +549,6 @@ const Users = () => {
                   </div>
                   <p className="font-medium text-slate-700 dark:text-slate-300">Loading members...</p>
                 </div>
-              ) : !selectedPlatformId ? (
-                <div className="text-center py-16 px-6">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-                    <UsersIcon className="h-8 w-8 text-slate-400" />
-                  </div>
-                  <p className="font-semibold text-slate-700 dark:text-slate-300">No platform selected</p>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Select a platform to view members</p>
-                </div>
               ) : members.length === 0 ? (
                 <div className="text-center py-16 px-6">
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
@@ -564,7 +586,7 @@ const Users = () => {
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={() => setRemoveMemberId(member.id)} 
+                          onClick={() => setRemoveMemberId(String(member.id))}
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200/50 dark:border-red-800/30 bg-red-50/60 dark:bg-red-900/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
                         >
                           <Trash2 className="h-3.5 w-3.5" />

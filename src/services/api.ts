@@ -2,9 +2,6 @@
 // export const API_BASE_URL = 'http://165.245.211.56:8000/api/v1';
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
 
-
-
-
 // Types for API responses
 export interface User {
   id: number;
@@ -29,6 +26,19 @@ export interface Invitation {
   invited_by: string;
   created_at: string;
   expires_at?: string;
+}
+
+// Organisation-level invitation interface
+export interface OrganisationInvitation {
+  id: string;
+  email: string;
+  role: 'org_admin' | 'org_member';
+  organisation_name: string;
+  created_at: string;
+  expires_at: string;
+  token: string;
+  status: string;
+  invited_by_email?: string;
 }
 
 export interface PlatformMember {
@@ -189,13 +199,10 @@ export interface EndpointStatus {
 
 // API service class
 class APIService {
-  
-  
   // Dashboard stats for selected platform
   async getDashboardStats(): Promise<any> {
     const platformId = localStorage.getItem('selected_platform_id');
     if (!platformId) throw new Error('No platform selected');
-    // /dashboard/?platform_id=<uuid>
     const response = await this.request<any>(`/dashboard/?platform_id=${platformId}`);
     return response;
   }
@@ -204,10 +211,10 @@ class APIService {
   async getThreatLogs(): Promise<any[]> {
     const platformId = localStorage.getItem('selected_platform_id');
     if (!platformId) throw new Error('No platform selected');
-    // /platforms/<uuid:pk>/request-logs/
     const response = await this.request<{success: boolean; logs: any[]}>(`/platforms/${platformId}/request-logs/`);
     return response.logs;
   }
+
   // Get platform details
   async getPlatformDetails(platformId: string): Promise<any> {
     const token = localStorage.getItem('auth_token');
@@ -225,7 +232,7 @@ class APIService {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
-    return res.json(); // returns { count, next, previous, results }
+    return res.json();
   }
 
   // Get WAF rules for a platform
@@ -239,49 +246,34 @@ class APIService {
     return Array.isArray(data) ? data : (data.results || []);
   }
 
-  // Get request logs for a platform (returns array/result handling as before)
+  // Get request logs for a platform
   async getPlatformRequestLogs(platformId: string, params?: { range?: string; start?: string; end?: string; num?: string }): Promise<any[]> {
     const token = localStorage.getItem('auth_token');
-    const query = params
-      ? '?' + new URLSearchParams(params as Record<string, string>).toString()
-      : '';
-    
+    const query = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;
-    
     const res = await fetch(fullUrl, {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
     const data = await res.json();
-    
-    if (Array.isArray(data)) {
-      return data;
-    } else if (Array.isArray(data.logs)) {
-      return data.logs;
-    } else if (data.results && Array.isArray(data.results)) {
-      // Handle paginated response
-      return data.results;
-    } else {
-      return [];
-    }
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.logs)) return data.logs;
+    if (data.results && Array.isArray(data.results)) return data.results;
+    return [];
   }
 
-  // Get threat (blocked) request logs for a platform — return raw parsed response so pagination meta is available
+  // Get threat (blocked) request logs for a platform
   async getPlatformThreatLogs(platformId: string, params?: { range?: string; page?: string; start?: string; end?: string; path?: string }): Promise<any> {
     const token = localStorage.getItem('auth_token');
-    const query = params
-      ? '?' + new URLSearchParams(params as Record<string, string>).toString()
-      : '';
-    
+    const query = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;
-    
     const res = await fetch(fullUrl, {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
-    // return full parsed JSON (could be array or paginated object)
     return res.json();
   }
+
   // Upload collection to platform
   async uploadCollection(platformId: string, collectionType: string, fileOrData: File | object): Promise<any> {
     const formData = new FormData();
@@ -308,15 +300,13 @@ class APIService {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
-    return res.json(); // returns { success, collections, ... }
+    return res.json();
   }
 
   // Get analytics for a platform
   async getAnalytics(platformId: string, params?: { range?: string; start?: string; end?: string }): Promise<any> {
     const token = localStorage.getItem('auth_token');
-    const query = params
-      ? '?' + new URLSearchParams(params as Record<string, string>).toString()
-      : '';
+    const query = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     const res = await fetch(`${this.baseURL}/platforms/${platformId}/analytics/${query}`, {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
@@ -352,7 +342,6 @@ class APIService {
     return res.json();
   }
 
-  
   private baseURL: string;
   private token: string | null = null;
 
@@ -378,18 +367,13 @@ class APIService {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
-
     if (this.token) {
       headers['Authorization'] = `Token ${this.token}`;
     }
-
     return headers;
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     const config: RequestInit = {
       headers: this.getHeaders(),
@@ -398,9 +382,7 @@ class APIService {
 
     try {
       const response = await fetch(url, config);
-      
       if (!response.ok) {
-        // Try to parse error body, but fall back gracefully
         const text = await response.text().catch(() => '');
         let errorData: any = {};
         if (text) {
@@ -410,9 +392,6 @@ class APIService {
             errorData = text;
           }
         }
-
-        // Debug logs removed in production build
-        // Create an Error instance and attach structured data so callers can inspect it
         const err = new Error(
           (errorData && (errorData.detail || errorData.message)) ||
           (typeof errorData === 'string' ? errorData : JSON.stringify(errorData)) ||
@@ -421,25 +400,16 @@ class APIService {
         (err as any).status = response.status;
         (err as any).statusText = response.statusText;
         (err as any).body = errorData;
-
         throw err;
       }
-
-      // Handle empty response bodies (204 or no content)
       const text = await response.text().catch(() => '');
-      if (!text) {
-        // Return empty object when no JSON body is present
-        return {} as T;
-      }
-
+      if (!text) return {} as T;
       try {
         return JSON.parse(text) as T;
       } catch {
-        // If JSON.parse fails, return raw text as any to avoid crashing the app
-        return (text as unknown) as T;
+        return text as unknown as T;
       }
     } catch (error) {
-      // debug logs removed
       throw error;
     }
   }
@@ -450,90 +420,78 @@ class APIService {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
-
     this.token = response.token;
     localStorage.setItem('auth_token', response.token);
-
-    // Remove any logic that redirects to password reset
     return response;
   }
 
   async logout(): Promise<void> {
     try {
-      await this.request('/auth/logout/', {
-        method: 'POST',
-      });
+      await this.request('/auth/logout/', { method: 'POST' });
     } finally {
       this.token = null;
       localStorage.removeItem('auth_token');
     }
   }
 
-  // Authentication methods
-async register(userData: {
-  email: string;
-  password: string;
-  password_confirm: string;
-  first_name: string;
-  last_name: string;
-  phone_number?: string;
-  company_name?: string;
-}): Promise<{ message: string; user: User }> {
-  const csrfToken = this.getCSRFToken(); // Retrieve CSRF token from cookies
-
-  return await this.request('/auth/register/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken, // Include CSRF token in the request
-    },
-    body: JSON.stringify(userData),
-  });
-}
-
-async passwordReset(email: string): Promise<{ message: string }> {
-  const csrfToken = this.getCSRFToken(); // Retrieve CSRF token from cookies
-
-  return await this.request('/password-reset/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken, // Include CSRF token in the request
-    },
-    credentials: 'include', // Ensure cookies are sent with the request
-    body: JSON.stringify({ email }),
-  });
-}
-
-async passwordResetConfirm(data: {
-  token: { uid: string; token: string };
-  new_password: string;
-  new_password_confirm: string;
-}): Promise<{ message: string }> {
-  const csrfToken = this.getCSRFToken(); // Retrieve CSRF token from cookies
-
-  return await this.request('/password-reset-confirm/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken, // Include CSRF token in the request
-    },
-    credentials: 'include', // Ensure cookies are sent with the request
-    body: JSON.stringify(data),
-  });
-}
-
-// Helper method to get CSRF token from cookies
-private getCSRFToken = () => {
-  const cookies = document.cookie.split(';');
-  for (let cookie of cookies) {
-    const [key, value] = cookie.trim().split('=');
-    if (key === 'csrftoken') {
-      return value;
-    }
+  async register(userData: {
+    email: string;
+    password: string;
+    password_confirm: string;
+    first_name: string;
+    last_name: string;
+    phone_number?: string;
+    company_name?: string;
+  }): Promise<{ message: string; user: User }> {
+    const csrfToken = this.getCSRFToken();
+    return await this.request('/auth/register/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+      body: JSON.stringify(userData),
+    });
   }
-  return null;
-};
+
+  async passwordReset(email: string): Promise<{ message: string }> {
+    const csrfToken = this.getCSRFToken();
+    return await this.request('/password-reset/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async passwordResetConfirm(data: {
+    token: { uid: string; token: string };
+    new_password: string;
+    new_password_confirm: string;
+  }): Promise<{ message: string }> {
+    const csrfToken = this.getCSRFToken();
+    return await this.request('/password-reset-confirm/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+  }
+
+  private getCSRFToken = () => {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+      const [key, value] = cookie.trim().split('=');
+      if (key === 'csrftoken') return value;
+    }
+    return null;
+  };
 
   async getUserInfo(): Promise<User> {
     return await this.request<User>('/auth/user-info/');
@@ -541,7 +499,12 @@ private getCSRFToken = () => {
 
   // API Endpoints methods
   async getEndpoints(): Promise<APIEndpoint[]> {
-    const response = await this.request<{count: number; next: string | null; previous: string | null; results: APIEndpoint[]}>(this.addPlatformQuery('/endpoints/'));
+    const response = await this.request<{
+      count: number;
+      next: string | null;
+      previous: string | null;
+      results: APIEndpoint[];
+    }>(this.addPlatformQuery('/endpoints/'));
     return response.results;
   }
 
@@ -564,14 +527,17 @@ private getCSRFToken = () => {
   }
 
   async deleteEndpoint(id: number): Promise<void> {
-    await this.request(`/endpoints/${id}/`, {
-      method: 'DELETE',
-    });
+    await this.request(`/endpoints/${id}/`, { method: 'DELETE' });
   }
 
   // WAF Rules methods
   async getWAFRules(): Promise<WAFRule[]> {
-    const response = await this.request<{count: number; next: string | null; previous: string | null; results: WAFRule[]}>(this.addPlatformQuery('/waf-rules/'));
+    const response = await this.request<{
+      count: number;
+      next: string | null;
+      previous: string | null;
+      results: WAFRule[];
+    }>(this.addPlatformQuery('/waf-rules/'));
     return response.results;
   }
 
@@ -594,11 +560,8 @@ private getCSRFToken = () => {
   }
 
   async deleteWAFRule(id: number): Promise<void> {
-    await this.request(`/waf-rules/${id}/`, {
-      method: 'DELETE',
-    });
+    await this.request(`/waf-rules/${id}/`, { method: 'DELETE' });
   }
-
 
   async getTrafficData(): Promise<TrafficData[]> {
     return await this.request<TrafficData[]>(this.addPlatformQuery('/dashboard/traffic/'));
@@ -614,7 +577,7 @@ private getCSRFToken = () => {
 
   // Users methods
   async getUsers(): Promise<User[]> {
-    const response = await this.request<{count: number; next: string | null; previous: string | null; results: User[]}>('/users/');
+    const response = await this.request<{ count: number; next: string | null; previous: string | null; results: User[] }>('/users/');
     return response.results;
   }
 
@@ -637,9 +600,7 @@ private getCSRFToken = () => {
   }
 
   async deleteUser(id: number): Promise<void> {
-    await this.request(`/users/${id}/`, {
-      method: 'DELETE',
-    });
+    await this.request(`/users/${id}/`, { method: 'DELETE' });
   }
 
   // GitHub App methods
@@ -666,15 +627,12 @@ private getCSRFToken = () => {
     return await this.request(this.addPlatformQuery(`/github/repos/basic/?page=${page}&page_size=${pageSize}`));
   }
 
-  // Get branches for a specific repository
   async getRepositoryBranches(repoUrl: string, platformId: string): Promise<{ branches: string[]; default_branch: string; count: number }> {
     return await this.request(`/repos/branches/?repo_url=${encodeURIComponent(repoUrl)}&platform_id=${platformId}`);
   }
 
   async disconnectGitHub(): Promise<void> {
-    await this.request('/github/disconnect/', {
-      method: 'DELETE',
-    });
+    await this.request('/github/disconnect/', { method: 'DELETE' });
   }
 
   // Playground test method
@@ -686,7 +644,6 @@ private getCSRFToken = () => {
   }
 
   // Blacklist methods
-  // Get blacklist for a platform
   async getBlacklist(platformId: string): Promise<any[]> {
     const res = await fetch(`${this.baseURL}/blacklist/?platform_uuid=${platformId}`, {
       credentials: 'include',
@@ -695,34 +652,25 @@ private getCSRFToken = () => {
     return res.json();
   }
 
-  // Add IP to blacklist
   async addToBlacklist(data: { platform_uuid: string; ip: string }): Promise<any> {
-    const payload = {
-      platform: data.platform_uuid,
-      ip: data.ip
-    };
+    const payload = { platform: data.platform_uuid, ip: data.ip };
     const res = await fetch(`${this.baseURL}/blacklist/`, {
       method: 'POST',
       credentials: 'include',
       headers: this.getHeaders(),
       body: JSON.stringify(payload),
     });
-    if (!res.ok) {
-      throw new Error('Failed to add IP to blacklist');
-    }
+    if (!res.ok) throw new Error('Failed to add IP to blacklist');
     return res.json();
   }
 
-  // Remove IP from blacklist
   async removeFromBlacklist(id: string): Promise<void> {
     const res = await fetch(`${this.baseURL}/blacklist/${id}/`, {
       method: 'DELETE',
       credentials: 'include',
       headers: this.getHeaders(),
     });
-    if (!res.ok) {
-      throw new Error('Failed to remove IP from blacklist');
-    }
+    if (!res.ok) throw new Error('Failed to remove IP from blacklist');
   }
 
   // Update platform details
@@ -736,12 +684,10 @@ private getCSRFToken = () => {
       },
       body: JSON.stringify(data),
     });
-
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.detail || errorData.message || 'Failed to update platform');
     }
-
     return res.json();
   }
 
@@ -760,7 +706,7 @@ private getCSRFToken = () => {
     return await this.request<any[]>(`/alerts/${query}`);
   }
 
-  // Get alert triggers (supports paginated or array responses)
+  // Get alert triggers
   async getAlertTriggers(platformId?: string, params?: { page?: string; page_size?: string; range?: string; start?: string; end?: string }): Promise<any> {
     const token = localStorage.getItem('auth_token');
     const baseQuery: Record<string, string> = {};
@@ -772,10 +718,9 @@ private getCSRFToken = () => {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
-    return res.json(); // could be array or paginated object { triggers, count, page, total_pages }
+    return res.json();
   }
 
-  // Create a new alert
   async createAlert(alertData: {
     platform_uuid: string;
     alert_type: string;
@@ -793,7 +738,6 @@ private getCSRFToken = () => {
     });
   }
 
-  // Update alert status
   async updateAlertStatus(alertId: string, status: string): Promise<any> {
     return await this.request<any>(`/alerts/${alertId}/`, {
       method: 'PUT',
@@ -801,7 +745,6 @@ private getCSRFToken = () => {
     });
   }
 
-  // Update alert (full update)
   async updateAlert(alertId: string, alertData: {
     notification_channels?: string[];
     slack_webhook?: string;
@@ -816,11 +759,8 @@ private getCSRFToken = () => {
     });
   }
 
-  // Delete alert
   async deleteAlert(alertId: string): Promise<void> {
-    await this.request(`/alerts/${alertId}/`, {
-      method: 'DELETE',
-    });
+    await this.request(`/alerts/${alertId}/`, { method: 'DELETE' });
   }
 
   // Get audit logs
@@ -836,14 +776,8 @@ private getCSRFToken = () => {
     page_size?: string;
   }): Promise<any> {
     const platformId = params?.platform_id || this.getPlatformId();
-    if (!platformId) {
-      throw new Error('Platform ID is required for audit logs');
-    }
-
-    const queryParams: Record<string, string> = {
-      platform_id: platformId,
-    };
-
+    if (!platformId) throw new Error('Platform ID is required for audit logs');
+    const queryParams: Record<string, string> = { platform_id: platformId };
     if (params?.resource_type) queryParams.resource_type = params.resource_type;
     if (params?.search) queryParams.search = params.search;
     if (params?.action) queryParams.action = params.action;
@@ -852,7 +786,6 @@ private getCSRFToken = () => {
     if (params?.user) queryParams.user = params.user;
     if (params?.page) queryParams.page = params.page;
     if (params?.page_size) queryParams.page_size = params.page_size;
-
     const query = '?' + new URLSearchParams(queryParams).toString();
     return await this.request<any>(`/audit-logs/${query}`);
   }
@@ -863,23 +796,17 @@ private getCSRFToken = () => {
     return await this.request<any[]>(`/incidents/${query}`);
   }
 
-  // Create a new incident
   async createIncident(incidentData: Record<string, any>): Promise<any> {
-    // incidentData should include platform_uuid
     return await this.request<any>('/incidents/', {
       method: 'POST',
       body: JSON.stringify(incidentData),
     });
   }
 
-  // Update an existing incident
   async updateIncident(incidentId: string, incidentData: Record<string, any>): Promise<any> {
-    // Ensure platform_uuid is included in update payload
     if (!incidentData.platform_uuid) {
       const platformId = this.getPlatformId();
-      if (platformId) {
-        incidentData.platform_uuid = platformId;
-      }
+      if (platformId) incidentData.platform_uuid = platformId;
     }
     return await this.request<any>(`/incidents/${incidentId}/`, {
       method: 'PUT',
@@ -892,141 +819,116 @@ private getCSRFToken = () => {
     return await this.request<any[]>(`/platforms/${platformId}/request-logs/`);
   }
 
-  // Fetch the last 100 logs for security hub
   async getSecurityHubLogs(platformId: string): Promise<any[]> {
     return await this.request<any[]>(`/platforms/${platformId}/request-logs/?num=100`);
   }
 
-  // Fetch the last 100 blocked logs for threat logs
   async getBlockedThreatLogs(platformId: string): Promise<any[]> {
     return await this.request<any[]>(`/platforms/${platformId}/request-logs/?blocked=true`);
   }
 
-  // Invitation Management
-  // Send invitation to join platform
+  // Invitation Management (platform-level)
   async sendInvitation(platformId: string, invitationData: InviteRequest): Promise<Invitation> {
     return await this.request<Invitation>(`/platforms/${platformId}/invitations/`, {
       method: 'POST',
       body: JSON.stringify(invitationData),
     });
   }
-  // Get all workspaces (platforms) for the current organisation
-async getWorkspaces(): Promise<any[]> {
-  const token = localStorage.getItem('auth_token');
-  const res = await fetch(`${this.baseURL}/platforms/`, {
-    credentials: 'include',
-    headers: token ? { 'Authorization': `Token ${token}` } : undefined,
-  });
-  if (!res.ok) {
-    throw new Error('Failed to fetch workspaces');
-  }
-  const data = await res.json();
-  // The response may be an array or an object with results
-  return Array.isArray(data) ? data : (data.results || []);
-}
 
-// Create an organisation‑level invitation
-async createOrganisationInvitation(data: {
-  email: string;
-  role: 'org_admin' | 'org_member';
-  workspace_ids?: string[];
-}): Promise<any> {
-  const token = localStorage.getItem('auth_token');
-  const res = await fetch(`${this.baseURL}/auth/invitations/create/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Token ${token}` } : {}),
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error.error || error.message || 'Failed to send invitation');
-  }
-  return res.json();
-}
-
-  // List invitations for a platform
   async getInvitations(platformId: string): Promise<Invitation[]> {
     return await this.request<Invitation[]>(`/platforms/${platformId}/invitations/`);
-  } 
+  }
+
+  async cancelInvitation(invitationId: string): Promise<void> {
+  return await this.request<void>(`/auth/invitations/${invitationId}/cancel/`, {
+    method: 'DELETE',
+  });
+}
+
+  async getInvitationByToken(token: string): Promise<any> {
+    return await this.request<any>(`/invitations/accept/${token}/`, { method: 'GET' });
+  }
+
+  async acceptInvitation(token: string): Promise<any> {
+    return await this.request<any>(`/invitations/accept/${token}/`, { method: 'POST' });
+  }
 
   // Organisation‑level invitations (for user's own pending invites)
-async getMyInvitations(): Promise<any[]> {
-  const token = localStorage.getItem('auth_token');
-  const res = await fetch(`${this.baseURL}/auth/invitations/`, {
-    headers: {
-      Authorization: `Token ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  if (!res.ok) throw new Error('Failed to fetch invitations');
-  return res.json();
-}
-
-async acceptOrganisationInvitation(token: string): Promise<any> {
-  const authToken = localStorage.getItem('auth_token');
-  const res = await fetch(`${this.baseURL}/auth/invitations/accept/${token}/`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Token ${authToken}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Failed to accept invitation');
-  }
-  return res.json();
-}
-
-  // Cancel an invitation
-  async cancelInvitation(invitationId: number): Promise<void> {
-    return await this.request<void>(`/invitations/${invitationId}/cancel/`, {
-      method: 'DELETE',
+  async getMyInvitations(type: 'received' | 'sent' = 'received'): Promise<OrganisationInvitation[]> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/auth/invitations/?type=${type}`, {
+      headers: {
+        Authorization: `Token ${token}`,
+        'Content-Type': 'application/json',
+      },
     });
+    if (!res.ok) throw new Error('Failed to fetch invitations');
+    return res.json();
   }
 
-  // Get invitation details by token (GET request to view invitation before accepting)
-  async getInvitationByToken(token: string): Promise<any> {
-    return await this.request<any>(`/invitations/accept/${token}/`, {
-      method: 'GET',
-    });
-  }
-
-  // Accept an invitation (usually called from email link)
-  async acceptInvitation(token: string): Promise<any> {
-    return await this.request<any>(`/invitations/accept/${token}/`, {
+  async acceptOrganisationInvitation(token: string): Promise<any> {
+    const authToken = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/auth/invitations/accept/${token}/`, {
       method: 'POST',
+      headers: {
+        Authorization: `Token ${authToken}`,
+        'Content-Type': 'application/json',
+      },
     });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to accept invitation');
+    }
+    return res.json();
+  }
+
+  // Get all workspaces (platforms) for the current organisation
+  async getWorkspaces(): Promise<any[]> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/platforms/`, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    });
+    if (!res.ok) throw new Error('Failed to fetch workspaces');
+    const data = await res.json();
+    return Array.isArray(data) ? data : data.results || [];
+  }
+
+  // Create an organisation‑level invitation
+  async createOrganisationInvitation(data: {
+    email: string;
+    role: 'org_admin' | 'org_member';
+    workspace_ids?: string[];
+  }): Promise<any> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/auth/invitations/create/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Token ${token}` } : {}),
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.error || error.message || 'Failed to send invitation');
+    }
+    return res.json();
   }
 
   // Platform Member Management
-  // List platform members
   async getPlatformMembers(platformId: string): Promise<PlatformMember[]> {
     const response = await this.request<any>(`/platforms/${platformId}/members/`);
-    // Handle paginated response (like users endpoint)
-    if (response && typeof response === 'object' && 'results' in response) {
-      return response.results;
-    }
-    // Handle array response
-    if (Array.isArray(response)) {
-      return response;
-    }
-    // Fallback to empty array
+    if (response && typeof response === 'object' && 'results' in response) return response.results;
+    if (Array.isArray(response)) return response;
     return [];
   }
 
-  // Remove a member from platform
-  async removeMember(platformId: string, memberId: number): Promise<void> {
-    return await this.request<void>(`/platforms/${platformId}/members/${memberId}/`, {
-      method: 'DELETE',
-    });
-  }
+ async removeMember(platformId: string, memberId: string): Promise<void> {
+    return await this.request<void>(`/platforms/${platformId}/members/${memberId}/`, { method: 'DELETE' });
+}
 
   // Repository Scan Configuration
-  // Activate automated scanning for a repository
   async activateRepositoryScan(data: {
     repo_id?: string;
     repo_url?: string;
@@ -1039,49 +941,31 @@ async acceptOrganisationInvitation(token: string): Promise<any> {
     auto_post_comments?: boolean;
     min_severity_for_comments?: 'critical' | 'high' | 'medium' | 'low';
   }): Promise<any> {
-    // Clean repo_id if it has curly brackets
     const cleanedData = { ...data };
-    if (cleanedData.repo_id) {
-      cleanedData.repo_id = cleanedData.repo_id.replace(/[{}]/g, '');
-    }
+    if (cleanedData.repo_id) cleanedData.repo_id = cleanedData.repo_id.replace(/[{}]/g, '');
     return await this.request<any>('/repository-scan/activate/', {
       method: 'POST',
       body: JSON.stringify(cleanedData),
     });
   }
 
-  // Deactivate automated scanning for a repository
-  async deactivateRepositoryScan(data: {
-    repo_id?: string;
-    repo_url?: string;
-    platform_id: string;
-  }): Promise<any> {
-    // Clean repo_id if it has curly brackets
+  async deactivateRepositoryScan(data: { repo_id?: string; repo_url?: string; platform_id: string }): Promise<any> {
     const cleanedData = { ...data };
-    if (cleanedData.repo_id) {
-      cleanedData.repo_id = cleanedData.repo_id.replace(/[{}]/g, '');
-    }
+    if (cleanedData.repo_id) cleanedData.repo_id = cleanedData.repo_id.replace(/[{}]/g, '');
     return await this.request<any>('/repository-scan/deactivate/', {
       method: 'POST',
       body: JSON.stringify(cleanedData),
     });
   }
 
-  // Get current scan configuration for a repository
   async getRepositoryScanConfig(repoId: string, platformId: string, repoUrl?: string): Promise<any> {
-    // Clean repo_id if it has curly brackets
     const cleanedRepoId = repoId.replace(/[{}]/g, '');
     let url = `/repository-scan/config/?platform_id=${platformId}`;
-    if (cleanedRepoId) {
-      url += `&repo_id=${encodeURIComponent(cleanedRepoId)}`;
-    }
-    if (repoUrl) {
-      url += `&repo_url=${encodeURIComponent(repoUrl)}`;
-    }
+    if (cleanedRepoId) url += `&repo_id=${encodeURIComponent(cleanedRepoId)}`;
+    if (repoUrl) url += `&repo_url=${encodeURIComponent(repoUrl)}`;
     return await this.request<any>(url);
   }
 
-  // Get automated runs
   async getAutomatedRuns(params?: {
     platform_id: string;
     repo_id?: string;
@@ -1091,21 +975,14 @@ async acceptOrganisationInvitation(token: string): Promise<any> {
     page?: number;
     page_size?: number;
   }): Promise<any> {
-    if (!params?.platform_id) {
-      throw new Error('platform_id is required');
-    }
-
-    const queryParams: Record<string, string> = {
-      platform_id: params.platform_id,
-    };
-
+    if (!params?.platform_id) throw new Error('platform_id is required');
+    const queryParams: Record<string, string> = { platform_id: params.platform_id };
     if (params.repo_id) queryParams.repo_id = params.repo_id;
     if (params.status) queryParams.status = params.status;
     if (params.trigger_type) queryParams.trigger_type = params.trigger_type;
     if (params.pr_id) queryParams.pr_id = params.pr_id;
     if (params.page) queryParams.page = String(params.page);
     if (params.page_size) queryParams.page_size = String(params.page_size);
-
     const query = '?' + new URLSearchParams(queryParams).toString();
     const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/automated-runs/${query}`, {
@@ -1115,21 +992,16 @@ async acceptOrganisationInvitation(token: string): Promise<any> {
     return res.json();
   }
 
-  
-
-  // Get automated run details
   async getAutomatedRunDetails(automatedRunId: string): Promise<any> {
     const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/automated-runs/${automatedRunId}/`, {
       credentials: 'include',
       headers: token ? { 'Authorization': `Token ${token}` } : undefined,
     });
-    
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.detail || errorData.message || 'Failed to fetch automated run details');
     }
-    
     return res.json();
   }
 }

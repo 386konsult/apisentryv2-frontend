@@ -61,7 +61,7 @@ import Incidents from "./pages/Incidents";
 import AuditLogs from "./pages/AuditLogs";
 import AcceptInvitation from "./pages/AcceptInvitation";
 import Invitations from "./components/Invitations"; // Import the Invitations component
-
+import VerifyEmail from './pages/VerifyEmail';
 const queryClient = new QueryClient();
 
 const THEME_STORAGE_KEY = "app-theme";
@@ -133,7 +133,7 @@ const AppContent = () => {
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/auth/github/callback" element={<GitHubCallback />} />
         <Route path="/auth/bitbucket/callback" element={<BitbucketCallback />} />
-        {/* <Route path="/force-password-reset" element={<ForcePasswordReset />} /> */}
+        <Route path="/verify-email" element={<VerifyEmail />} />        {/* <Route path="/force-password-reset" element={<ForcePasswordReset />} /> */}
 
         {/* Main App Routes */}
         <Route

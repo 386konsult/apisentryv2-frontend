@@ -246,21 +246,6 @@ class APIService {
     return Array.isArray(data) ? data : (data.results || []);
   }
 
-  // Get request logs for a platform
-  async getPlatformRequestLogs(platformId: string, params?: { range?: string; start?: string; end?: string; num?: string }): Promise<any[]> {
-    const token = localStorage.getItem('auth_token');
-    const query = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
-    const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;
-    const res = await fetch(fullUrl, {
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
-    });
-    const data = await res.json();
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data.logs)) return data.logs;
-    if (data.results && Array.isArray(data.results)) return data.results;
-    return [];
-  }
 
   // Get threat (blocked) request logs for a platform
   async getPlatformThreatLogs(platformId: string, params?: { range?: string; page?: string; start?: string; end?: string; path?: string }): Promise<any> {
@@ -991,6 +976,34 @@ class APIService {
     });
     return res.json();
   }
+  async getPlatformRequestLogs(platformId: string, params?: { 
+  range?: string; 
+  start?: string; 
+  end?: string; 
+  num?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<any> {
+  const token = localStorage.getItem('auth_token');
+  const query = params ? '?' + new URLSearchParams(params as Record<string, any>).toString() : '';
+  const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;
+  const res = await fetch(fullUrl, {
+    credentials: 'include',
+    headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+  });
+  const data = await res.json();
+  
+  // Backward compatibility: if using old 'num' param, data might be an array
+  if (Array.isArray(data)) {
+    return data;
+  }
+  // New paginated response
+  if (data.results !== undefined) {
+    return data;
+  }
+  // Fallback
+  return data;
+}
 
   async getAutomatedRunDetails(automatedRunId: string): Promise<any> {
     const token = localStorage.getItem('auth_token');

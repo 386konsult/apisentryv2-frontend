@@ -119,10 +119,17 @@ const ThreatLogs = () => {
       try {
         const platformId = localStorage.getItem('selected_platform_id');
         if (!platformId) { navigate('/platforms'); return; }
-        const response = await apiService.getPlatformRequestLogs(platformId, { num: '100' });
-        if (Array.isArray(response)) { setAllLogs(response); }
-        else if (response && Array.isArray((response as any).logs)) { setAllLogs((response as any).logs); }
-        else { console.error('Unexpected response format for threat logs:', response); setAllLogs([]); }
+        // 🔁 FIX: Use getPlatformThreatLogs which passes ?blocked=true
+        const response = await apiService.getPlatformThreatLogs(platformId, { blocked: true });
+        // Response structure: { success, logs, total_count, returned_count }
+        if (response && response.logs) {
+          setAllLogs(response.logs);
+        } else if (Array.isArray(response)) {
+          setAllLogs(response);
+        } else {
+          console.error('Unexpected response format for threat logs:', response);
+          setAllLogs([]);
+        }
       } catch (error) {
         console.error('Error fetching threat logs:', error);
         setAllLogs([]);
@@ -133,7 +140,8 @@ const ThreatLogs = () => {
     fetchThreats();
   }, [toast, navigate, timeRange, page, endpointFilter]);
 
-  const allBlockedThreats = allLogs.filter(t => t.waf_blocked);
+  // allLogs already contains only blocked logs, so no extra filter needed
+  const allBlockedThreats = allLogs;
 
   const uniqueThreatTypes = useMemo(() => {
     const types = new Set<string>();
@@ -264,55 +272,49 @@ const ThreatLogs = () => {
     <div className="space-y-8 w-full min-w-0 max-w-full">
 
       {/* ── Red Gradient Header ── */}
-      {/* ── Red Gradient Header ── */}
-<div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 to-orange-500 px-6 sm:px-8 pt-7 pb-6 shadow-lg min-h-[140px]">
-  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.18),transparent_55%)]" />
-
-  <div className="relative z-10 flex flex-col justify-between h-full gap-4">
-    {/* Top row — badges */}
-    <div className="flex flex-wrap items-center gap-2">
-      <Badge className="border-white/20 bg-white/10 px-3 py-1 text-white hover:bg-white/10 text-xs font-medium rounded-full">
-        Threat Logs
-      </Badge>
-      {platformName && (
-        <Badge className="border-white/20 bg-white/10 px-3 py-1 text-white hover:bg-white/10 text-xs font-medium rounded-full">
-          {platformName}
-        </Badge>
-      )}
-    </div>
-
-    {/* Bottom row — title/desc left, buttons right */}
-    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-      <div className="min-w-0">
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight break-words">
-          Threat Logs
-        </h1>
-        <p className="mt-1 text-sm text-red-100 break-words max-w-xl">
-          Security events and threat detection history
-        </p>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 to-orange-500 px-6 sm:px-8 pt-7 pb-6 shadow-lg min-h-[140px]">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.18),transparent_55%)]" />
+        <div className="relative z-10 flex flex-col justify-between h-full gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className="border-white/20 bg-white/10 px-3 py-1 text-white hover:bg-white/10 text-xs font-medium rounded-full">
+              Threat Logs
+            </Badge>
+            {platformName && (
+              <Badge className="border-white/20 bg-white/10 px-3 py-1 text-white hover:bg-white/10 text-xs font-medium rounded-full">
+                {platformName}
+              </Badge>
+            )}
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight break-words">
+                Threat Logs
+              </h1>
+              <p className="mt-1 text-sm text-red-100 break-words max-w-xl">
+                Security events and threat detection history
+              </p>
+            </div>
+            <div className="flex flex-row gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-sm"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export Logs
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => navigate('/create-alert')}
+                className="bg-white text-red-600 hover:bg-white/90 shadow-md rounded-full px-4 text-sm font-semibold"
+              >
+                <Shield className="h-4 w-4 mr-2" />
+                Create Alert
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <div className="flex flex-row gap-2 shrink-0">
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-sm"
-        >
-          <Download className="h-4 w-4 mr-2" />
-          Export Logs
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => navigate('/create-alert')}
-          className="bg-white text-red-600 hover:bg-white/90 shadow-md rounded-full px-4 text-sm font-semibold"
-        >
-          <Shield className="h-4 w-4 mr-2" />
-          Create Alert
-        </Button>
-      </div>
-    </div>
-  </div>
-</div>
 
       {/* ── Stats Grid ── */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}

@@ -40,6 +40,7 @@ const ANIM: Record<string, { a: object; ms: number }> = {
   "Log out": { a: { x: [0, 18, -16, 8, -4, 2, 0], opacity: [1, 0.2, 1, 0.6, 1] }, ms: 580 },
   "Workspaces": { a: { scale: [1, 1.3, 0.82, 1.18, 0.92, 1.06, 1], rotate: [0, 6, -5, 2, 0] }, ms: 620 },
   "Invitations": { a: { y: [0, -6, 2, -3, 1, 0], rotate: [0, -8, 4, -2, 0] }, ms: 500 },
+  "CISO Reports": { a: { rotate: [0, 12, -8, 5, -3, 1, 0], scale: [1, 1.08, 0.96, 1.04, 1] }, ms: 520 },
 };
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ const securityItems = [
   { title: "API Endpoints", url: "/api-endpoints", icon: Globe },
   { title: "IP Blacklist", url: "/ip-blacklist", icon: Shield },
   { title: "Playground", url: "/playground", icon: Code },
+  { title: "CISO Reports", url: "/ciso-reports", icon: FileText },
 ];
 const sourceCodeItems = [
   { title: "Dashboard ", url: "/code-review-dashboard", icon: LayoutDashboard },
@@ -231,6 +233,7 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+          
 
         {hasSelectedPlatform && (
           <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>

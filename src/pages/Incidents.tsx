@@ -37,6 +37,7 @@ import {
   Activity,
   Download,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import CreateIncidentModal, { IncidentFormData } from "@/components/CreateIncidentModal";
 import { apiService } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
@@ -58,7 +59,6 @@ type IncidentEndpoint = IncidentFormData["impactedEndpoints"][number];
 const getEndpointDisplay = (endpoint: IncidentEndpoint) => {
   if (typeof endpoint === "string") return endpoint;
   if (!endpoint) return "Unknown endpoint";
-
   return (
     endpoint.path ||
     endpoint.name ||
@@ -281,6 +281,7 @@ const Incidents = () => {
   };
 
   const generatePDFReport = (incident: Incident) => {
+    // (PDF generation unchanged – same as original)
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -656,408 +657,464 @@ const Incidents = () => {
   };
 
   return (
-    <div className="space-y-8 w-full min-w-0 max-w-full">
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 pt-5 pb-6 shadow-lg">
-  <div className="relative z-10">
-    {/* Top tags */}
-    <div className="flex flex-wrap items-center gap-2 mb-4">
-      <span className="px-3 py-1 rounded-full border border-white/40 text-white text-xs font-medium bg-white/10">
-        Incident Response
-      </span>
-      {platform && (
-        <span className="px-3 py-1 rounded-full border border-white/40 text-white text-xs font-medium bg-white/10">
-          {platform.name || selectedPlatformId}
-        </span>
-      )}
-    </div>
-
-    {/* Bottom: title + buttons */}
-    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-      <div className="min-w-0">
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
-          Security Incidents
-        </h1>
-        <p className="mt-1 text-sm text-blue-100 max-w-xl">
-          Manage, investigate, and document incident response activity across your protected APIs.
-        </p>
-      </div>
-
-      <div className="flex flex-row gap-2 shrink-0">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-xs h-9 font-medium"
+    <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
+      <div className="w-full space-y-6">
+        {/* Header – gradient banner */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="rounded-[24px] bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 text-white shadow-lg"
         >
-          <Activity className="h-3.5 w-3.5 mr-1.5" />
-          Active Queue
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => setShowCreateModal(true)}
-          className="bg-white text-blue-700 hover:bg-white/90 shadow-md rounded-full px-4 text-xs font-semibold h-9"
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          Create Incident
-        </Button>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-
-      <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 shadow-sm">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
-          <CardHeader className="pb-2">
-            <div className="rounded-xl bg-blue-50 p-3 w-fit dark:bg-blue-500/10">
-              <AlertTriangle className="h-5 w-5 text-blue-500" />
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">
+                  Incident Response
+                </span>
+                {platform && (
+                  <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">
+                    {platform.name || selectedPlatformId}
+                  </span>
+                )}
+              </div>
+              <h1 className="text-2xl lg:text-3xl font-bold leading-tight tracking-tight mb-3">
+                Security Incidents
+              </h1>
+              <p className="text-sm text-blue-100 max-w-xl">
+                Manage, investigate, and document incident response activity across your protected APIs.
+              </p>
             </div>
-            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-              Total Incidents
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900 dark:text-white">{incidents.length}</div>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">All incidents</p>
-          </CardContent>
-        </Card>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25 hover:!text-white"
+              >
+                <Activity className="mr-2 h-4 w-4" />
+                Active Queue
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setShowCreateModal(true)}
+                className="rounded-full bg-white px-5 py-2 text-blue-600 font-medium hover:bg-white/90"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Incident
+              </Button>
+            </div>
+          </div>
+        </motion.div>
 
-        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 shadow-sm">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/30 to-transparent" />
-          <CardHeader className="pb-2">
-            <div className="rounded-xl bg-orange-50 p-3 w-fit dark:bg-orange-500/10">
-              <Activity className="h-5 w-5 text-orange-500" />
+        {/* Stats Cards (4 cards) */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-start justify-between">
+                <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-500/10">
+                  <AlertTriangle className="h-5 w-5 text-blue-500" />
+                </div>
+              </div>
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 mt-4">
+                Total Incidents
+              </p>
+              <p className="text-3xl font-bold text-slate-900 dark:text-white">{incidents.length}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">All incidents</p>
+              <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
+                <div
+                  className="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-700"
+                  style={{
+                    width: `${
+                      incidents.length > 0
+                        ? Math.min(
+                            100,
+                            (incidents.length /
+                              Math.max(incidents.length, 1)) *
+                              100
+                          )
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
             </div>
-            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-              Open
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900 dark:text-white">
-              {incidents.filter((i) => i.status === "Open").length}
-            </div>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Requires attention</p>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 shadow-sm">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/30 to-transparent" />
-          <CardHeader className="pb-2">
-            <div className="rounded-xl bg-red-50 p-3 w-fit dark:bg-red-500/10">
-              <Shield className="h-5 w-5 text-red-500" />
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-start justify-between">
+                <div className="p-3 rounded-xl bg-orange-50 dark:bg-orange-500/10">
+                  <Activity className="h-5 w-5 text-orange-500" />
+                </div>
+              </div>
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 mt-4">
+                Open
+              </p>
+              <p className="text-3xl font-bold text-slate-900 dark:text-white">
+                {incidents.filter((i) => i.status === "Open").length}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Requires attention</p>
+              <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
+                <div
+                  className="h-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-700"
+                  style={{
+                    width: `${
+                      incidents.filter((i) => i.status === "Open").length > 0
+                        ? Math.min(
+                            100,
+                            (incidents.filter((i) => i.status === "Open").length /
+                              Math.max(incidents.length, 1)) *
+                              100
+                          )
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
             </div>
-            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-              Critical
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-red-600 dark:text-red-400">
-              {incidents.filter((i) => i.severity === "Critical").length}
-            </div>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">High priority</p>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 shadow-sm">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
-          <CardHeader className="pb-2">
-            <div className="rounded-xl bg-emerald-50 p-3 w-fit dark:bg-emerald-500/10">
-              <Clock className="h-5 w-5 text-emerald-500" />
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-start justify-between">
+                <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10">
+                  <Shield className="h-5 w-5 text-red-500" />
+                </div>
+              </div>
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 mt-4">
+                Critical
+              </p>
+              <p className="text-3xl font-bold text-red-600 dark:text-red-400">
+                {incidents.filter((i) => i.severity === "Critical").length}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">High priority</p>
+              <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
+                <div
+                  className="h-1.5 rounded-full bg-gradient-to-r from-red-500 to-rose-500 transition-all duration-700"
+                  style={{
+                    width: `${
+                      incidents.filter((i) => i.severity === "Critical").length > 0
+                        ? Math.min(
+                            100,
+                            (incidents.filter((i) => i.severity === "Critical").length /
+                              Math.max(incidents.length, 1)) *
+                              100
+                          )
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
             </div>
-            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-              Closed
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900 dark:text-white">
-              {incidents.filter((i) => i.status === "Closed").length}
-            </div>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Resolved</p>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
 
-      <Card className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
-        <CardContent className="p-6">
-          <div className="flex flex-col gap-5">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-start justify-between">
+                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10">
+                  <Clock className="h-5 w-5 text-emerald-500" />
+                </div>
+              </div>
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 mt-4">
+                Closed
+              </p>
+              <p className="text-3xl font-bold text-slate-900 dark:text-white">
+                {incidents.filter((i) => i.status === "Closed").length}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Resolved</p>
+              <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
+                <div
+                  className="h-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-green-500 transition-all duration-700"
+                  style={{
+                    width: `${
+                      incidents.filter((i) => i.status === "Closed").length > 0
+                        ? Math.min(
+                            100,
+                            (incidents.filter((i) => i.status === "Closed").length /
+                              Math.max(incidents.length, 1)) *
+                              100
+                          )
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden p-6 space-y-4">
+          <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Filters</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Filters</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Narrow down incidents by title, status, and severity.
               </p>
             </div>
-
-            <div className="grid gap-4 lg:grid-cols-[1.4fr_220px_220px]">
-              <div className="relative min-w-0">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Search incidents..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 rounded-xl border-slate-200/70 bg-slate-50/80 dark:border-slate-700/70 dark:bg-slate-800/50"
-                />
-              </div>
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="rounded-xl border-slate-200/70 bg-slate-50/80 dark:border-slate-700/70 dark:bg-slate-800/50">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="Open">Open</SelectItem>
-                  <SelectItem value="In Progress">In Progress</SelectItem>
-                  <SelectItem value="Contained">Contained</SelectItem>
-                  <SelectItem value="Resolved">Resolved</SelectItem>
-                  <SelectItem value="Closed">Closed</SelectItem>
-                  <SelectItem value="False Positive">False Positive</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                <SelectTrigger className="rounded-xl border-slate-200/70 bg-slate-50/80 dark:border-slate-700/70 dark:bg-slate-800/50">
-                  <SelectValue placeholder="Severity" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Severity</SelectItem>
-                  <SelectItem value="Critical">Critical</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="Low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
-        <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
-          <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
-            Incident Queue
-            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-100 px-2 text-xs font-bold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
-              {filteredIncidents.length}
-            </span>
-          </CardTitle>
-          <CardDescription>List of all security incidents</CardDescription>
-        </CardHeader>
-
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="relative mb-4 h-14 w-14">
-                <div className="absolute inset-0 rounded-full bg-blue-100 dark:bg-blue-500/20 animate-pulse" />
-                <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-blue-600 dark:border-t-blue-400 animate-spin" />
-              </div>
-              <p className="font-medium text-slate-700 dark:text-slate-300">Loading incidents...</p>
+          <div className="grid gap-4 lg:grid-cols-[1.4fr_220px_220px]">
+            <div className="relative min-w-0">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Search incidents..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
+              />
             </div>
-          ) : filteredIncidents.length === 0 ? (
-            <div className="text-center py-16 px-6">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-                <AlertTriangle className="h-8 w-8 text-slate-400" />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="Open">Open</SelectItem>
+                <SelectItem value="In Progress">In Progress</SelectItem>
+                <SelectItem value="Contained">Contained</SelectItem>
+                <SelectItem value="Resolved">Resolved</SelectItem>
+                <SelectItem value="Closed">Closed</SelectItem>
+                <SelectItem value="False Positive">False Positive</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <SelectTrigger className="rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
+                <SelectValue placeholder="Severity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Severity</SelectItem>
+                <SelectItem value="Critical">Critical</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Incident Table Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+          <div className="border-b border-slate-200/70 dark:border-slate-800/70 px-6 py-4 bg-white dark:bg-slate-900">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              Incident Queue
+              <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-100 px-2 text-xs font-bold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
+                {filteredIncidents.length}
+              </span>
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">List of all security incidents</p>
+          </div>
+
+          <div className="p-0">
+            {loading ? (
+              <div className="flex justify-center py-16">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
-              <p className="text-base font-semibold text-slate-700 dark:text-slate-300">No incidents found</p>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Try adjusting your search or filters.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="hidden lg:block overflow-x-auto max-h-[620px]">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur dark:bg-slate-900/95">
-                    <tr className="border-b border-slate-200/60 dark:border-slate-800/60">
-                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[280px]">
-                        Title
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[110px]">
-                        Severity
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[130px]">
-                        Status
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[130px]">
-                        Category
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[160px]">
-                        Created
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[90px]">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredIncidents.map((incident, index) => (
-                      <tr
-                        key={incident.id ?? `incident-${index}`}
-                        className="border-b border-slate-200/40 transition-colors hover:bg-blue-50/40 dark:border-slate-800/40 dark:hover:bg-slate-800/30"
-                      >
-                        <td className="px-4 py-4 align-top">
-                          <div className="min-w-0">
-                            <div
-                              className="font-semibold text-slate-900 dark:text-white truncate max-w-[280px]"
-                              title={incident.title}
-                            >
-                              {incident.title}
-                            </div>
-                            {incident.summary && (
-                              <div
-                                className="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[280px]"
-                                title={incident.summary}
-                              >
-                                {incident.summary.substring(0, 80)}...
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 align-top">
-                          <Badge className={`${getSeverityColor(incident.severity)} text-xs font-medium`}>
-                            {incident.severity}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-4 align-top">
-                          <Badge className={`${getStatusColor(incident.status)} text-xs font-medium`}>
-                            {incident.status}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-4 align-top">
-                          <span className="text-sm text-slate-700 dark:text-slate-300">
-                            {incident.category || "-"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 align-top">
-                          <span className="text-sm whitespace-nowrap text-slate-600 dark:text-slate-400">
-                            {formatDate(incident.createdAt)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 align-top">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="rounded-lg">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleViewDetails(incident)}>
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleEdit(incident)}>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit
-                              </DropdownMenuItem>
-                              {incident.status === "Closed" && (
-                                <DropdownMenuItem onClick={() => generatePDFReport(incident)}>
-                                  <Download className="h-4 w-4 mr-2" />
-                                  Download PDF
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
+            ) : filteredIncidents.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                  <AlertTriangle className="h-8 w-8 text-slate-400" />
+                </div>
+                <p className="text-base font-semibold text-slate-700 dark:text-slate-300">No incidents found</p>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Try adjusting your search or filters.</p>
+              </div>
+            ) : (
+              <>
+                <div className="hidden lg:block overflow-x-auto max-h-[620px]">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur dark:bg-slate-900/95">
+                      <tr className="border-b border-slate-200/60 dark:border-slate-800/60">
+                        <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[280px]">
+                          Title
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[110px]">
+                          Severity
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[130px]">
+                          Status
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[130px]">
+                          Category
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[160px]">
+                          Created
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[90px]">
+                          Actions
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {filteredIncidents.map((incident, index) => (
+                        <tr
+                          key={incident.id ?? `incident-${index}`}
+                          className="border-b border-slate-200/40 transition-colors hover:bg-blue-50/40 dark:border-slate-800/40 dark:hover:bg-slate-800/30"
+                        >
+                          <td className="px-4 py-4 align-top">
+                            <div className="min-w-0">
+                              <div
+                                className="font-semibold text-slate-900 dark:text-white truncate max-w-[280px]"
+                                title={incident.title}
+                              >
+                                {incident.title}
+                              </div>
+                              {incident.summary && (
+                                <div
+                                  className="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[280px]"
+                                  title={incident.summary}
+                                >
+                                  {incident.summary.substring(0, 80)}...
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 align-top">
+                            <Badge className={`${getSeverityColor(incident.severity)} text-xs font-medium`}>
+                              {incident.severity}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-4 align-top">
+                            <Badge className={`${getStatusColor(incident.status)} text-xs font-medium`}>
+                              {incident.status}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-4 align-top">
+                            <span className="text-sm text-slate-700 dark:text-slate-300">
+                              {incident.category || "-"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 align-top">
+                            <span className="text-sm whitespace-nowrap text-slate-600 dark:text-slate-400">
+                              {formatDate(incident.createdAt)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 align-top">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="rounded-lg h-8 w-8 p-0">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleViewDetails(incident)}>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEdit(incident)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                {incident.status === "Closed" && (
+                                  <DropdownMenuItem onClick={() => generatePDFReport(incident)}>
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Download PDF
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-              <div className="lg:hidden p-4 space-y-3">
-                {filteredIncidents.map((incident, index) => (
-                  <div
-                    key={incident.id ?? `incident-mobile-${index}`}
-                    className="rounded-2xl border border-slate-200/60 bg-slate-50/60 p-4 dark:border-slate-700/60 dark:bg-slate-800/30"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-slate-900 dark:text-white">{incident.title}</p>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {formatDate(incident.createdAt)}
-                        </p>
+                {/* Mobile cards */}
+                <div className="lg:hidden p-4 space-y-3">
+                  {filteredIncidents.map((incident, index) => (
+                    <div
+                      key={incident.id ?? `incident-mobile-${index}`}
+                      className="rounded-2xl border border-slate-200/60 bg-slate-50/60 p-4 dark:border-slate-700/60 dark:bg-slate-800/30"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-slate-900 dark:text-white">{incident.title}</p>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {formatDate(incident.createdAt)}
+                          </p>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="rounded-lg h-8 w-8 p-0">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleViewDetails(incident)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEdit(incident)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            {incident.status === "Closed" && (
+                              <DropdownMenuItem onClick={() => generatePDFReport(incident)}>
+                                <Download className="h-4 w-4 mr-2" />
+                                Download PDF
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="rounded-lg">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleViewDetails(incident)}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleEdit(incident)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          {incident.status === "Closed" && (
-                            <DropdownMenuItem onClick={() => generatePDFReport(incident)}>
-                              <Download className="h-4 w-4 mr-2" />
-                              Download PDF
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {incident.summary && (
+                        <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+                          {incident.summary}
+                        </p>
+                      )}
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <Badge className={`${getSeverityColor(incident.severity)} text-xs`}>
+                          {incident.severity}
+                        </Badge>
+                        <Badge className={`${getStatusColor(incident.status)} text-xs`}>
+                          {incident.status}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {incident.category || "-"}
+                        </Badge>
+                      </div>
                     </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
 
-                    {incident.summary && (
-                      <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
-                        {incident.summary}
-                      </p>
-                    )}
-
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <Badge className={`${getSeverityColor(incident.severity)} text-xs`}>
-                        {incident.severity}
-                      </Badge>
-                      <Badge className={`${getStatusColor(incident.status)} text-xs`}>
-                        {incident.status}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {incident.category || "-"}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <CreateIncidentModal
-        open={showCreateModal}
-        onOpenChange={setShowCreateModal}
-        onSubmit={handleCreateIncident}
-      />
-
-      {selectedIncident && (
-        <UpdateIncidentModal
-          open={showUpdateModal}
-          onOpenChange={(open) => {
-            setShowUpdateModal(open);
-            if (!open) setSelectedIncident(null);
-          }}
-          onSubmit={handleUpdateIncident}
-          incident={selectedIncident}
+        <CreateIncidentModal
+          open={showCreateModal}
+          onOpenChange={setShowCreateModal}
+          onSubmit={handleCreateIncident}
         />
-      )}
 
-      {selectedIncident && (
-        <ViewIncidentDialog
-          open={!!selectedIncident && !showUpdateModal}
-          onOpenChange={(open) => {
-            if (!open) setSelectedIncident(null);
-          }}
-          incident={selectedIncident}
-        />
-      )}
+        {selectedIncident && (
+          <UpdateIncidentModal
+            open={showUpdateModal}
+            onOpenChange={(open) => {
+              setShowUpdateModal(open);
+              if (!open) setSelectedIncident(null);
+            }}
+            onSubmit={handleUpdateIncident}
+            incident={selectedIncident}
+          />
+        )}
+
+        {selectedIncident && (
+          <ViewIncidentDialog
+            open={!!selectedIncident && !showUpdateModal}
+            onOpenChange={(open) => {
+              if (!open) setSelectedIncident(null);
+            }}
+            incident={selectedIncident}
+          />
+        )}
+      </div>
     </div>
   );
 };
 
+// ── UpdateIncidentModal (redesigned) ─────────────────────────────────────────
 interface UpdateIncidentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1286,7 +1343,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
             >
               Cancel
             </Button>
-            <Button type="submit" className="rounded-xl">
+            <Button type="submit" className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">
               Update Incident
             </Button>
           </div>
@@ -1296,6 +1353,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
   );
 };
 
+// ── ViewIncidentDialog (redesigned) ─────────────────────────────────────────
 interface ViewIncidentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

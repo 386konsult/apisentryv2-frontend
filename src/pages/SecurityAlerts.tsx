@@ -342,328 +342,147 @@ const SecurityAlerts = () => {
   ];
 
   return (
-    <div className="space-y-8 w-full min-w-0 max-w-full">
-
-      {/* ── Gradient Header ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 pt-7 pb-6 shadow-lg min-h-[140px]">
-  
-  {/* Background glow */}
-  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.18),transparent_55%)]" />
-
-  <div className="relative z-10 flex flex-col justify-between h-full gap-4">
-    
-    {/* Top — badges */}
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="px-3 py-1 rounded-full border border-white/20 bg-white/10 text-white text-xs font-medium">
-        Security Alerts
-      </span>
-
-      {platform && (
-        <span className="px-3 py-1 rounded-full border border-white/20 bg-white/10 text-white text-xs font-medium">
-          {platform.name}
-        </span>
-      )}
-    </div>
-
-    {/* Bottom — content + actions */}
-    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-      
-      {/* Left */}
-      <div className="min-w-0">
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight break-words">
-          Security Alerts
-        </h1>
-        <p className="mt-1 text-sm text-blue-100 max-w-xl break-words">
-          Monitor and manage security alerts and incidents
-        </p>
-      </div>
-
-      {/* Right */}
-      <div className="flex flex-row gap-2 shrink-0">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate('/create-alert')}
-          className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white rounded-full px-4 text-sm"
+    <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
+      <div className="w-full space-y-6">
+        {/* Header – gradient banner */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="rounded-[24px] bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 text-white shadow-lg"
         >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Alert
-        </Button>
-
-        <Button
-          size="sm"
-          disabled={selectedAlerts.length === 0}
-          onClick={() => setShowCreateIncident(true)}
-          className="bg-white text-blue-700 hover:bg-white/90 shadow-md rounded-full px-4 text-sm font-semibold disabled:bg-white/70 disabled:text-blue-400"
-        >
-          <Users className="h-4 w-4 mr-2" />
-          Incident ({selectedAlerts.length})
-        </Button>
-
-        <CreateIncidentModal
-          open={showCreateIncident}
-          onOpenChange={(open) => {
-            setShowCreateIncident(open);
-            if (!open && showAddTriggersToIncident) setShowAddTriggersToIncident(false);
-          }}
-          onSubmit={handleCreateIncident}
-          selectedAlertIds={selectedAlerts}
-          alerts={alerts}
-        />
-      </div>
-    </div>
-  </div>
-</div>
-
-      {/* ── Stats Grid ── */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
-        className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-      >
-        {statsData.map((stat, i) => (
-          <div key={i} className="relative rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-50 dark:border-slate-800/50 dark:from-slate-900 dark:to-slate-800/50 p-6 transition-all duration-300 hover:shadow-lg overflow-hidden group">
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="flex items-start justify-between mb-4">
-              <div className={`p-3 rounded-xl ${stat.bg}`}>
-                <stat.icon className={`h-5 w-5 ${stat.color}`} />
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">
+                  Security Alerts
+                </span>
+                {platform && (
+                  <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">
+                    {platform.name}
+                  </span>
+                )}
               </div>
-              <div className={`h-1 w-8 rounded-full bg-gradient-to-r ${stat.color.replace('text-', 'from-')} to-transparent opacity-50`} />
+              <h1 className="text-2xl lg:text-3xl font-bold leading-tight tracking-tight mb-3">
+                Security Alerts
+              </h1>
+              <p className="text-sm text-blue-100 max-w-xl">
+                Monitor and manage security alerts and incidents
+              </p>
             </div>
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">{stat.label}</p>
-            <p className={`text-3xl font-bold ${stat.valueColor || 'text-slate-900 dark:text-white'}`}>{stat.value}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">{stat.sub}</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/create-alert')}
+                className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25 hover:!text-white"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Alert
+              </Button>
+              <Button
+                size="sm"
+                disabled={selectedAlerts.length === 0}
+                onClick={() => setShowCreateIncident(true)}
+                className="rounded-full bg-white px-5 py-2 text-blue-600 font-medium hover:bg-white/90 disabled:bg-white/70 disabled:text-blue-400"
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Incident ({selectedAlerts.length})
+              </Button>
+              <CreateIncidentModal
+                open={showCreateIncident}
+                onOpenChange={(open) => {
+                  setShowCreateIncident(open);
+                  if (!open && showAddTriggersToIncident) setShowAddTriggersToIncident(false);
+                }}
+                onSubmit={handleCreateIncident}
+                selectedAlertIds={selectedAlerts}
+                alerts={alerts}
+              />
+            </div>
           </div>
-        ))}
-      </motion.div>
+        </motion.div>
 
-      {/* ── Filters ── */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
-        className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-md p-6 space-y-4"
-      >
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Filters</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Refine your security alerts</p>
-          </div>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Search alerts..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 rounded-lg border-slate-200/50 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 placeholder:text-slate-400"
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-[140px] rounded-lg border-slate-200/50 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="paused">Paused</SelectItem>
-              <SelectItem value="resolved">Resolved</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={severityFilter} onValueChange={setSeverityFilter}>
-            <SelectTrigger className="w-full sm:w-[140px] rounded-lg border-slate-200/50 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
-              <SelectValue placeholder="Severity" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Severity</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-full sm:w-[160px] rounded-lg border-slate-200/50 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {Object.entries(ALERT_TYPES).map(([key, val]) => (
-                <SelectItem key={key} value={key}>{val.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </motion.div>
-
-      {/* ── Alerts Table ── */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
-        className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-md overflow-hidden"
-      >
-        <div className="border-b border-slate-200/50 dark:border-slate-800/50 px-6 py-4 bg-gradient-to-r from-slate-50 dark:from-slate-800/30 to-transparent flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Security Alerts</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Manage and monitor your security alerts</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              checked={selectedAlerts.length === filteredAlerts.length && filteredAlerts.length > 0}
-              onCheckedChange={handleSelectAll}
-            />
-            <Label className="text-xs text-slate-600 dark:text-slate-400">Select All</Label>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto max-h-[600px]">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/50 backdrop-blur-sm border-b border-slate-200/50 dark:border-slate-700/50 z-10">
-              <tr>
-                <th className="px-4 py-3 text-left w-10"></th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Alert</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Type</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Status</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Severity</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Triggers</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Last Triggered</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Notifications</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Incident</th>
-                <th className="px-4 py-3 w-10"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200/50 dark:divide-slate-700/50">
-              {filteredAlerts.length === 0 ? (
-                <tr>
-                  <td colSpan={10}>
-                    <div className="flex flex-col items-center justify-center py-16 text-center">
-                      <div className="p-5 rounded-full bg-blue-50 dark:bg-blue-500/10 mb-4">
-                        <Bell className="h-10 w-10 text-blue-400" />
-                      </div>
-                      <p className="font-semibold text-slate-700 dark:text-slate-300">No alerts found</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Try adjusting your filters or create a new alert</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredAlerts.map((alert) => {
-                const alertType = ALERT_TYPES[alert.type as keyof typeof ALERT_TYPES];
-                const sevCfg = getSeverityConfig(alert.severity);
-                return (
-                  <tr key={alert.id} className="hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors group">
-                    <td className="px-4 py-3">
-                      <Checkbox checked={selectedAlerts.includes(alert.id)} onCheckedChange={() => handleAlertSelect(alert.id)} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900 dark:text-white truncate max-w-[180px]" title={alert.name}>{alert.name}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px]" title={alert.description}>{alert.description}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        {alertType && <alertType.icon className={`h-3.5 w-3.5 ${alertType.color} flex-shrink-0`} />}
-                        <span className="text-xs text-slate-600 dark:text-slate-400 truncate max-w-[80px]">{alertType?.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        {getStatusIcon(alert.status)}
-                        <span className="text-xs capitalize text-slate-600 dark:text-slate-400">{alert.status}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sevCfg.cls}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${sevCfg.dot}`} />
-                        {alert.severity}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">{alert.triggerCount}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {alert.lastTriggered ? formatDate(alert.lastTriggered) : '-'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        {alert.notifications.slice(0, 3).map((notif: string) => {
-                          const Icon = NOTIFICATION_ICONS[notif as keyof typeof NOTIFICATION_ICONS];
-                          return Icon ? <Icon key={notif} className="h-3.5 w-3.5 text-slate-400" /> : null;
-                        })}
-                        {alert.notifications.length > 3 && <span className="text-xs text-slate-400">+{alert.notifications.length - 3}</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {alert.incidentId || alert.incident_id ? (
-                        <Badge variant="outline" className="text-xs font-mono rounded-lg truncate max-w-[80px]">{alert.incidentId || alert.incident_id}</Badge>
-                      ) : <span className="text-xs text-slate-400">—</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleViewClick(alert)}><Eye className="h-4 w-4 mr-2" />View</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleUpdateClick(alert)}><Edit className="h-4 w-4 mr-2" />Update</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDeleteClick(alert.id)} className="text-red-600 focus:text-red-600"><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </motion.div>
-
-      {/* ── Alert Triggers ── */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
-        className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 backdrop-blur-sm shadow-md overflow-hidden"
-      >
-        <div className="border-b border-slate-200/50 dark:border-slate-800/50 px-6 py-4 bg-gradient-to-r from-slate-50 dark:from-slate-800/30 to-transparent flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <Zap className="h-4 w-4 text-amber-500" />
-              Alert Triggers
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Trigger events for all security alerts ({filteredTriggers.length} of {triggers.length})
-            </p>
-          </div>
-          {selectedTriggers.length > 0 && (
-            <Button size="sm" variant="outline" onClick={() => setShowAddTriggersToIncident(true)}
-              className="gap-2 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+        {/* Stats Cards (4 cards) */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {statsData.map((stat, i) => (
+            <div
+              key={i}
+              className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden"
             >
-              <Plus className="h-4 w-4" />
-              Add to Incident ({selectedTriggers.length})
-            </Button>
-          )}
+              <div className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className={`p-3 rounded-xl ${stat.bg}`}>
+                    <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 mt-4">
+                  {stat.label}
+                </p>
+                <p className={`text-3xl font-bold ${stat.valueColor || 'text-slate-900 dark:text-white'}`}>
+                  {stat.value}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  {stat.sub}
+                </p>
+                <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
+                  <div
+                    className="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-700"
+                    style={{
+                      width: `${
+                        stat.value > 0
+                          ? Math.min(
+                              100,
+                              (stat.value /
+                                Math.max(
+                                  ...statsData.map((s) => s.value),
+                                  1
+                                )) *
+                                100
+                            )
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* Trigger Filters */}
-        <div className="px-6 py-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-slate-50/50 dark:bg-slate-800/20">
-          <div className="flex items-center justify-between mb-3">
-            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-              <Filter className="h-3.5 w-3.5" /> Filter Triggers
-            </Label>
-            {(triggerIPFilter || triggerEndpointFilter || triggerDateStart || triggerDateEnd || triggerAlertTypeFilter !== 'all' || triggerSeverityFilter !== 'all' || triggerMethodFilter !== 'all') && (
-              <button onClick={clearTriggerFilters} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Clear Filters</button>
-            )}
+        {/* Filters Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden p-6 space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Filters</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Refine your security alerts</p>
+            </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="relative">
-              <MapPin className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <Input placeholder="Filter by IP..." value={triggerIPFilter} onChange={(e) => setTriggerIPFilter(e.target.value)} className="pl-8 h-8 text-xs rounded-lg border-slate-200/50 bg-white dark:border-slate-700 dark:bg-slate-800/50" />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Search alerts..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
+              />
             </div>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <Input placeholder="Filter by endpoint..." value={triggerEndpointFilter} onChange={(e) => setTriggerEndpointFilter(e.target.value)} className="pl-8 h-8 text-xs rounded-lg border-slate-200/50 bg-white dark:border-slate-700 dark:bg-slate-800/50" />
-            </div>
-            <Select value={triggerAlertTypeFilter} onValueChange={setTriggerAlertTypeFilter}>
-              <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200/50 bg-white dark:border-slate-700 dark:bg-slate-800/50"><SelectValue placeholder="All Types" /></SelectTrigger>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[140px] rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {Object.entries(ALERT_TYPES).map(([key, val]) => <SelectItem key={key} value={key}>{val.name}</SelectItem>)}
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="paused">Paused</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={triggerSeverityFilter} onValueChange={setTriggerSeverityFilter}>
-              <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200/50 bg-white dark:border-slate-700 dark:bg-slate-800/50"><SelectValue placeholder="All Severity" /></SelectTrigger>
+            <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <SelectTrigger className="w-full sm:w-[140px] rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
+                <SelectValue placeholder="Severity" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Severity</SelectItem>
                 <SelectItem value="high">High</SelectItem>
@@ -671,112 +490,130 @@ const SecurityAlerts = () => {
                 <SelectItem value="low">Low</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={triggerMethodFilter} onValueChange={setTriggerMethodFilter}>
-              <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200/50 bg-white dark:border-slate-700 dark:bg-slate-800/50"><SelectValue placeholder="All Methods" /></SelectTrigger>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-full sm:w-[160px] rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Methods</SelectItem>
-                {['GET','POST','PUT','DELETE','PATCH','HEAD','OPTIONS'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                <SelectItem value="all">All Types</SelectItem>
+                {Object.entries(ALERT_TYPES).map(([key, val]) => (
+                  <SelectItem key={key} value={key}>{val.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <Input type="date" value={triggerDateStart} onChange={(e) => setTriggerDateStart(e.target.value)} className="h-8 text-xs rounded-lg border-slate-200/50 bg-white dark:border-slate-700 dark:bg-slate-800/50" placeholder="Start date" />
-            <Input type="date" value={triggerDateEnd} onChange={(e) => setTriggerDateEnd(e.target.value)} min={triggerDateStart || undefined} className="h-8 text-xs rounded-lg border-slate-200/50 bg-white dark:border-slate-700 dark:bg-slate-800/50" placeholder="End date" />
           </div>
         </div>
 
-        {triggers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="p-5 rounded-full bg-amber-50 dark:bg-amber-500/10 mb-4">
-              <Zap className="h-10 w-10 text-amber-400" />
+        {/* Alerts Table Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+          <div className="border-b border-slate-200/70 dark:border-slate-800/70 px-6 py-4 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Security Alerts</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Manage and monitor your security alerts</p>
             </div>
-            <p className="font-semibold text-slate-700 dark:text-slate-300">No triggers yet</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Trigger events will appear here when alerts fire</p>
-          </div>
-        ) : filteredTriggers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="p-5 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
-              <Filter className="h-10 w-10 text-slate-400" />
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={selectedAlerts.length === filteredAlerts.length && filteredAlerts.length > 0}
+                onCheckedChange={handleSelectAll}
+              />
+              <Label className="text-xs text-slate-600 dark:text-slate-400">Select All</Label>
             </div>
-            <p className="font-semibold text-slate-700 dark:text-slate-300">No triggers match filters</p>
-            <Button variant="outline" size="sm" onClick={clearTriggerFilters} className="mt-4 text-xs">Clear Filters</Button>
           </div>
-        ) : (
+
           <div className="overflow-x-auto max-h-[600px]">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/50 backdrop-blur-sm border-b border-slate-200/50 dark:border-slate-700/50 z-10">
+              <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/50 backdrop-blur-sm border-b border-slate-200/70 dark:border-slate-800/70 z-10">
                 <tr>
-                  <th className="px-4 py-3 text-left w-10">
-                    <Checkbox checked={selectedTriggers.length === filteredTriggers.length && filteredTriggers.length > 0} onCheckedChange={handleSelectAllTriggers} />
-                  </th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Timestamp</th>
+                  <th className="px-4 py-3 text-left w-10"></th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Alert</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Type</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Status</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Severity</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Client IP</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Endpoint</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Method</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Details</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Triggers</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Last Triggered</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Notifications</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Incident</th>
+                  <th className="px-4 py-3 w-10"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200/50 dark:divide-slate-700/50">
-                {filteredTriggers.map((trigger) => {
-                  const relatedAlert = alerts.find(a => a.alert_type === trigger.alert_type || a.id === trigger.alert_id || a.id === trigger.alert);
-                  const triggerTime = trigger.occurred_at || trigger.timestamp || trigger.created_at;
-                  const threatLevel = trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium';
-                  const sevCfg = getSeverityConfig(threatLevel);
+              <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70">
+                {filteredAlerts.length === 0 ? (
+                  <tr>
+                    <td colSpan={10}>
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <div className="p-5 rounded-full bg-blue-50 dark:bg-blue-500/10 mb-4">
+                          <Bell className="h-10 w-10 text-blue-400" />
+                        </div>
+                        <p className="font-semibold text-slate-700 dark:text-slate-300">No alerts found</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Try adjusting your filters or create a new alert</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredAlerts.map((alert) => {
+                  const alertType = ALERT_TYPES[alert.type as keyof typeof ALERT_TYPES];
+                  const sevCfg = getSeverityConfig(alert.severity);
                   return (
-                    <tr key={trigger.id} className="hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors group">
-                      <td className="px-4 py-3"><Checkbox checked={selectedTriggers.includes(trigger.id)} onCheckedChange={() => handleTriggerSelect(trigger.id)} /></td>
-                      <td className="px-4 py-3 text-xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">{triggerTime ? formatDate(triggerTime) : '-'}</td>
+                    <tr key={alert.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-900 dark:text-white text-xs truncate max-w-[180px]">{relatedAlert?.name || trigger.alert_name || trigger.alert_type || 'Unknown Alert'}</div>
-                        {(trigger.evidence || relatedAlert?.description) && <div className="text-xs text-slate-400 truncate max-w-[180px]">{trigger.evidence || relatedAlert?.description}</div>}
+                        <Checkbox checked={selectedAlerts.includes(alert.id)} onCheckedChange={() => handleAlertSelect(alert.id)} />
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sevCfg.cls}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${sevCfg.dot}`} />{threatLevel}
-                        </span>
+                        <div className="font-medium text-slate-900 dark:text-white truncate max-w-[180px]" title={alert.name}>{alert.name}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px]" title={alert.description}>{alert.description}</div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          <MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" />
-                          <span className="text-xs font-mono text-slate-600 dark:text-slate-400 truncate max-w-[120px]">{trigger.client_ip || trigger.ip || '—'}</span>
+                          {alertType && <alertType.icon className={`h-3.5 w-3.5 ${alertType.color} flex-shrink-0`} />}
+                          <span className="text-xs text-slate-600 dark:text-slate-400 truncate max-w-[80px]">{alertType?.name}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs font-mono text-slate-600 dark:text-slate-400 truncate max-w-[140px]">{trigger.url || trigger.endpoint || trigger.path || trigger.endpoint_path || '—'}</span>
+                        <div className="flex items-center gap-1.5">
+                          {getStatusIcon(alert.status)}
+                          <span className="text-xs capitalize text-slate-600 dark:text-slate-400">{alert.status}</span>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
-                        {trigger.method ? (
-                          <Badge className={`${getMethodColor(trigger.method)} rounded-lg text-xs font-semibold`}>{trigger.method}</Badge>
-                        ) : <span className="text-slate-400 text-xs">—</span>}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sevCfg.cls}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${sevCfg.dot}`} />
+                          {alert.severity}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                              <Eye className="h-3.5 w-3.5" />View
+                        <span className="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">{alert.triggerCount}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {alert.lastTriggered ? formatDate(alert.lastTriggered) : '-'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1">
+                          {alert.notifications.slice(0, 3).map((notif: string) => {
+                            const Icon = NOTIFICATION_ICONS[notif as keyof typeof NOTIFICATION_ICONS];
+                            return Icon ? <Icon key={notif} className="h-3.5 w-3.5 text-slate-400" /> : null;
+                          })}
+                          {alert.notifications.length > 3 && <span className="text-xs text-slate-400">+{alert.notifications.length - 3}</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {alert.incidentId || alert.incident_id ? (
+                          <Badge variant="outline" className="text-xs font-mono rounded-lg truncate max-w-[80px]">{alert.incidentId || alert.incident_id}</Badge>
+                        ) : <span className="text-xs text-slate-400">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto rounded-2xl">
-                            <DialogHeader>
-                              <DialogTitle>Trigger Details</DialogTitle>
-                              <DialogDescription>Complete information about this trigger event</DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/50 dark:border-slate-700/50"><Label className="text-xs text-slate-500">Timestamp</Label><p className="text-sm font-mono mt-1">{trigger.occurred_at ? formatDate(trigger.occurred_at) : trigger.timestamp ? formatDate(trigger.timestamp) : trigger.created_at ? formatDate(trigger.created_at) : '-'}</p></div>
-                                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/50 dark:border-slate-700/50"><Label className="text-xs text-slate-500">Alert Type</Label><p className="text-sm font-medium mt-1">{trigger.alert_type || relatedAlert?.name || trigger.alert_name || 'Unknown'}</p></div>
-                                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/50 dark:border-slate-700/50"><Label className="text-xs text-slate-500">Threat Level</Label><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${getSeverityConfig(trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium').cls}`}>{trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium'}</span></div>
-                                {trigger.status_code && <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/50 dark:border-slate-700/50"><Label className="text-xs text-slate-500">Status Code</Label><p className="text-sm mt-1">{trigger.status_code}</p></div>}
-                              </div>
-                              {trigger.client_ip || trigger.ip ? <div><Label className="text-xs font-semibold text-slate-500">Client IP</Label><p className="text-sm font-mono mt-1">{trigger.client_ip || trigger.ip}</p></div> : null}
-                              {trigger.url || trigger.endpoint || trigger.path ? <div><Label className="text-xs font-semibold text-slate-500">URL / Endpoint</Label><p className="text-sm font-mono mt-1">{trigger.url || trigger.endpoint || trigger.path || trigger.endpoint_path}</p></div> : null}
-                              {trigger.method && <div><Label className="text-xs font-semibold text-slate-500">Method</Label><Badge className={`${getMethodColor(trigger.method)} rounded-lg mt-1`}>{trigger.method}</Badge></div>}
-                              {trigger.evidence && <div><Label className="text-xs font-semibold text-slate-500">Evidence</Label><p className="text-sm mt-1">{trigger.evidence}</p></div>}
-                              {trigger.headers && Object.keys(trigger.headers).length > 0 && <div><Label className="text-xs font-semibold text-slate-500">Headers</Label><div className="bg-slate-900 dark:bg-slate-950 p-3 rounded-xl font-mono text-xs text-slate-100 overflow-x-auto mt-2"><pre className="whitespace-pre-wrap break-words">{JSON.stringify(trigger.headers, null, 2)}</pre></div></div>}
-                              {trigger.extra && Object.keys(trigger.extra).length > 0 && <div><Label className="text-xs font-semibold text-slate-500">Extra Data</Label><div className="bg-slate-900 dark:bg-slate-950 p-3 rounded-xl font-mono text-xs text-slate-100 overflow-x-auto mt-2"><pre className="whitespace-pre-wrap break-words">{JSON.stringify(trigger.extra, null, 2)}</pre></div></div>}
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleViewClick(alert)}><Eye className="h-4 w-4 mr-2" />View</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateClick(alert)}><Edit className="h-4 w-4 mr-2" />Update</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDeleteClick(alert.id)} className="text-red-600 focus:text-red-600"><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   );
@@ -784,159 +621,332 @@ const SecurityAlerts = () => {
               </tbody>
             </table>
           </div>
-        )}
-      </motion.div>
+        </div>
 
-      {/* ── Update Alert Dialog ── */}
-      <Dialog open={updateDialogOpen} onOpenChange={setUpdateDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>Update Alert Notifications</DialogTitle>
-            <DialogDescription>Update notification settings for {selectedAlertForUpdate?.name || 'this alert'}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-5">
+        {/* Alert Triggers Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+          <div className="border-b border-slate-200/70 dark:border-slate-800/70 px-6 py-4 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 block">Notification Channels</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {['email', 'slack', 'teams', 'webhook'].map((channel) => (
-                  <div key={channel} className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${updateFormData.notification_channels.includes(channel) ? 'border-blue-500/50 bg-blue-50 dark:bg-blue-500/10' : 'border-slate-200/50 dark:border-slate-700'}`} onClick={() => handleNotificationChannelToggle(channel)}>
-                    <Checkbox id={`channel-${channel}`} checked={updateFormData.notification_channels.includes(channel)} onCheckedChange={() => handleNotificationChannelToggle(channel)} />
-                    <Label htmlFor={`channel-${channel}`} className="text-sm capitalize cursor-pointer">{channel}</Label>
-                  </div>
-                ))}
-              </div>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-500" />
+                Alert Triggers
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Trigger events for all security alerts ({filteredTriggers.length} of {triggers.length})
+              </p>
             </div>
-            {[
-              { id: 'slack-webhook', label: 'Slack Webhook URL', placeholder: 'https://hooks.slack.com/services/...', field: 'slack_webhook' },
-              { id: 'teams-webhook', label: 'Teams Webhook URL', placeholder: 'https://outlook.office.com/webhook/...', field: 'teams_webhook' },
-              { id: 'email', label: 'Email Address', placeholder: 'alert@example.com', field: 'email', type: 'email' },
-              { id: 'webhook-url', label: 'Generic Webhook URL', placeholder: 'https://example.com/webhook', field: 'webhook_url' },
-            ].map(({ id, label, placeholder, field, type }) => (
-              <div key={id}>
-                <Label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</Label>
-                <Input id={id} type={type || 'url'} placeholder={placeholder} value={(updateFormData as any)[field]} onChange={(e) => setUpdateFormData(prev => ({ ...prev, [field]: e.target.value }))} className="mt-1.5 rounded-xl border-slate-200/50 dark:border-slate-700" />
-              </div>
-            ))}
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-700">
-              <Button variant="outline" className="rounded-xl" onClick={() => { setUpdateDialogOpen(false); setSelectedAlertForUpdate(null); }}>Cancel</Button>
-              <Button onClick={handleUpdateSubmit} disabled={loading} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">{loading ? 'Updating...' : 'Update Alert'}</Button>
-            </div>
+            {selectedTriggers.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setShowAddTriggersToIncident(true)}
+                className="gap-2 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+              >
+                <Plus className="h-4 w-4" />
+                Add to Incident ({selectedTriggers.length})
+              </Button>
+            )}
           </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* ── Delete Dialog ── */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="rounded-2xl">
-          <AlertDialogHeader>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 rounded-xl bg-red-50 dark:bg-red-500/10"><Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" /></div>
-              <AlertDialogTitle>Delete Alert</AlertDialogTitle>
+          {/* Trigger Filters */}
+          <div className="px-6 py-4 border-b border-slate-200/70 dark:border-slate-800/70 bg-slate-50/50 dark:bg-slate-800/20">
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                <Filter className="h-3.5 w-3.5" /> Filter Triggers
+              </Label>
+              {(triggerIPFilter || triggerEndpointFilter || triggerDateStart || triggerDateEnd || triggerAlertTypeFilter !== 'all' || triggerSeverityFilter !== 'all' || triggerMethodFilter !== 'all') && (
+                <button onClick={clearTriggerFilters} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Clear Filters</button>
+              )}
             </div>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete
-              {selectedAlertForDelete && alerts.find(a => a.id === selectedAlertForDelete) && <span className="font-semibold"> "{alerts.find(a => a.id === selectedAlertForDelete)?.name}"</span>}.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl" onClick={() => setSelectedAlertForDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} disabled={loading} className="bg-red-600 hover:bg-red-700 rounded-xl">{loading ? 'Deleting...' : 'Delete Alert'}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* ── Add Triggers to Incident Dialog ── */}
-      <Dialog open={showAddTriggersToIncident} onOpenChange={setShowAddTriggersToIncident}>
-        <DialogContent className="max-w-xl rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>Add Triggers as Evidence</DialogTitle>
-            <DialogDescription>Add {selectedTriggers.length} selected trigger(s) as evidence to an incident</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 block">Select Incident</Label>
-              <Select onValueChange={(value) => { if (value === 'new') { setShowAddTriggersToIncident(false); setShowCreateIncident(true); } else { handleAddTriggersToIncident(value); } }}>
-                <SelectTrigger className="rounded-xl border-slate-200/50 dark:border-slate-700"><SelectValue placeholder="Choose an incident or create new" /></SelectTrigger>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="relative">
+                <MapPin className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <Input placeholder="Filter by IP..." value={triggerIPFilter} onChange={(e) => setTriggerIPFilter(e.target.value)} className="pl-8 h-8 text-xs rounded-lg border-slate-200/70 bg-white dark:border-slate-700 dark:bg-slate-800/50" />
+              </div>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <Input placeholder="Filter by endpoint..." value={triggerEndpointFilter} onChange={(e) => setTriggerEndpointFilter(e.target.value)} className="pl-8 h-8 text-xs rounded-lg border-slate-200/70 bg-white dark:border-slate-700 dark:bg-slate-800/50" />
+              </div>
+              <Select value={triggerAlertTypeFilter} onValueChange={setTriggerAlertTypeFilter}>
+                <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200/70 bg-white dark:border-slate-700 dark:bg-slate-800/50"><SelectValue placeholder="All Types" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="new">+ Create New Incident</SelectItem>
-                  {incidents.map((incident) => <SelectItem key={incident.id} value={incident.id}>{incident.title} ({incident.status})</SelectItem>)}
+                  <SelectItem value="all">All Types</SelectItem>
+                  {Object.entries(ALERT_TYPES).map(([key, val]) => <SelectItem key={key} value={key}>{val.name}</SelectItem>)}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/50 dark:border-slate-700 p-4">
-              <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Selected Triggers ({selectedTriggers.length})</Label>
-              <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                {selectedTriggers.map((triggerId) => {
-                  const trigger = triggers.find(t => t.id === triggerId);
-                  const relatedAlert = trigger ? alerts.find(a => a.alert_type === trigger.alert_type || a.id === trigger.alert_id || a.id === trigger.alert) : null;
-                  return (
-                    <div key={triggerId} className="text-xs p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700 flex items-center justify-between">
-                      <span className="font-medium">{relatedAlert?.name || trigger?.alert_type || triggerId}</span>
-                      {trigger?.client_ip && <span className="text-slate-400 font-mono">{trigger.client_ip}</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <Button variant="outline" className="rounded-xl" onClick={() => setShowAddTriggersToIncident(false)}>Cancel</Button>
+              <Select value={triggerSeverityFilter} onValueChange={setTriggerSeverityFilter}>
+                <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200/70 bg-white dark:border-slate-700 dark:bg-slate-800/50"><SelectValue placeholder="All Severity" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Severity</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={triggerMethodFilter} onValueChange={setTriggerMethodFilter}>
+                <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200/70 bg-white dark:border-slate-700 dark:bg-slate-800/50"><SelectValue placeholder="All Methods" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Methods</SelectItem>
+                  {['GET','POST','PUT','DELETE','PATCH','HEAD','OPTIONS'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Input type="date" value={triggerDateStart} onChange={(e) => setTriggerDateStart(e.target.value)} className="h-8 text-xs rounded-lg border-slate-200/70 bg-white dark:border-slate-700 dark:bg-slate-800/50" placeholder="Start date" />
+              <Input type="date" value={triggerDateEnd} onChange={(e) => setTriggerDateEnd(e.target.value)} min={triggerDateStart || undefined} className="h-8 text-xs rounded-lg border-slate-200/70 bg-white dark:border-slate-700 dark:bg-slate-800/50" placeholder="End date" />
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* ── View Alert Dialog ── */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>Alert Details</DialogTitle>
-            <DialogDescription>View conditions and configuration for {selectedAlertForView?.name || 'this alert'}</DialogDescription>
-          </DialogHeader>
-          {selectedAlertForView && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: 'Alert Name', value: selectedAlertForView.name || '-' },
-                  { label: 'Alert Type', value: ALERT_TYPES[selectedAlertForView.alert_type || selectedAlertForView.type]?.name || selectedAlertForView.alert_type || '-' },
-                  { label: 'Created At', value: formatDate(selectedAlertForView.created_at) },
-                  { label: 'Last Triggered', value: selectedAlertForView.last_triggered || selectedAlertForView.lastTriggered ? formatDate(selectedAlertForView.last_triggered || selectedAlertForView.lastTriggered) : 'Never' },
-                  { label: 'Trigger Count', value: String(selectedAlertForView.trigger_count || selectedAlertForView.triggerCount || 0) },
-                  { label: 'Acknowledged', value: selectedAlertForView.acknowledged ? 'Yes' : 'No' },
-                ].map(({ label, value }) => (
-                  <div key={label} className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/50 dark:border-slate-700/50">
-                    <Label className="text-xs text-slate-500 dark:text-slate-400">{label}</Label>
-                    <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{value}</p>
-                  </div>
-                ))}
-                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/50 dark:border-slate-700/50">
-                  <Label className="text-xs text-slate-500 dark:text-slate-400">Status</Label>
-                  <div className="flex items-center gap-1.5 mt-1">{getStatusIcon(selectedAlertForView.status)}<span className="text-sm capitalize">{selectedAlertForView.status}</span></div>
-                </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/50 dark:border-slate-700/50">
-                  <Label className="text-xs text-slate-500 dark:text-slate-400">Severity</Label>
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${getSeverityConfig(selectedAlertForView.severity).cls}`}>{selectedAlertForView.severity}</span>
-                </div>
+          {triggers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="p-5 rounded-full bg-amber-50 dark:bg-amber-500/10 mb-4">
+                <Zap className="h-10 w-10 text-amber-400" />
               </div>
-              {selectedAlertForView.description && <div><Label className="text-xs font-semibold text-slate-500">Description</Label><p className="text-sm mt-1">{selectedAlertForView.description}</p></div>}
-              <div><Label className="text-xs font-semibold text-slate-500">Conditions & Configuration</Label>
-                <div className="rounded-xl bg-slate-900 dark:bg-slate-950 p-4 border border-slate-700/50 font-mono text-xs text-slate-100 overflow-x-auto mt-2">
-                  {selectedAlertForView.configuration && Object.keys(selectedAlertForView.configuration).length > 0 ? <pre className="whitespace-pre-wrap break-words">{JSON.stringify(selectedAlertForView.configuration, null, 2)}</pre> : <p className="text-slate-500">No configuration set</p>}
-                </div>
+              <p className="font-semibold text-slate-700 dark:text-slate-300">No triggers yet</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Trigger events will appear here when alerts fire</p>
+            </div>
+          ) : filteredTriggers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="p-5 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
+                <Filter className="h-10 w-10 text-slate-400" />
               </div>
-              <div><Label className="text-xs font-semibold text-slate-500">Notification Channels</Label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {selectedAlertForView.notification_channels && selectedAlertForView.notification_channels.length > 0 ? selectedAlertForView.notification_channels.map((channel: string) => { const Icon = NOTIFICATION_ICONS[channel as keyof typeof NOTIFICATION_ICONS]; return <Badge key={channel} variant="outline" className="rounded-lg flex items-center gap-1">{Icon && <Icon className="h-3 w-3" />}<span className="capitalize">{channel}</span></Badge>; }) : <p className="text-sm text-slate-400">No notification channels configured</p>}
-                </div>
-              </div>
-              {selectedAlertForView.incident_id || selectedAlertForView.incidentId ? <div><Label className="text-xs font-semibold text-slate-500">Associated Incident</Label><Badge variant="outline" className="rounded-lg mt-1">{selectedAlertForView.incident_id || selectedAlertForView.incidentId}</Badge></div> : null}
-              <div><Label className="text-xs font-semibold text-slate-500">Alert ID</Label><p className="text-xs font-mono mt-1 text-slate-500">{selectedAlertForView.id}</p></div>
+              <p className="font-semibold text-slate-700 dark:text-slate-300">No triggers match filters</p>
+              <Button variant="outline" size="sm" onClick={clearTriggerFilters} className="mt-4 text-xs">Clear Filters</Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto max-h-[600px]">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/50 backdrop-blur-sm border-b border-slate-200/70 dark:border-slate-800/70 z-10">
+                  <tr>
+                    <th className="px-4 py-3 text-left w-10">
+                      <Checkbox checked={selectedTriggers.length === filteredTriggers.length && filteredTriggers.length > 0} onCheckedChange={handleSelectAllTriggers} />
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Timestamp</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Alert</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Severity</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Client IP</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Endpoint</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Method</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70">
+                  {filteredTriggers.map((trigger) => {
+                    const relatedAlert = alerts.find(a => a.alert_type === trigger.alert_type || a.id === trigger.alert_id || a.id === trigger.alert);
+                    const triggerTime = trigger.occurred_at || trigger.timestamp || trigger.created_at;
+                    const threatLevel = trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium';
+                    const sevCfg = getSeverityConfig(threatLevel);
+                    return (
+                      <tr key={trigger.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                        <td className="px-4 py-3"><Checkbox checked={selectedTriggers.includes(trigger.id)} onCheckedChange={() => handleTriggerSelect(trigger.id)} /></td>
+                        <td className="px-4 py-3 text-xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">{triggerTime ? formatDate(triggerTime) : '-'}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-slate-900 dark:text-white text-xs truncate max-w-[180px]">{relatedAlert?.name || trigger.alert_name || trigger.alert_type || 'Unknown Alert'}</div>
+                          {(trigger.evidence || relatedAlert?.description) && <div className="text-xs text-slate-400 truncate max-w-[180px]">{trigger.evidence || relatedAlert?.description}</div>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sevCfg.cls}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${sevCfg.dot}`} />{threatLevel}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                            <span className="text-xs font-mono text-slate-600 dark:text-slate-400 truncate max-w-[120px]">{trigger.client_ip || trigger.ip || '—'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs font-mono text-slate-600 dark:text-slate-400 truncate max-w-[140px]">{trigger.url || trigger.endpoint || trigger.path || trigger.endpoint_path || '—'}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {trigger.method ? (
+                            <Badge className={`${getMethodColor(trigger.method)} rounded-lg text-xs font-semibold`}>{trigger.method}</Badge>
+                          ) : <span className="text-slate-400 text-xs">—</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                                <Eye className="h-3.5 w-3.5" />View
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto rounded-2xl">
+                              <DialogHeader>
+                                <DialogTitle>Trigger Details</DialogTitle>
+                                <DialogDescription>Complete information about this trigger event</DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Timestamp</Label><p className="text-sm font-mono mt-1">{trigger.occurred_at ? formatDate(trigger.occurred_at) : trigger.timestamp ? formatDate(trigger.timestamp) : trigger.created_at ? formatDate(trigger.created_at) : '-'}</p></div>
+                                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Alert Type</Label><p className="text-sm font-medium mt-1">{trigger.alert_type || relatedAlert?.name || trigger.alert_name || 'Unknown'}</p></div>
+                                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Threat Level</Label><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${getSeverityConfig(trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium').cls}`}>{trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium'}</span></div>
+                                  {trigger.status_code && <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Status Code</Label><p className="text-sm mt-1">{trigger.status_code}</p></div>}
+                                </div>
+                                {trigger.client_ip || trigger.ip ? <div><Label className="text-xs font-semibold text-slate-500">Client IP</Label><p className="text-sm font-mono mt-1">{trigger.client_ip || trigger.ip}</p></div> : null}
+                                {trigger.url || trigger.endpoint || trigger.path ? <div><Label className="text-xs font-semibold text-slate-500">URL / Endpoint</Label><p className="text-sm font-mono mt-1">{trigger.url || trigger.endpoint || trigger.path || trigger.endpoint_path}</p></div> : null}
+                                {trigger.method && <div><Label className="text-xs font-semibold text-slate-500">Method</Label><Badge className={`${getMethodColor(trigger.method)} rounded-lg mt-1`}>{trigger.method}</Badge></div>}
+                                {trigger.evidence && <div><Label className="text-xs font-semibold text-slate-500">Evidence</Label><p className="text-sm mt-1">{trigger.evidence}</p></div>}
+                                {trigger.headers && Object.keys(trigger.headers).length > 0 && <div><Label className="text-xs font-semibold text-slate-500">Headers</Label><div className="bg-slate-900 dark:bg-slate-950 p-3 rounded-xl font-mono text-xs text-slate-100 overflow-x-auto mt-2"><pre className="whitespace-pre-wrap break-words">{JSON.stringify(trigger.headers, null, 2)}</pre></div></div>}
+                                {trigger.extra && Object.keys(trigger.extra).length > 0 && <div><Label className="text-xs font-semibold text-slate-500">Extra Data</Label><div className="bg-slate-900 dark:bg-slate-950 p-3 rounded-xl font-mono text-xs text-slate-100 overflow-x-auto mt-2"><pre className="whitespace-pre-wrap break-words">{JSON.stringify(trigger.extra, null, 2)}</pre></div></div>}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
-          <div className="flex justify-end pt-4 border-t border-slate-200/50 dark:border-slate-700">
-            <Button variant="outline" className="rounded-xl" onClick={() => { setViewDialogOpen(false); setSelectedAlertForView(null); }}>Close</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+
+        {/* Update Alert Dialog */}
+        <Dialog open={updateDialogOpen} onOpenChange={setUpdateDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Update Alert Notifications</DialogTitle>
+              <DialogDescription>Update notification settings for {selectedAlertForUpdate?.name || 'this alert'}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-5">
+              <div>
+                <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 block">Notification Channels</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['email', 'slack', 'teams', 'webhook'].map((channel) => (
+                    <div key={channel} className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${updateFormData.notification_channels.includes(channel) ? 'border-blue-500/50 bg-blue-50 dark:bg-blue-500/10' : 'border-slate-200/70 dark:border-slate-700'}`} onClick={() => handleNotificationChannelToggle(channel)}>
+                      <Checkbox id={`channel-${channel}`} checked={updateFormData.notification_channels.includes(channel)} onCheckedChange={() => handleNotificationChannelToggle(channel)} />
+                      <Label htmlFor={`channel-${channel}`} className="text-sm capitalize cursor-pointer">{channel}</Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {[
+                { id: 'slack-webhook', label: 'Slack Webhook URL', placeholder: 'https://hooks.slack.com/services/...', field: 'slack_webhook' },
+                { id: 'teams-webhook', label: 'Teams Webhook URL', placeholder: 'https://outlook.office.com/webhook/...', field: 'teams_webhook' },
+                { id: 'email', label: 'Email Address', placeholder: 'alert@example.com', field: 'email', type: 'email' },
+                { id: 'webhook-url', label: 'Generic Webhook URL', placeholder: 'https://example.com/webhook', field: 'webhook_url' },
+              ].map(({ id, label, placeholder, field, type }) => (
+                <div key={id}>
+                  <Label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</Label>
+                  <Input id={id} type={type || 'url'} placeholder={placeholder} value={(updateFormData as any)[field]} onChange={(e) => setUpdateFormData(prev => ({ ...prev, [field]: e.target.value }))} className="mt-1.5 rounded-xl border-slate-200/70 dark:border-slate-700" />
+                </div>
+              ))}
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-700">
+                <Button variant="outline" className="rounded-xl" onClick={() => { setUpdateDialogOpen(false); setSelectedAlertForUpdate(null); }}>Cancel</Button>
+                <Button onClick={handleUpdateSubmit} disabled={loading} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">{loading ? 'Updating...' : 'Update Alert'}</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 rounded-xl bg-red-50 dark:bg-red-500/10"><Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" /></div>
+                <AlertDialogTitle>Delete Alert</AlertDialogTitle>
+              </div>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete
+                {selectedAlertForDelete && alerts.find(a => a.id === selectedAlertForDelete) && <span className="font-semibold"> "{alerts.find(a => a.id === selectedAlertForDelete)?.name}"</span>}.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl" onClick={() => setSelectedAlertForDelete(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteConfirm} disabled={loading} className="bg-red-600 hover:bg-red-700 rounded-xl">{loading ? 'Deleting...' : 'Delete Alert'}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Add Triggers to Incident Dialog */}
+        <Dialog open={showAddTriggersToIncident} onOpenChange={setShowAddTriggersToIncident}>
+          <DialogContent className="max-w-xl rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Add Triggers as Evidence</DialogTitle>
+              <DialogDescription>Add {selectedTriggers.length} selected trigger(s) as evidence to an incident</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 block">Select Incident</Label>
+                <Select onValueChange={(value) => { if (value === 'new') { setShowAddTriggersToIncident(false); setShowCreateIncident(true); } else { handleAddTriggersToIncident(value); } }}>
+                  <SelectTrigger className="rounded-xl border-slate-200/70 dark:border-slate-700"><SelectValue placeholder="Choose an incident or create new" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">+ Create New Incident</SelectItem>
+                    {incidents.map((incident) => <SelectItem key={incident.id} value={incident.id}>{incident.title} ({incident.status})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700 p-4">
+                <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">Selected Triggers ({selectedTriggers.length})</Label>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {selectedTriggers.map((triggerId) => {
+                    const trigger = triggers.find(t => t.id === triggerId);
+                    const relatedAlert = trigger ? alerts.find(a => a.alert_type === trigger.alert_type || a.id === trigger.alert_id || a.id === trigger.alert) : null;
+                    return (
+                      <div key={triggerId} className="text-xs p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between">
+                        <span className="font-medium">{relatedAlert?.name || trigger?.alert_type || triggerId}</span>
+                        {trigger?.client_ip && <span className="text-slate-400 font-mono">{trigger.client_ip}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" className="rounded-xl" onClick={() => setShowAddTriggersToIncident(false)}>Cancel</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* View Alert Dialog */}
+        <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Alert Details</DialogTitle>
+              <DialogDescription>View conditions and configuration for {selectedAlertForView?.name || 'this alert'}</DialogDescription>
+            </DialogHeader>
+            {selectedAlertForView && (
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'Alert Name', value: selectedAlertForView.name || '-' },
+                    { label: 'Alert Type', value: ALERT_TYPES[selectedAlertForView.alert_type || selectedAlertForView.type]?.name || selectedAlertForView.alert_type || '-' },
+                    { label: 'Created At', value: formatDate(selectedAlertForView.created_at) },
+                    { label: 'Last Triggered', value: selectedAlertForView.last_triggered || selectedAlertForView.lastTriggered ? formatDate(selectedAlertForView.last_triggered || selectedAlertForView.lastTriggered) : 'Never' },
+                    { label: 'Trigger Count', value: String(selectedAlertForView.trigger_count || selectedAlertForView.triggerCount || 0) },
+                    { label: 'Acknowledged', value: selectedAlertForView.acknowledged ? 'Yes' : 'No' },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70">
+                      <Label className="text-xs text-slate-500 dark:text-slate-400">{label}</Label>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{value}</p>
+                    </div>
+                  ))}
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70">
+                    <Label className="text-xs text-slate-500 dark:text-slate-400">Status</Label>
+                    <div className="flex items-center gap-1.5 mt-1">{getStatusIcon(selectedAlertForView.status)}<span className="text-sm capitalize">{selectedAlertForView.status}</span></div>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70">
+                    <Label className="text-xs text-slate-500 dark:text-slate-400">Severity</Label>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${getSeverityConfig(selectedAlertForView.severity).cls}`}>{selectedAlertForView.severity}</span>
+                  </div>
+                </div>
+                {selectedAlertForView.description && <div><Label className="text-xs font-semibold text-slate-500">Description</Label><p className="text-sm mt-1">{selectedAlertForView.description}</p></div>}
+                <div><Label className="text-xs font-semibold text-slate-500">Conditions & Configuration</Label>
+                  <div className="rounded-xl bg-slate-900 dark:bg-slate-950 p-4 border border-slate-700/50 font-mono text-xs text-slate-100 overflow-x-auto mt-2">
+                    {selectedAlertForView.configuration && Object.keys(selectedAlertForView.configuration).length > 0 ? <pre className="whitespace-pre-wrap break-words">{JSON.stringify(selectedAlertForView.configuration, null, 2)}</pre> : <p className="text-slate-500">No configuration set</p>}
+                  </div>
+                </div>
+                <div><Label className="text-xs font-semibold text-slate-500">Notification Channels</Label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedAlertForView.notification_channels && selectedAlertForView.notification_channels.length > 0 ? selectedAlertForView.notification_channels.map((channel: string) => { const Icon = NOTIFICATION_ICONS[channel as keyof typeof NOTIFICATION_ICONS]; return <Badge key={channel} variant="outline" className="rounded-lg flex items-center gap-1">{Icon && <Icon className="h-3 w-3" />}<span className="capitalize">{channel}</span></Badge>; }) : <p className="text-sm text-slate-400">No notification channels configured</p>}
+                  </div>
+                </div>
+                {selectedAlertForView.incident_id || selectedAlertForView.incidentId ? <div><Label className="text-xs font-semibold text-slate-500">Associated Incident</Label><Badge variant="outline" className="rounded-lg mt-1">{selectedAlertForView.incident_id || selectedAlertForView.incidentId}</Badge></div> : null}
+                <div><Label className="text-xs font-semibold text-slate-500">Alert ID</Label><p className="text-xs font-mono mt-1 text-slate-500">{selectedAlertForView.id}</p></div>
+              </div>
+            )}
+            <div className="flex justify-end pt-4 border-t border-slate-200/70 dark:border-slate-700">
+              <Button variant="outline" className="rounded-xl" onClick={() => { setViewDialogOpen(false); setSelectedAlertForView(null); }}>Close</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 };

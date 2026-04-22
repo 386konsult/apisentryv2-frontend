@@ -1,14 +1,16 @@
+import { Badge } from "@/components/ui/badge";
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area,
 } from 'recharts';
 import {
   Shield, AlertTriangle, Activity, TrendingUp,
-  Globe, Eye, Plus, Search,
+  Globe, Eye, Plus, Search, Users,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import apiService from '@/services/api';
@@ -35,6 +37,14 @@ interface CountryData {
   code: string;
   name: string;
   count: number;
+}
+
+interface PlatformMember {
+  id: string;
+  user_email: string;
+  user_name: string;
+  role: string;
+  is_owner: boolean;
 }
 
 type AnimatedNumberProps = {
@@ -99,6 +109,8 @@ const PlatformDetails: React.FC = () => {
   ]);
   const [countryData, setCountryData] = useState<CountryData[]>([]);
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
+  const [platformMembers, setPlatformMembers] = useState<PlatformMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
 
   // ── Time range — initialised from localStorage, scoped per platform id ────
   const [timeRange, setTimeRange] = useState<string>(() => {
@@ -109,13 +121,10 @@ const PlatformDetails: React.FC = () => {
     }
   });
 
-  // ── Persist timeRange to localStorage whenever it changes ─────────────────
   useEffect(() => {
     try {
       localStorage.setItem(getStorageKey(id), timeRange);
-    } catch {
-      // localStorage unavailable (private browsing, storage full) — silently ignore
-    }
+    } catch {}
   }, [timeRange, id]);
 
   const [isAlertClicked, setIsAlertClicked] = useState(false);
@@ -153,15 +162,27 @@ const PlatformDetails: React.FC = () => {
     apiService.getPlatformWAFRules(id)
       .then((data: any) => setWafRules(Array.isArray(data) ? data : data?.results || []))
       .catch(() => {});
+
+    apiService.getPlatformMembers(id)
+      .then((members: any[]) => {
+        const formatted = members.map(m => ({
+          id: m.id,
+          user_email: m.user_email,
+          user_name: m.user_name,
+          role: m.role || (m.is_owner ? 'owner' : 'member'),
+          is_owner: m.is_owner || false,
+        }));
+        setPlatformMembers(formatted);
+      })
+      .catch((err) => console.error('Failed to fetch members:', err))
+      .finally(() => setMembersLoading(false));
   };
 
-  // ── Single fetch function using shared timeRange ──────────────────────────
   const fetchAllRangedData = () => {
     if (!id) return;
 
     const params = { range: timeRange };
 
-    // Traffic data
     apiService.getAnalytics(id, params)
       .then((data: any) => {
         if (data?.success && data.analytics) {
@@ -235,7 +256,7 @@ const PlatformDetails: React.FC = () => {
                 count: Number(item.total_requests || 0),
               }))
               .filter((item: CountryData) => item.count > 0 && item.code)
-              .sort((a: CountryData, b: CountryData) => b.count - a.count);
+              .sort((a, b) => b.count - a.count);
             setCountryData(countryArr);
           } else if (analyticsData?.country_breakdown || analyticsData?.geographic_breakdown) {
             const countryBreakdown = analyticsData.country_breakdown || analyticsData.geographic_breakdown;
@@ -284,7 +305,7 @@ const PlatformDetails: React.FC = () => {
                 return { name: categoryInfo.name, category: categoryInfo.category, count: Number(item.threat_count || 0), severity: categoryInfo.severity } as OWASPThreat;
               })
               .filter((item: OWASPThreat) => item.count > 0)
-              .sort((a: OWASPThreat, b: OWASPThreat) => b.count - a.count);
+              .sort((a, b) => b.count - a.count);
 
             const allOwaspItems: OWASPThreat[] = [
               { name: 'Broken Access Control', category: 'Access Control', count: 0, severity: 'critical' },
@@ -324,7 +345,7 @@ const PlatformDetails: React.FC = () => {
   useEffect(() => { fetchData(); }, [id]);
   useEffect(() => { fetchAllRangedData(); }, [id, timeRange]);
 
-  // ── Derived values — all real, never faked ────────────────────────────────
+  // ── Derived values ─────────────────────────────────────────────────────────
   const totalRequests = analytics ? Number(analytics.total_requests ?? 0) : 0;
   const blockedRequests = analytics ? Number(analytics.blocked_requests ?? 0) : 0;
   const successRate = analytics && typeof analytics.success_rate === 'number' ? Number(analytics.success_rate) : 0;
@@ -333,7 +354,6 @@ const PlatformDetails: React.FC = () => {
     ? endpoints.filter((e: any) => e.status === 'active' || e.is_active).length
     : 0;
 
-  // Traffic chart — real data only, all zeros if no real traffic
   const trafficOverviewData = HTTP_METHODS.map((method) => {
     const row = trafficData.find((item: any) => item.method === method) || { method };
     const total = Object.entries(row).reduce((sum: number, [key, value]) => {
@@ -347,7 +367,6 @@ const PlatformDetails: React.FC = () => {
   const maxThreat = Math.max(...topThreats.map((item: any) => Number(item.value || 0)), 1);
   const activeOwaspThreats = owaspThreats.filter((item) => item.count > 0);
 
-  // Threat logs — real only, no fallback rows
   const recentRows = threatLogs.slice(0, 4).map((log: any) => ({
     id: log.id ?? `${log.path}-${Math.random()}`,
     path: log.path || '-',
@@ -358,12 +377,11 @@ const PlatformDetails: React.FC = () => {
     status: log.waf_blocked ? 'blocked' : Number(log.status_code) >= 400 ? 'warning' : 'allowed',
   }));
 
-  // ── Style constants ───────────────────────────────────────────────────────
-  const panelClass = 'border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none';
-  const softPanelClass = 'border border-slate-200/70 bg-white dark:border-slate-800/80 dark:bg-slate-900';
-  const controlClass = 'rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-blue-400';
+  // ── Style constants – no backdrop blur, solid background ──────────────────
+  const cardClass = 'bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl';
+  const headerClass = 'border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900';
+  const controlClass = 'rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700';
   const metricNumberClass = 'font-sans tabular-nums text-3xl font-semibold leading-none tracking-[-0.05em] text-slate-900 dark:text-white';
-  const secondaryButtonClass = 'border-slate-200 bg-white text-slate-900 hover:!bg-slate-50 hover:!text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:!bg-slate-700 dark:hover:!text-white';
 
   const getStatusClass = (status: string) => {
     if (status === 'blocked') return 'border border-red-200/60 bg-red-50 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400';
@@ -381,7 +399,7 @@ const PlatformDetails: React.FC = () => {
   if (loading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-[#F4F8FF] dark:bg-[#0F1724]">
-        <div className="flex h-72 w-full max-w-lg items-center justify-center rounded-2xl bg-white shadow-sm dark:bg-slate-900">
+        <div className="flex h-72 w-full max-w-lg items-center justify-center rounded-2xl bg-white shadow-md dark:bg-slate-900">
           <div className="text-center">
             <Activity className="mx-auto mb-4 h-8 w-8 animate-spin text-blue-600" />
             <p className="text-sm text-slate-600 dark:text-slate-400">Loading dashboard data...</p>
@@ -398,7 +416,7 @@ const PlatformDetails: React.FC = () => {
     <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
       <div className="w-full space-y-6">
 
-        {/* HEADER */}
+        {/* HEADER (gradient retained for visual impact) */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -408,7 +426,7 @@ const PlatformDetails: React.FC = () => {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 flex-1">
               <div className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">
                   {platform?.name || 'Workspace'}
                 </span>
               </div>
@@ -416,14 +434,10 @@ const PlatformDetails: React.FC = () => {
                 Security Dashboard
               </h1>
               <div className="flex items-center gap-2">
-                <motion.span
-                  animate={{ opacity: [0.6, 1, 0.6] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm"
-                >
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">
                   <span className="h-1.5 w-1.5 rounded-full bg-white" />
                   Updated Just Now
-                </motion.span>
+                </span>
               </div>
             </div>
 
@@ -431,7 +445,7 @@ const PlatformDetails: React.FC = () => {
               <Button
                 variant="outline"
                 onClick={() => navigate('/platforms')}
-                className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25 hover:!text-white hover:!border-white/70 backdrop-blur-sm transition-all"
+                className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25 hover:!text-white"
               >
                 <Eye className="mr-2 h-4 w-4" />
                 Workspaces
@@ -447,47 +461,32 @@ const PlatformDetails: React.FC = () => {
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <motion.span
-              className="inline-flex items-center gap-2 rounded-full bg-emerald-500/30 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm border border-emerald-400/50"
-              animate={{ boxShadow: ['0 0 0 0 rgba(16, 185, 129, 0.7)', '0 0 0 8px rgba(16, 185, 129, 0)'] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
-            >
+            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/30 px-3 py-1.5 text-xs font-medium text-white border border-emerald-400/50">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
               </span>
               Live
-            </motion.span>
+            </span>
 
-            <motion.button
+            <button
               onClick={() => { setIsAlertClicked(true); navigate('/threat-logs'); }}
-              className="inline-flex items-center gap-2 rounded-full bg-red-500/30 px-3 py-1.5 text-xs font-medium text-white transition-all duration-300 hover:bg-red-500/40 backdrop-blur-sm border border-red-400/50"
-              animate={{ boxShadow: ['0 0 0 0 rgba(239, 68, 68, 0.7)', '0 0 0 8px rgba(239, 68, 68, 0)'] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+              className="inline-flex items-center gap-2 rounded-full bg-red-500/30 px-3 py-1.5 text-xs font-medium text-white transition-all duration-300 hover:bg-red-500/40 border border-red-400/50"
             >
-              <motion.span
-                className="relative flex h-2 w-2"
-                animate={!isAlertClicked ? { opacity: [1, 0.3, 1] } : { opacity: 1 }}
-                transition={!isAlertClicked ? { duration: 2, repeat: Infinity, ease: 'easeInOut' } : { duration: 0 }}
-              >
-                <motion.span
-                  className="absolute inline-flex h-full w-full rounded-full bg-red-400"
-                  animate={!isAlertClicked ? { scale: [1, 1.5, 1] } : { scale: 1 }}
-                  transition={!isAlertClicked ? { duration: 2, repeat: Infinity, ease: 'easeInOut' } : { duration: 0 }}
-                  style={{ opacity: 0.5 }}
-                />
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 animate-ping" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-red-400" />
-              </motion.span>
+              </span>
               Alerts
-            </motion.button>
+            </button>
 
             <div className="relative group">
-              <span className="inline-flex cursor-default items-center gap-2 rounded-full bg-white/20 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition-all duration-200 group-hover:bg-white/30">
+              <span className="inline-flex cursor-default items-center gap-2 rounded-full bg-white/20 px-3 py-1.5 text-xs font-medium text-white transition-all duration-200 group-hover:bg-white/30">
                 <Activity className="h-3.5 w-3.5" />
                 AI analysing
               </span>
               <div className="pointer-events-none absolute bottom-full left-1/2 mb-2.5 w-64 -translate-x-1/2 scale-95 opacity-0 transition-all duration-200 group-hover:scale-100 group-hover:opacity-100">
-                <div className="relative rounded-2xl border border-white/20 bg-[#0f172a]/90 p-4 text-left shadow-xl backdrop-blur-md">
+                <div className="relative rounded-2xl border border-white/20 bg-[#0f172a]/90 p-4 text-left shadow-xl">
                   <div className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-sm border-b border-r border-white/20 bg-[#0f172a]/90" />
                   <div className="mb-2 flex items-center gap-2">
                     <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400">
@@ -508,154 +507,264 @@ const PlatformDetails: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* MAIN GRID — Traffic + Top Threats */}
+        {/* MAIN GRID — Traffic Overview (left) + Top Threats (right) */}
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
-            <Card className={`rounded-2xl ${panelClass}`}>
-              <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
-                    <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Traffic Overview</CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">Track request changes and protection metrics</CardDescription>
-                  </div>
-                </div>
-                <select className={controlClass} value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
-                  {TIME_RANGES.map((range) => (
-                    <option key={range.value} value={range.value}>{range.label}</option>
-                  ))}
-                </select>
-              </CardHeader>
-              <CardContent className="p-6 pt-0">
-                <div className="mb-6 grid grid-cols-3 gap-4">
-                  <div>
-                    <div className="text-4xl font-semibold text-slate-900 dark:text-white">
-                      {totalRequests.toLocaleString()}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total requests</div>
-                    {totalRequests > 0 && (
-                      <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
-                        <Activity className="h-3 w-3" />
-                        Active
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Blocked</div>
-                    <div className="mt-1 text-2xl font-semibold text-red-500 dark:text-red-400">
-                      {blockedRequests.toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Block rate</div>
-                    <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
-                      {totalRequests > 0 ? `${blockedRate.toFixed(1)}%` : '0.00%'}
-                    </div>
-                  </div>
-                </div>
-                <div className="h-48 rounded-xl p-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trafficOverviewData}>
-                      <defs>
-                        <linearGradient id="trafficGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#93C5FD" stopOpacity={0.05} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-                      <XAxis dataKey="method" tick={{ fontSize: 12, fill: '#64748B' }} />
-                      <YAxis tick={{ fontSize: 12, fill: '#64748B' }} allowDecimals={false} />
-                      <Tooltip />
-                      <Area
-                        type="natural"
-                        dataKey="total"
-                        stroke="#2563EB"
-                        fill="url(#trafficGradient)"
-                        strokeWidth={3}
-                        isAnimationActive={true}
-                        animationDuration={800}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Top Threats */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
-            <Card className={`rounded-2xl ${panelClass}`}>
-              <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4">
-                <div>
-                  <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Top threats</CardTitle>
-                  <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">Highest-volume attack patterns</CardDescription>
-                </div>
-                <button onClick={() => navigate('/threat-logs')} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
-                  view_all()
-                </button>
-              </CardHeader>
-              <CardContent className="p-6 pt-0">
-                {topThreats && topThreats.length > 0 ? (
-                  <div className="space-y-3">
-                    {topThreats.map((threat: any, idx: number) => {
-                      const getThreatCode = (name: string) => {
-                        const words = (name || '').split(' ');
-                        if (words.length === 1) return (words[0] || '').slice(0, 3).toUpperCase();
-                        return words.map((word) => word[0]).join('').slice(0, 3).toUpperCase();
-                      };
-                      const getThreatBadgeClass = (name: string) => {
-                        const value = (name || '').toLowerCase();
-                        if (value.includes('sql')) return 'border border-red-200/60 bg-red-50 text-red-500 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400';
-                        if (value.includes('xss') || value.includes('script')) return 'border border-amber-200/60 bg-amber-50 text-amber-500 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400';
-                        if (value.includes('brute') || value.includes('auth') || value.includes('rate')) return 'border border-blue-200/60 bg-blue-50 text-blue-600 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400';
-                        return 'border border-cyan-200/60 bg-cyan-50 text-cyan-600 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-400';
-                      };
-                      const threatCode = getThreatCode(threat.name);
-                      const threatBadgeClass = getThreatBadgeClass(threat.name);
-                      const threatValue = Number(threat.value || 0);
-                      const progressWidth = maxThreat > 0 ? (threatValue / maxThreat) * 100 : 0;
-                      return (
-                        <motion.div
-                          key={`${threat.name}-${idx}`}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.2, delay: idx * 0.05 }}
-                          className="flex items-center gap-3"
-                        >
-                          <span className={`flex-shrink-0 rounded-md px-2 py-1 font-mono text-[10px] font-bold ${threatBadgeClass}`}>{threatCode}</span>
-                          <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-200">{threat.name}</span>
-                          <div className="h-1.5 w-16 flex-shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(progressWidth, 100)}%`, backgroundColor: threat.color || '#9ca3af' }} />
-                          </div>
-                          <span className="w-8 flex-shrink-0 text-right font-sans tabular-nums text-[12px] font-semibold text-slate-500 dark:text-slate-400">{threatValue}</span>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex h-40 items-center justify-center rounded-lg border border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-                    <div className="text-center">
-                      <Shield className="mx-auto mb-3 h-10 w-10 text-slate-300 dark:text-slate-600" />
-                      <p className="text-sm text-slate-500 dark:text-slate-400">No threat data available</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+  {/* ── LEFT COLUMN: Traffic Overview Card (with chart fix) ── */}
+  <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+    <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4 border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
+          <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
         </div>
+        <div>
+          <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Traffic Overview</CardTitle>
+          <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Track request changes and protection metrics
+          </CardDescription>
+        </div>
+      </div>
+      <select
+        className="rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
+        value={timeRange}
+        onChange={(e) => setTimeRange(e.target.value)}
+      >
+        {TIME_RANGES.map((range) => (
+          <option key={range.value} value={range.value}>
+            {range.label}
+          </option>
+        ))}
+      </select>
+    </CardHeader>
+    <CardContent className="p-6 pt-0">
+      <div className="mb-6 grid grid-cols-3 gap-4">
+        <div>
+          <div className="text-4xl font-semibold text-slate-900 dark:text-white">
+            {totalRequests.toLocaleString()}
+          </div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total requests</div>
+          {totalRequests > 0 && (
+            <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
+              <Activity className="h-3 w-3" />
+              Active
+            </div>
+          )}
+        </div>
+        <div className="text-right">
+          <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Blocked</div>
+          <div className="mt-1 text-2xl font-semibold text-red-500 dark:text-red-400">
+            {blockedRequests.toLocaleString()}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Block rate</div>
+          <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
+            {totalRequests > 0 ? `${blockedRate.toFixed(1)}%` : "0.00%"}
+          </div>
+        </div>
+      </div>
 
-        {/* METRIC CARDS */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.15 }}
-          className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+      {/* Chart container – fixed height + fallback */}
+      <div className="h-64 w-full mt-4">
+        {trafficOverviewData.length > 0 && trafficOverviewData.some((item) => item.total > 0) ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={trafficOverviewData}>
+              <defs>
+                <linearGradient id="trafficGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#93C5FD" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
+              <XAxis dataKey="method" tick={{ fontSize: 12, fill: "#64748B" }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64748B" }} />
+              <Tooltip />
+              <Area
+                type="monotone"
+                dataKey="total"
+                stroke="#2563EB"
+                fill="url(#trafficGradient)"
+                strokeWidth={2}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-slate-400">
+            No traffic data available for the selected period
+          </div>
+        )}
+      </div>
+    </CardContent>
+  </Card>
+
+  {/* ── RIGHT COLUMN: Top Threats + Team Members (stacked) ── */}
+  <div className="space-y-6">
+    {/* Top Threats Card */}
+    <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4 border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
+        <div>
+          <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Top threats</CardTitle>
+          <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Highest-volume attack patterns
+          </CardDescription>
+        </div>
+        <button
+          onClick={() => navigate("/threat-logs")}
+          className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
         >
+          view_all
+        </button>
+      </CardHeader>
+      <CardContent className="p-6 pt-0">
+        {topThreats.length > 0 ? (
+          (() => {
+            const threat = topThreats[0];
+            const getThreatCode = (name: string) => {
+              const words = (name || "").split(" ");
+              if (words.length === 1) return (words[0] || "").slice(0, 3).toUpperCase();
+              return words
+                .map((word) => word[0])
+                .join("")
+                .slice(0, 3)
+                .toUpperCase();
+            };
+            const getThreatBadgeClass = (name: string) => {
+              const value = (name || "").toLowerCase();
+              if (value.includes("sql"))
+                return "border border-red-200/60 bg-red-50 text-red-500 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400";
+              if (value.includes("xss") || value.includes("script"))
+                return "border border-amber-200/60 bg-amber-50 text-amber-500 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400";
+              if (value.includes("brute") || value.includes("auth") || value.includes("rate"))
+                return "border border-blue-200/60 bg-blue-50 text-blue-600 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400";
+              return "border border-cyan-200/60 bg-cyan-50 text-cyan-600 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-400";
+            };
+            const threatCode = getThreatCode(threat.name);
+            const threatBadgeClass = getThreatBadgeClass(threat.name);
+            const threatValue = Number(threat.value || 0);
+            const maxThreatValue = threatValue;
+            const progressWidth = maxThreatValue > 0 ? (threatValue / maxThreatValue) * 100 : 0;
+            return (
+              <div className="flex items-center gap-3">
+                <span
+                  className={`flex-shrink-0 rounded-md px-2 py-1 font-mono text-[10px] font-bold ${threatBadgeClass}`}
+                >
+                  {threatCode}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
+                  {threat.name}
+                </span>
+                <div className="h-1.5 w-16 flex-shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(progressWidth, 100)}%`,
+                      backgroundColor: threat.color || "#9ca3af",
+                    }}
+                  />
+                </div>
+                <span className="w-8 flex-shrink-0 text-right font-sans tabular-nums text-[12px] font-semibold text-slate-500 dark:text-slate-400">
+                  {threatValue}
+                </span>
+              </div>
+            );
+          })()
+        ) : (
+          <div className="flex h-24 items-center justify-center rounded-lg border border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+            <div className="text-center">
+              <Shield className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
+              <p className="text-sm text-slate-500 dark:text-slate-400">No threat data available</p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+
+    {/* Team Members Card */}
+    <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 p-6 pb-4 border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-500/10">
+            <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+          </div>
+        </div>
+        <button
+          onClick={() => navigate("/users")}
+          className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+        >
+          view_all
+        </button>
+      </CardHeader>
+      <CardContent className="p-6 pt-0">
+        {membersLoading ? (
+          <div className="flex h-40 items-center justify-center">
+            <Activity className="h-6 w-6 animate-spin text-blue-600" />
+          </div>
+        ) : platformMembers.length === 0 ? (
+          <div className="flex h-40 flex-col items-center justify-center rounded-lg border border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+            <Users className="h-8 w-8 text-slate-400 mb-2" />
+            <p className="text-sm text-slate-500 dark:text-slate-400">No team members yet</p>
+            <Button
+              variant="link"
+              className="mt-2 text-blue-600"
+              onClick={() => navigate("/users")}
+            >
+              Invite users
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {platformMembers.slice(0, 5).map((member) => (
+              <div
+                key={member.id}
+                className="flex items-center justify-between rounded-lg border border-slate-200/70 bg-white p-3 dark:border-slate-800 dark:bg-slate-800/50"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
+                      {member.user_name?.charAt(0).toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                      {member.user_name || member.user_email}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                      {member.user_email}
+                    </p>
+                  </div>
+                </div>
+                <Badge
+                  className={
+                    member.is_owner
+                      ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                      : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                  }
+                >
+                  {member.is_owner ? "Owner" : member.role || "Member"}
+                </Badge>
+              </div>
+            ))}
+            {platformMembers.length > 5 && (
+              <div className="text-center mt-2">
+                <button
+                  onClick={() => navigate("/users")}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  +{platformMembers.length - 5} more
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  </div>
+</div>
+
+        {/* METRIC CARDS (4) */}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {/* Total Requests */}
-          <Card className={`rounded-2xl ${panelClass}`}>
+          <Card className={cardClass}>
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">total_requests</span>
@@ -675,7 +784,7 @@ const PlatformDetails: React.FC = () => {
           </Card>
 
           {/* Threats Blocked */}
-          <Card className={`rounded-2xl ${panelClass}`}>
+          <Card className={cardClass}>
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">threats_blocked</span>
@@ -695,7 +804,7 @@ const PlatformDetails: React.FC = () => {
           </Card>
 
           {/* Blocked Rate */}
-          <Card className={`rounded-2xl ${panelClass}`}>
+          <Card className={cardClass}>
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">blocked_rate</span>
@@ -717,7 +826,7 @@ const PlatformDetails: React.FC = () => {
           </Card>
 
           {/* Active Endpoints */}
-          <Card className={`rounded-2xl ${panelClass}`}>
+          <Card className={cardClass}>
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">active_endpoints</span>
@@ -735,133 +844,121 @@ const PlatformDetails: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
         {/* THREAT EVENTS TABLE */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.18 }}>
-          <Card className={`rounded-2xl ${panelClass}`}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-6 pb-4">
+        <Card className={cardClass}>
+          <CardHeader className={`flex flex-row items-center justify-between space-y-0 p-6 pb-4 ${headerClass}`}>
+            <div>
+              <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Recent threat events</CardTitle>
+              <CardDescription className="mt-1 text-sm text-slate-500 dark:text-slate-400">Real-time security events</CardDescription>
+            </div>
+            <button onClick={() => navigate('/threat-logs')} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">view_logs()</button>
+          </CardHeader>
+          <CardContent className="p-6 pt-0">
+            {recentRows.length > 0 ? (
+              <div className="overflow-hidden rounded-xl border border-slate-200/70 dark:border-slate-800">
+                <div className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] gap-3 border-b border-slate-200/70 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800">
+                  {['Endpoint', 'Attack Type', 'Source IP', 'Status'].map((h) => (
+                    <span key={h} className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">{h}</span>
+                  ))}
+                </div>
+                <div className="divide-y divide-slate-200/70 dark:divide-slate-800">
+                  {recentRows.map((row) => (
+                    <div key={row.id} className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <span className="font-mono text-sm font-medium text-blue-600 dark:text-blue-400">{row.path}</span>
+                      <span className={`text-sm font-semibold ${getAttackTextClass(row.attack)}`}>{row.attack}</span>
+                      <span className="font-mono text-sm text-slate-400 dark:text-slate-500">{row.source}</span>
+                      <span className={`inline-flex w-fit rounded-lg px-3 py-1 text-[11px] font-bold ${getStatusClass(row.status)}`}>
+                        {row.status === 'blocked' ? 'Blocked' : row.status === 'allowed' ? 'Allowed' : 'Warning'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-32 items-center justify-center rounded-xl border border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+                <div className="text-center">
+                  <Shield className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No threat events recorded yet</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* LIVE THREAT ACTIVITY (full width) */}
+        <Card className={cardClass}>
+          <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-6 pb-4 ${headerClass}`}>
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10">
+                <AlertTriangle className="h-5 w-5 text-amber-500 dark:text-amber-400" />
+              </div>
               <div>
-                <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Recent threat events</CardTitle>
-                <CardDescription className="mt-1 text-sm text-slate-500 dark:text-slate-400">Real-time security events</CardDescription>
+                <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Live Threat Activity</CardTitle>
+                <CardDescription className="mt-1 text-sm text-slate-500 dark:text-slate-400">Real-time API requests and security events</CardDescription>
               </div>
-              <button onClick={() => navigate('/threat-logs')} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">view_logs()</button>
-            </CardHeader>
-            <CardContent className="p-6 pt-0">
-              {recentRows.length > 0 ? (
-                <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800">
-                  <div className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800">
-                    {['Endpoint', 'Attack Type', 'Source IP', 'Status'].map((h) => (
-                      <span key={h} className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">{h}</span>
-                    ))}
-                  </div>
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {recentRows.map((row) => (
-                      <div key={row.id} className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">
-                        <span className="font-mono text-sm font-medium text-blue-600 dark:text-blue-400">{row.path}</span>
-                        <span className={`text-sm font-semibold ${getAttackTextClass(row.attack)}`}>{row.attack}</span>
-                        <span className="font-mono text-sm text-slate-400 dark:text-slate-500">{row.source}</span>
-                        <span className={`inline-flex w-fit rounded-lg px-3 py-1 text-[11px] font-bold ${getStatusClass(row.status)}`}>
-                          {row.status === 'blocked' ? 'Blocked' : row.status === 'allowed' ? 'Allowed' : 'Warning'}
-                        </span>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 pt-0">
+            {threatLogs && threatLogs.length > 0 ? (
+              <div className="space-y-3">
+                {threatLogs.slice(0, 8).map((log: any, idx: number) => {
+                  const isBlocked = log.waf_blocked;
+                  const threatLevel = log.threat_level || 'none';
+                  const statusColor = isBlocked
+                    ? 'text-red-600 dark:text-red-400'
+                    : threatLevel !== 'none'
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-emerald-600 dark:text-emerald-400';
+                  return (
+                    <div
+                      key={log.id || idx}
+                      className={`flex items-center justify-between rounded-lg border px-4 py-3 transition-colors ${
+                        isBlocked
+                          ? 'border-red-200/60 bg-red-50 dark:border-red-500/20 dark:bg-red-500/10'
+                          : threatLevel !== 'none'
+                          ? 'border-amber-200/60 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10'
+                          : 'border-emerald-200/60 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-xs font-bold text-slate-600 dark:text-slate-300">{log.method || 'GET'}</span>
+                          <span className="font-mono text-sm font-medium text-blue-600 dark:text-blue-400 truncate">{log.path || '/api/endpoint'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-slate-500 dark:text-slate-400">{log.client_ip || 'Unknown IP'}</span>
+                          <span className="text-slate-400 dark:text-slate-500">·</span>
+                          <span className={statusColor}>
+                            {isBlocked ? 'Blocked' : threatLevel !== 'none' ? `${threatLevel.toUpperCase()} Threat` : 'Clean'}
+                          </span>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex h-32 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-                  <div className="text-center">
-                    <Shield className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
-                    <p className="text-sm text-slate-500 dark:text-slate-400">No threat events recorded yet</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* LIVE THREAT ACTIVITY */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.22 }}>
-          <Card className={`rounded-2xl ${panelClass}`}>
-            <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10">
-                  <AlertTriangle className="h-5 w-5 text-amber-500 dark:text-amber-400" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Live Threat Activity</CardTitle>
-                  <CardDescription className="mt-1 text-sm text-slate-500 dark:text-slate-400">Real-time API requests and security events</CardDescription>
+                      <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{log.status_code || '200'}</span>
+                        <div className={`h-2 w-2 rounded-full ${isBlocked ? 'bg-red-500' : threatLevel !== 'none' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex h-32 items-center justify-center rounded-lg border border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+                <div className="text-center">
+                  <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-slate-400 dark:text-slate-500" />
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No live activity yet</p>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="p-6 pt-0">
-              {threatLogs && threatLogs.length > 0 ? (
-                <div className="space-y-3">
-                  {threatLogs.slice(0, 8).map((log: any, idx: number) => {
-                    const isBlocked = log.waf_blocked;
-                    const threatLevel = log.threat_level || 'none';
-                    const statusColor = isBlocked
-                      ? 'text-red-600 dark:text-red-400'
-                      : threatLevel !== 'none'
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-emerald-600 dark:text-emerald-400';
-                    return (
-                      <motion.div
-                        key={log.id || idx}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.2, delay: idx * 0.05 }}
-                        className={`flex items-center justify-between rounded-lg border px-4 py-3 transition-colors ${
-                          isBlocked
-                            ? 'border-red-200/60 bg-red-50 dark:border-red-500/20 dark:bg-red-500/10'
-                            : threatLevel !== 'none'
-                            ? 'border-amber-200/60 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10'
-                            : 'border-emerald-200/60 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10'
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-mono text-xs font-bold text-slate-600 dark:text-slate-300">{log.method || 'GET'}</span>
-                            <span className="font-mono text-sm font-medium text-blue-600 dark:text-blue-400 truncate">{log.path || '/api/endpoint'}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-slate-500 dark:text-slate-400">{log.client_ip || 'Unknown IP'}</span>
-                            <span className="text-slate-400 dark:text-slate-500">·</span>
-                            <span className={statusColor}>
-                              {isBlocked ? 'Blocked' : threatLevel !== 'none' ? `${threatLevel.toUpperCase()} Threat` : 'Clean'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{log.status_code || '200'}</span>
-                          <div className={`h-2 w-2 rounded-full ${isBlocked ? 'bg-red-500' : threatLevel !== 'none' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex h-32 items-center justify-center rounded-lg border border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-                  <div className="text-center">
-                    <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-slate-400 dark:text-slate-500" />
-                    <p className="text-sm text-slate-500 dark:text-slate-400">No live activity yet</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
+            )}
+          </CardContent>
+        </Card>
 
-        {/* CHARTS */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
-          className="grid gap-4 xl:grid-cols-3"
-        >
+        {/* CHARTS (3‑column) */}
+        <div className="grid gap-4 xl:grid-cols-3">
           {/* Response Code Breakdown */}
-          <Card className={`rounded-2xl ${panelClass}`}>
-            <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4">
+          <Card className={cardClass}>
+            <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-6 pb-4 ${headerClass}`}>
               <div>
                 <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Response Code Breakdown</CardTitle>
                 <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">Distribution of response codes</CardDescription>
@@ -883,7 +980,7 @@ const PlatformDetails: React.FC = () => {
                   </ResponsiveContainer>
                   <div className="space-y-2">
                     {threatTypes.slice(0, 4).map((item: any) => (
-                      <div key={item.name} className={`flex items-center justify-between rounded-lg px-3 py-2 ${softPanelClass}`}>
+                      <div key={item.name} className="flex items-center justify-between rounded-lg px-3 py-2 bg-white border border-slate-200/70 dark:bg-slate-800 dark:border-slate-700">
                         <div className="flex items-center gap-2">
                           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
                           <span className="text-xs text-slate-700 dark:text-slate-300">{item.name}</span>
@@ -905,8 +1002,8 @@ const PlatformDetails: React.FC = () => {
           </Card>
 
           {/* Requests by Countries */}
-          <Card className={`rounded-2xl ${panelClass}`}>
-            <CardHeader className="p-6 pb-4">
+          <Card className={cardClass}>
+            <CardHeader className={`p-6 pb-4 ${headerClass}`}>
               <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Requests by Countries</CardTitle>
               <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">Geographic distribution</CardDescription>
             </CardHeader>
@@ -915,7 +1012,7 @@ const PlatformDetails: React.FC = () => {
                 countryData.slice(0, 5).map((country) => (
                   <div
                     key={country.code}
-                    className={`rounded-lg px-3 py-3 ${softPanelClass} ${hoveredCountry === country.code ? 'border-blue-400/70 dark:border-blue-500/50' : ''}`}
+                    className={`rounded-lg px-3 py-3 bg-white border border-slate-200/70 dark:bg-slate-800 dark:border-slate-700 ${hoveredCountry === country.code ? 'border-blue-400 dark:border-blue-500' : ''}`}
                     onMouseEnter={() => setHoveredCountry(country.code)}
                     onMouseLeave={() => setHoveredCountry(null)}
                   >
@@ -946,8 +1043,8 @@ const PlatformDetails: React.FC = () => {
           </Card>
 
           {/* OWASP Top 10 */}
-          <Card className={`rounded-2xl ${panelClass}`}>
-            <CardHeader className="p-6 pb-4">
+          <Card className={cardClass}>
+            <CardHeader className={`p-6 pb-4 ${headerClass}`}>
               <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">OWASP Top 10</CardTitle>
               <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">Detected risks</CardDescription>
             </CardHeader>
@@ -978,15 +1075,10 @@ const PlatformDetails: React.FC = () => {
               )}
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
         {/* ACTION TILES */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.25 }}
-          className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-        >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
             { title: 'Security Hub', description: 'Triage security logs and alerts', icon: <Eye className="h-5 w-5 text-blue-600 dark:text-blue-400" />, url: '/security-hub' },
             { title: 'Threat Logs', description: 'Review detailed security events', icon: <AlertTriangle className="h-5 w-5 text-amber-500 dark:text-amber-400" />, url: '/threat-logs' },
@@ -997,10 +1089,10 @@ const PlatformDetails: React.FC = () => {
             { title: 'IP Blacklist', description: 'Manage blocked IP addresses', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59Z" fill="#ef4444" /></svg>, url: '/ip-blacklist' },
             { title: 'Security Alerts', description: 'Configure and manage security alerts', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11c0-3.07-1.63-5.64-5-6.32V4a1 1 0 1 0-2 0v.68C7.63 5.36 6 7.92 6 11v5l-1.29 1.29A1 1 0 0 0 6 19h12a1 1 0 0 0 .71-1.71L18 16Z" fill="#6366f1" /></svg>, url: '/security-alerts' },
           ].map((action) => (
-            <motion.div key={action.title} whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
-              <Card className={`cursor-pointer rounded-2xl transition-all hover:shadow-md ${panelClass}`} onClick={() => navigate(action.url)}>
+            <div key={action.title}>
+              <Card className={`cursor-pointer transition-all hover:shadow-md ${cardClass}`} onClick={() => navigate(action.url)}>
                 <CardContent className="p-6">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700">
                     {action.icon}
                   </div>
                   <h3 className="text-base font-semibold text-slate-900 dark:text-white">{action.title}</h3>
@@ -1009,7 +1101,7 @@ const PlatformDetails: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className={`w-full ${secondaryButtonClass} rounded-lg font-medium`}
+                      className="w-full rounded-lg border-slate-200/70 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
                       onClick={(e) => { e.stopPropagation(); navigate(action.url); }}
                     >
                       Open
@@ -1017,9 +1109,9 @@ const PlatformDetails: React.FC = () => {
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           ))}
-        </motion.div>
+        </div>
 
       </div>
     </div>

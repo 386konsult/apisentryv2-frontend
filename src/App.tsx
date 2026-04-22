@@ -54,6 +54,7 @@ import CreateAlert from "./pages/CreateAlert";
 import SecurityAlerts from "./pages/SecurityAlerts";
 import GitHubCallback from "./pages/GitHubCallback";
 import BitbucketCallback from "./pages/BitbucketCallback";
+import CISOReports from "./pages/CISOReports";
 // import ForcePasswordReset from "./pages/ForcePasswordReset";
 import IPBlacklist from "./pages/IPBlacklist";
 import SecurityHub from "./pages/SecurityHub";
@@ -236,6 +237,11 @@ const AppContent = () => {
                             </ProtectedPlatformRoute>
                           }
                         />
+                        <Route path="/ciso-reports" element={
+                            <ProtectedPlatformRoute>
+                              <CISOReports />
+                            </ProtectedPlatformRoute>
+                          } />
 
                         <Route
                           path="/vulnerability-dashboard"

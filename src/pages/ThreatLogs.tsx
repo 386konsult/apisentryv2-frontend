@@ -17,6 +17,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertTriangle,
@@ -28,6 +29,7 @@ import {
   MapPin,
   Code,
 } from "lucide-react";
+
 import { apiService } from "@/services/api";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -144,16 +146,21 @@ const ThreatLogs = () => {
           return;
         }
         const response = await apiService.getPlatformThreatLogs(platformId, {
-          blocked: true,
-        });
-        if (response && response.logs) {
-          setAllLogs(response.logs);
-        } else if (Array.isArray(response)) {
-          setAllLogs(response);
-        } else {
-          console.error("Unexpected response format for threat logs:", response);
-          setAllLogs([]);
-        }
+  blocked: true,
+});
+// Handle paginated response (DRF style)
+let logsArray = [];
+if (response && response.results && Array.isArray(response.results)) {
+  logsArray = response.results;
+} else if (response && response.logs && Array.isArray(response.logs)) {
+  logsArray = response.logs;
+} else if (Array.isArray(response)) {
+  logsArray = response;
+} else {
+  console.error("Unexpected response format for threat logs:", response);
+  logsArray = [];
+}
+setAllLogs(logsArray);
       } catch (error) {
         console.error("Error fetching threat logs:", error);
         setAllLogs([]);

@@ -179,168 +179,177 @@ const PlatformDetails: React.FC = () => {
   };
 
   const fetchAllRangedData = () => {
-    if (!id) return;
+  if (!id) return;
 
-    const params = { range: timeRange };
+  const params = { range: timeRange };
 
-    apiService.getAnalytics(id, params)
-      .then((data: any) => {
-        if (data?.success && data.analytics) {
-          let analyticsData;
-          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && timeRange in data.analytics) {
-            analyticsData = data.analytics[timeRange];
-          } else {
-            analyticsData = data.analytics;
-          }
-
-          // Traffic chart
-          if (analyticsData?.method_status_breakdown) {
-            const trafficArr = HTTP_METHODS.map((method) => {
-              const methodData = analyticsData.method_status_breakdown[method] || {};
-              return { method, ...methodData };
-            });
-            setTrafficData(trafficArr);
-          } else {
-            setTrafficData([]);
-          }
-
-          // Response code breakdown
-          if (analyticsData?.status_code_breakdown) {
-            const colors: Record<string, string> = {
-              '200': '#22c55e', '201': '#16a34a', '204': '#10b981',
-              '400': '#f97316', '403': '#ef4444', '404': '#6366f1',
-              '500': '#eab308', '504': '#06b6d4', other: '#9ca3af',
-            };
-            const responseCodeArr = Object.entries(analyticsData.status_code_breakdown).map(([name, value]) => ({
-              name, value: Number(value), color: colors[name] || colors.other,
-            }));
-            setThreatTypes(responseCodeArr);
-          } else {
-            setThreatTypes([]);
-          }
-
-          // Threat types by category
-          const threatTypeColors: Record<string, string> = {
-            'Malicious Payload': '#ef4444', 'XSS Attack Detected': '#f59e0b',
-            'Suspicious User Agent': '#8b5cf6', 'Brute Force Attempt': '#dc2626',
-            'SQL Injection Detection': '#ec4899', 'Command Injection': '#06b6d4',
-            'Path Traversal': '#10b981', 'Rate Limit Exceeded': '#3b82f6',
-            'Security Misconfiguration': '#f97316', 'Insecure Direct Object Reference': '#eab308',
-            'Broken Authentication': '#14b8a6', 'SQL Injection': '#ef4444',
-            XSS: '#f59e0b', 'Brute Force': '#dc2626', CSRF: '#06b6d4',
-            XXE: '#10b981', SSRF: '#3b82f6', LFI: '#f97316', RFI: '#eab308',
-          };
-
-          if (analyticsData?.threat_type_summary && typeof analyticsData.threat_type_summary === 'object') {
-            const threatTypeArr = Object.entries(analyticsData.threat_type_summary)
-              .map(([name, value]) => ({ name, value: Number(value), color: threatTypeColors[name] || '#9ca3af' }))
-              .filter((item) => item.value > 0)
-              .sort((a, b) => b.value - a.value);
-            setThreatTypesByCategory(threatTypeArr);
-          } else if (analyticsData?.threat_types && typeof analyticsData.threat_types === 'object') {
-            const threatTypeArr = Object.entries(analyticsData.threat_types)
-              .map(([name, value]) => ({ name, value: Number(value), color: threatTypeColors[name] || '#9ca3af' }))
-              .filter((item) => item.value > 0)
-              .sort((a, b) => b.value - a.value);
-            setThreatTypesByCategory(threatTypeArr);
-          } else {
-            setThreatTypesByCategory([]);
-          }
-
-          // Country data
-          if (analyticsData?.country_summary && Array.isArray(analyticsData.country_summary)) {
-            const countryArr = analyticsData.country_summary
-              .map((item: any) => ({
-                code: (item.country_code || '').toUpperCase(),
-                name: item.country_name || item.country_code || '',
-                count: Number(item.total_requests || 0),
-              }))
-              .filter((item: CountryData) => item.count > 0 && item.code)
-              .sort((a, b) => b.count - a.count);
-            setCountryData(countryArr);
-          } else if (analyticsData?.country_breakdown || analyticsData?.geographic_breakdown) {
-            const countryBreakdown = analyticsData.country_breakdown || analyticsData.geographic_breakdown;
-            const countryCodeToName: Record<string, string> = {
-              US: 'United States', CN: 'China', RU: 'Russia', GB: 'United Kingdom',
-              DE: 'Germany', FR: 'France', IN: 'India', BR: 'Brazil', JP: 'Japan',
-              CA: 'Canada', AU: 'Australia', KR: 'South Korea', IT: 'Italy',
-              ES: 'Spain', NL: 'Netherlands', MX: 'Mexico', ID: 'Indonesia',
-              TR: 'Turkey', SA: 'Saudi Arabia', PL: 'Poland', EG: 'Egypt',
-              CH: 'Switzerland', NG: 'Nigeria',
-            };
-            const countryArr = Object.entries(countryBreakdown)
-              .map(([code, count]) => ({
-                code: code.toUpperCase(),
-                name: countryCodeToName[code.toUpperCase()] || code,
-                count: Number(count),
-              }))
-              .filter((item) => item.count > 0)
-              .sort((a, b) => b.count - a.count);
-            setCountryData(countryArr);
-          } else {
-            setCountryData([]);
-          }
-
-          // OWASP
-          if (analyticsData?.owasp_top10_summary && Array.isArray(analyticsData.owasp_top10_summary)) {
-            const owaspCategoryMap: Record<string, { name: string; category: string; severity: 'critical' | 'high' | 'medium' | 'low' }> = {
-              'A01:2021 – Broken Access Control': { name: 'Broken Access Control', category: 'Access Control', severity: 'critical' },
-              'A02:2021 – Cryptographic Failures': { name: 'Cryptographic Failures', category: 'Cryptography', severity: 'high' },
-              'A03:2021 – Injection': { name: 'Injection', category: 'Injection', severity: 'critical' },
-              'A04:2021 – Insecure Design': { name: 'Insecure Design', category: 'Design', severity: 'high' },
-              'A05:2021 – Security Misconfiguration': { name: 'Security Misconfiguration', category: 'Configuration', severity: 'medium' },
-              'A06:2021 – Vulnerable Components': { name: 'Vulnerable Components', category: 'Components', severity: 'high' },
-              'A07:2021 – Identification and Authentication Failures': { name: 'Authentication Failures', category: 'Authentication', severity: 'critical' },
-              'A08:2021 – Software and Data Integrity Failures': { name: 'Software & Data Integrity', category: 'Integrity', severity: 'high' },
-              'A09:2021 – Security Logging and Monitoring Failures': { name: 'Security Logging Failures', category: 'Logging', severity: 'medium' },
-              'A10:2021 – Server-Side Request Forgery': { name: 'Server-Side Request Forgery', category: 'SSRF', severity: 'high' },
-            };
-            const owaspArr = analyticsData.owasp_top10_summary
-              .map((item: any) => {
-                const categoryInfo = owaspCategoryMap[item.category] || {
-                  name: item.category,
-                  category: item.category.split(':')[0] || item.category,
-                  severity: 'medium' as const,
-                };
-                return { name: categoryInfo.name, category: categoryInfo.category, count: Number(item.threat_count || 0), severity: categoryInfo.severity } as OWASPThreat;
-              })
-              .filter((item: OWASPThreat) => item.count > 0)
-              .sort((a, b) => b.count - a.count);
-
-            const allOwaspItems: OWASPThreat[] = [
-              { name: 'Broken Access Control', category: 'Access Control', count: 0, severity: 'critical' },
-              { name: 'Cryptographic Failures', category: 'Cryptography', count: 0, severity: 'high' },
-              { name: 'Injection', category: 'Injection', count: 0, severity: 'critical' },
-              { name: 'Insecure Design', category: 'Design', count: 0, severity: 'high' },
-              { name: 'Security Misconfiguration', category: 'Configuration', count: 0, severity: 'medium' },
-              { name: 'Vulnerable Components', category: 'Components', count: 0, severity: 'high' },
-              { name: 'Authentication Failures', category: 'Authentication', count: 0, severity: 'critical' },
-              { name: 'Software & Data Integrity', category: 'Integrity', count: 0, severity: 'high' },
-              { name: 'Security Logging Failures', category: 'Logging', count: 0, severity: 'medium' },
-              { name: 'Server-Side Request Forgery', category: 'SSRF', count: 0, severity: 'high' },
-            ];
-            setOwaspThreats(allOwaspItems.map((defaultItem) => {
-              const apiItem = owaspArr.find((item) => item.name === defaultItem.name);
-              return apiItem || defaultItem;
-            }));
-          }
+  apiService.getAnalytics(id, params)
+    .then((data: any) => {
+      if (data?.success && data.analytics) {
+        let analyticsData;
+        if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && timeRange in data.analytics) {
+          analyticsData = data.analytics[timeRange];
+        } else {
+          analyticsData = data.analytics;
         }
-      })
-      .catch(() => {
-        setTrafficData([]);
-        setThreatTypes([]);
-        setThreatTypesByCategory([]);
-        setCountryData([]);
-      });
 
-    apiService.getPlatformRequestLogs(id, { num: '10' })
-      .then((logs: any) => {
-        if (Array.isArray(logs)) setThreatLogs(logs);
-        else if (logs?.logs && Array.isArray(logs.logs)) setThreatLogs(logs.logs);
-        else setThreatLogs([]);
-      })
-      .catch(() => setThreatLogs([]));
-  };
+        // Traffic chart
+        if (analyticsData?.method_status_breakdown) {
+          const trafficArr = HTTP_METHODS.map((method) => {
+            const methodData = analyticsData.method_status_breakdown[method] || {};
+            return { method, ...methodData };
+          });
+          setTrafficData(trafficArr);
+        } else {
+          setTrafficData([]);
+        }
+
+        // Response code breakdown
+        if (analyticsData?.status_code_breakdown) {
+          const colors: Record<string, string> = {
+            '200': '#22c55e', '201': '#16a34a', '204': '#10b981',
+            '400': '#f97316', '403': '#ef4444', '404': '#6366f1',
+            '500': '#eab308', '504': '#06b6d4', other: '#9ca3af',
+          };
+          const responseCodeArr = Object.entries(analyticsData.status_code_breakdown).map(([name, value]) => ({
+            name, value: Number(value), color: colors[name] || colors.other,
+          }));
+          setThreatTypes(responseCodeArr);
+        } else {
+          setThreatTypes([]);
+        }
+
+        // Threat types by category
+        const threatTypeColors: Record<string, string> = {
+          'Malicious Payload': '#ef4444', 'XSS Attack Detected': '#f59e0b',
+          'Suspicious User Agent': '#8b5cf6', 'Brute Force Attempt': '#dc2626',
+          'SQL Injection Detection': '#ec4899', 'Command Injection': '#06b6d4',
+          'Path Traversal': '#10b981', 'Rate Limit Exceeded': '#3b82f6',
+          'Security Misconfiguration': '#f97316', 'Insecure Direct Object Reference': '#eab308',
+          'Broken Authentication': '#14b8a6', 'SQL Injection': '#ef4444',
+          XSS: '#f59e0b', 'Brute Force': '#dc2626', CSRF: '#06b6d4',
+          XXE: '#10b981', SSRF: '#3b82f6', LFI: '#f97316', RFI: '#eab308',
+        };
+
+        if (analyticsData?.threat_type_summary && typeof analyticsData.threat_type_summary === 'object') {
+          const threatTypeArr = Object.entries(analyticsData.threat_type_summary)
+            .map(([name, value]) => ({ name, value: Number(value), color: threatTypeColors[name] || '#9ca3af' }))
+            .filter((item) => item.value > 0)
+            .sort((a, b) => b.value - a.value);
+          setThreatTypesByCategory(threatTypeArr);
+        } else if (analyticsData?.threat_types && typeof analyticsData.threat_types === 'object') {
+          const threatTypeArr = Object.entries(analyticsData.threat_types)
+            .map(([name, value]) => ({ name, value: Number(value), color: threatTypeColors[name] || '#9ca3af' }))
+            .filter((item) => item.value > 0)
+            .sort((a, b) => b.value - a.value);
+          setThreatTypesByCategory(threatTypeArr);
+        } else {
+          setThreatTypesByCategory([]);
+        }
+
+        // Country data
+        if (analyticsData?.country_summary && Array.isArray(analyticsData.country_summary)) {
+          const countryArr = analyticsData.country_summary
+            .map((item: any) => ({
+              code: (item.country_code || '').toUpperCase(),
+              name: item.country_name || item.country_code || '',
+              count: Number(item.total_requests || 0),
+            }))
+            .filter((item: CountryData) => item.count > 0 && item.code)
+            .sort((a, b) => b.count - a.count);
+          setCountryData(countryArr);
+        } else if (analyticsData?.country_breakdown || analyticsData?.geographic_breakdown) {
+          const countryBreakdown = analyticsData.country_breakdown || analyticsData.geographic_breakdown;
+          const countryCodeToName: Record<string, string> = {
+            US: 'United States', CN: 'China', RU: 'Russia', GB: 'United Kingdom',
+            DE: 'Germany', FR: 'France', IN: 'India', BR: 'Brazil', JP: 'Japan',
+            CA: 'Canada', AU: 'Australia', KR: 'South Korea', IT: 'Italy',
+            ES: 'Spain', NL: 'Netherlands', MX: 'Mexico', ID: 'Indonesia',
+            TR: 'Turkey', SA: 'Saudi Arabia', PL: 'Poland', EG: 'Egypt',
+            CH: 'Switzerland', NG: 'Nigeria',
+          };
+          const countryArr = Object.entries(countryBreakdown)
+            .map(([code, count]) => ({
+              code: code.toUpperCase(),
+              name: countryCodeToName[code.toUpperCase()] || code,
+              count: Number(count),
+            }))
+            .filter((item) => item.count > 0)
+            .sort((a, b) => b.count - a.count);
+          setCountryData(countryArr);
+        } else {
+          setCountryData([]);
+        }
+
+        // OWASP
+        if (analyticsData?.owasp_top10_summary && Array.isArray(analyticsData.owasp_top10_summary)) {
+          const owaspCategoryMap: Record<string, { name: string; category: string; severity: 'critical' | 'high' | 'medium' | 'low' }> = {
+            'A01:2021 – Broken Access Control': { name: 'Broken Access Control', category: 'Access Control', severity: 'critical' },
+            'A02:2021 – Cryptographic Failures': { name: 'Cryptographic Failures', category: 'Cryptography', severity: 'high' },
+            'A03:2021 – Injection': { name: 'Injection', category: 'Injection', severity: 'critical' },
+            'A04:2021 – Insecure Design': { name: 'Insecure Design', category: 'Design', severity: 'high' },
+            'A05:2021 – Security Misconfiguration': { name: 'Security Misconfiguration', category: 'Configuration', severity: 'medium' },
+            'A06:2021 – Vulnerable Components': { name: 'Vulnerable Components', category: 'Components', severity: 'high' },
+            'A07:2021 – Identification and Authentication Failures': { name: 'Authentication Failures', category: 'Authentication', severity: 'critical' },
+            'A08:2021 – Software and Data Integrity Failures': { name: 'Software & Data Integrity', category: 'Integrity', severity: 'high' },
+            'A09:2021 – Security Logging and Monitoring Failures': { name: 'Security Logging Failures', category: 'Logging', severity: 'medium' },
+            'A10:2021 – Server-Side Request Forgery': { name: 'Server-Side Request Forgery', category: 'SSRF', severity: 'high' },
+          };
+          const owaspArr = analyticsData.owasp_top10_summary
+            .map((item: any) => {
+              const categoryInfo = owaspCategoryMap[item.category] || {
+                name: item.category,
+                category: item.category.split(':')[0] || item.category,
+                severity: 'medium' as const,
+              };
+              return { name: categoryInfo.name, category: categoryInfo.category, count: Number(item.threat_count || 0), severity: categoryInfo.severity } as OWASPThreat;
+            })
+            .filter((item: OWASPThreat) => item.count > 0)
+            .sort((a, b) => b.count - a.count);
+
+          const allOwaspItems: OWASPThreat[] = [
+            { name: 'Broken Access Control', category: 'Access Control', count: 0, severity: 'critical' },
+            { name: 'Cryptographic Failures', category: 'Cryptography', count: 0, severity: 'high' },
+            { name: 'Injection', category: 'Injection', count: 0, severity: 'critical' },
+            { name: 'Insecure Design', category: 'Design', count: 0, severity: 'high' },
+            { name: 'Security Misconfiguration', category: 'Configuration', count: 0, severity: 'medium' },
+            { name: 'Vulnerable Components', category: 'Components', count: 0, severity: 'high' },
+            { name: 'Authentication Failures', category: 'Authentication', count: 0, severity: 'critical' },
+            { name: 'Software & Data Integrity', category: 'Integrity', count: 0, severity: 'high' },
+            { name: 'Security Logging Failures', category: 'Logging', count: 0, severity: 'medium' },
+            { name: 'Server-Side Request Forgery', category: 'SSRF', count: 0, severity: 'high' },
+          ];
+          setOwaspThreats(allOwaspItems.map((defaultItem) => {
+            const apiItem = owaspArr.find((item) => item.name === defaultItem.name);
+            return apiItem || defaultItem;
+          }));
+        }
+      }
+    })
+    .catch(() => {
+      setTrafficData([]);
+      setThreatTypes([]);
+      setThreatTypesByCategory([]);
+      setCountryData([]);
+    });
+
+  // Fixed: handle paginated response with 'results'
+  apiService.getPlatformRequestLogs(id, { num: '10' })
+    .then((logs: any) => {
+      let logsArray = [];
+      if (logs && logs.results && Array.isArray(logs.results)) {
+        logsArray = logs.results;
+      } else if (Array.isArray(logs)) {
+        logsArray = logs;
+      } else if (logs?.logs && Array.isArray(logs.logs)) {
+        logsArray = logs.logs;
+      } else {
+        logsArray = [];
+      }
+      setThreatLogs(logsArray);
+    })
+    .catch(() => setThreatLogs([]));
+};
 
   useEffect(() => { fetchData(); }, [id]);
   useEffect(() => { fetchAllRangedData(); }, [id, timeRange]);

@@ -1,502 +1,555 @@
 import { useEffect, useState } from "react";
 import { apiService } from "@/services/api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import {
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area, LineChart, Line,
-} from "recharts";
-import { Shield, AlertTriangle, Activity, TrendingUp, Globe, Download, FileText, Calendar } from "lucide-react";
 import { motion } from "framer-motion";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import {
+  Download,
+  FileText,
+  ChevronLeft,
+  Calendar,
+  Shield,
+  AlertTriangle,
+  Activity,
+  Server,
+  Lock,
+  TrendingUp,
+  BarChart3,
+  CheckCircle,
+  DollarSign,
+} from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+} from "recharts";
 
-type AnimatedNumberProps = {
-  value: number;
-  decimals?: number;
-  suffix?: string;
-  className?: string;
-};
 
-const AnimatedNumber = ({ value, decimals = 0, suffix = '', className = '' }: AnimatedNumberProps) => {
-  const [displayValue, setDisplayValue] = useState(0);
-  useEffect(() => {
-    const target = Number.isFinite(value) ? value : 0;
-    const duration = 800;
-    const start = performance.now();
-    let frame: number;
-    const tick = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayValue(target * eased);
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [value]);
-  return (
-    <span className={className}>
-      {displayValue.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}
-      {suffix}
-    </span>
-  );
-};
+// ============================================================================
+// TYPES (including endpoint_scores)
+// ============================================================================
+interface MonthlyReportMetadata {
+  id: string;
+  year: number;
+  month: number;
+  risk_index: number;
+  risk_status: "Low" | "Moderate" | "High";
+  generated_at: string;
+  pdf_url?: string;
+}
 
-const TIME_RANGES = [
-  { label: "Last 7 Days", value: "7d" },
-  { label: "Last 30 Days", value: "30d" },
-  { label: "Last Year", value: "1y" },
-];
+interface EndpointScore {
+  name: string;
+  security_score: number;
+  health_score?: number;
+  endpoint_id?: string;
+}
 
+interface CisoReport {
+  metadata: MonthlyReportMetadata;
+  total_requests: number;
+  blocked_requests: number;
+  weighted_loss_30d: number;
+  ale: number;
+  control_score: number;
+  risk_index: number;
+  executive_summary?: string;
+  endpoint_scores?: EndpointScore[];
+  threat_distribution: Array<{ name: string; value: number; financial_impact: number }>;
+  risk_matrix: { high_med: number; med_high: number };
+  top_countries: Array<{ country: string; requests: number }>;
+  daily_trend: Array<{ date: string; count: number }>;
+  api_estate: {
+    total: number; production: number; shadow: number; internet_facing: number;
+    internal: number; third_party: number; new_this_month: number; retired_this_month: number;
+  };
+  vulnerability_posture: {
+    missing_auth: number; weak_auth: number; excessive_data: number; deprecated_versions: number;
+    sensitive_data_leakage: number; missing_rate_limits: number; bola_findings: number;
+    tls_issues: number; misconfigurations: number;
+  };
+  incident_summary: {
+    has_incidents: boolean;
+    incidents: Array<{ what: string; impact: string; duration: string; containment: string; root_cause: string; lessons: string }>;
+  };
+  compliance: {
+    apis_handling_pii: number; third_party_review: string; owasp_alignment: number; controls: string[];
+  };
+  operational: { avg_response_ms: number; error_rate: number; uptime: number; rps: number };
+  top_risks: Array<{ description: string; likelihood: string; impact: string; mitigation: string }>;
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 const CISOReports = () => {
-  const [analytics, setAnalytics] = useState<any>(null);
+  const [reports, setReports] = useState<MonthlyReportMetadata[]>([]);
+  const [selectedReport, setSelectedReport] = useState<CisoReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [endpointScores, setEndpointScores] = useState<any[]>([]);
   const [exporting, setExporting] = useState(false);
-  const [timeRange, setTimeRange] = useState("30d");
-  const [platformName, setPlatformName] = useState("");
   const { toast } = useToast();
 
-  const fetchData = async () => {
-    const platformId = localStorage.getItem("selected_platform_id");
-    if (!platformId) {
-      toast({ title: "Error", description: "No platform selected", variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // Get platform details for name
-      const platformDetails = await apiService.getPlatformDetails(platformId);
-      setPlatformName(platformDetails.name || "Workspace");
-
-      // Fetch analytics with time range
-      const data = await apiService.getAnalytics(platformId, { range: timeRange });
-      const analyticsData = data.analytics?.[timeRange] || data;
-      setAnalytics(analyticsData);
-
-      // Fetch endpoint security scores (use existing endpoint if available)
-      const endpoints = await apiService.getPlatformEndpoints(platformId);
-      const endpointsArr = Array.isArray(endpoints) ? endpoints : endpoints.results || [];
-      const scores = [];
-      for (const ep of endpointsArr.slice(0, 10)) {
-        try {
-          // Try to use existing endpoint analytics endpoint
-          const scoreData = await apiService.request(`/api-endpoints/${ep.id}/analytics/`);
-          scores.push({
-            name: ep.name || ep.path,
-            security_score: scoreData.metrics?.security_score || 0,
-            health_score: scoreData.metrics?.health_score || 0,
-          });
-        } catch (e) {
-          // Fallback: use dummy data or skip
-          scores.push({
-            name: ep.name || ep.path,
-            security_score: Math.floor(Math.random() * 100),
-            health_score: Math.floor(Math.random() * 100),
-          });
-        }
-      }
-      setEndpointScores(scores);
-    } catch (error) {
-      console.error(error);
-      toast({ title: "Error", description: "Failed to load analytics", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Load report list
   useEffect(() => {
-    fetchData();
-  }, [timeRange]);
-
-  // Prepare data
-  const totalRequests = analytics?.total_requests || 0;
-  const blockedRequests = analytics?.blocked_requests || 0;
-  const successRate = analytics?.success_rate || 0;
-  const blockedRate = totalRequests > 0 ? (blockedRequests / totalRequests) * 100 : 0;
-
-  // Threat trends - use daily_threats if available, else fallback to method breakdown
-  let trendData: any[] = [];
-  if (analytics?.daily_threats && Array.isArray(analytics.daily_threats)) {
-    trendData = analytics.daily_threats.map((d: any) => ({
-      date: d.date,
-      blocked: d.blocked || 0,
-      allowed: d.allowed || 0,
-    }));
-  } else {
-    // Fallback: use method breakdown
-    const methodBreakdown = analytics?.method_status_breakdown || {};
-    trendData = Object.entries(methodBreakdown).map(([method, statuses]: [string, any]) => ({
-      method,
-      total: Object.values(statuses).reduce((a: number, b: any) => a + Number(b), 0),
-    }));
-  }
-
-  // Top attack types
-  const threatTypes = analytics?.threat_type_summary || {};
-  const topAttacks = Object.entries(threatTypes)
-    .map(([name, count]) => ({ name, value: Number(count) }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 5);
-
-  // Top attacking countries
-  const countrySummary = analytics?.country_summary || [];
-  const topCountries = countrySummary.slice(0, 5).map((c: any) => ({
-    code: c.country_code,
-    name: c.country_name,
-    count: c.total_requests,
-  }));
-
-  const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#8b5cf6", "#ec4899"];
-
-  // Export functions (same as before)
-  const exportToPDF = async () => {
-    setExporting(true);
-    const element = document.getElementById("ciso-report-content");
-    if (!element) {
-      toast({ title: "Error", description: "Could not find report content", variant: "destructive" });
-      setExporting(false);
-      return;
-    }
-    try {
-      const canvas = await html2canvas(element, { scale: 2 });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const imgWidth = 210;
-      const pageHeight = 295;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+    const loadReports = async () => {
+      const platformId = localStorage.getItem("selected_platform_id");
+      if (!platformId) {
+        toast({ title: "Error", description: "No platform selected", variant: "destructive" });
+        setLoading(false);
+        return;
       }
-      pdf.save(`ciso-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+      try {
+        const data = await apiService.request(`/ciso-reports/?platform_id=${platformId}`, { method: "GET" });
+        setReports(data.results || data);
+      } catch (error) {
+        console.error(error);
+        toast({ title: "Error", description: "Failed to load report list", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadReports();
+  }, [toast]);
+
+  const loadReportDetail = async (reportId: string) => {
+    setLoading(true);
+    try {
+      const report = await apiService.request(`/ciso-reports/${reportId}/`, { method: "GET" });
+      setSelectedReport(report.report_data || report);
     } catch (error) {
       console.error(error);
-      toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to load report", variant: "destructive" });
     } finally {
-      setExporting(false);
+      setLoading(false);
     }
   };
 
-  const exportToCSV = () => {
-    const rows = [
-      ["Metric", "Value"],
-      ["Total Requests", totalRequests],
-      ["Blocked Threats", blockedRequests],
-      ["Success Rate (%)", successRate.toFixed(2)],
-      ["Block Rate (%)", blockedRate.toFixed(2)],
-      [],
-      ["Top Attack Types", "Count"],
-      ...topAttacks.map(a => [a.name, a.value]),
-      [],
-      ["Top Attacking Countries", "Requests"],
-      ...topCountries.map(c => [`${c.name} (${c.code})`, c.count]),
-    ];
-    const csvContent = rows.map(row => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ciso-report-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportToPDF = () => {
+    setExporting(true);
+    window.print();
+    setExporting(false);
+    toast({ title: "PDF Ready", description: "Use 'Save as PDF' in the print dialog." });
   };
 
-  if (loading) {
+  const formatMonthYear = (year: number, month: number) =>
+    new Date(year, month - 1).toLocaleString("default", { month: "long", year: "numeric" });
+
+  const COLORS = ["#ef4444", "#f97316", "#eab308", "#3b82f6", "#8b5cf6"];
+
+  // --------------------------------------------------------------------------
+  // REPORT LIST VIEW
+  // --------------------------------------------------------------------------
+  if (!selectedReport) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#F4F8FF] dark:bg-[#0F1724]">
-        <div className="flex h-72 w-full max-w-lg items-center justify-center rounded-2xl bg-white shadow-sm dark:bg-slate-900">
-          <div className="text-center">
-            <Activity className="mx-auto mb-4 h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-sm text-slate-600 dark:text-slate-400">Loading CISO report...</p>
+      <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">CISO Monthly Reports</h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-1">Select a month to view the security dashboard</p>
           </div>
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          ) : reports.length === 0 ? (
+            <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-xl">
+              <FileText className="h-12 w-12 mx-auto text-slate-400" />
+              <p className="mt-3 text-slate-500">No reports available yet.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {reports.map((report) => (
+                <motion.div
+                  key={report.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                  onClick={() => loadReportDetail(report.id)}
+                >
+                  <div className="p-5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <Calendar className="h-5 w-5 text-indigo-500 mb-2" />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                          {formatMonthYear(report.year, report.month)}
+                        </h3>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={
+                          report.risk_status === "Low"
+                            ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400"
+                            : report.risk_status === "Moderate"
+                            ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400"
+                        }
+                      >
+                        {report.risk_status} Risk
+                      </Badge>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between text-sm">
+                      <span className="text-slate-500 dark:text-slate-400">Risk Index</span>
+                      <span className="font-mono font-semibold">{report.risk_index}/100</span>
+                    </div>
+                    <div className="mt-2 text-xs text-slate-400">
+                      Generated {new Date(report.generated_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
+  // --------------------------------------------------------------------------
+  // DETAILED DASHBOARD VIEW (with Discovered Endpoints Table)
+  // --------------------------------------------------------------------------
+  const report = selectedReport;
+  const blockedPercent = report.total_requests
+    ? ((report.blocked_requests / report.total_requests) * 100).toFixed(1)
+    : "0";
+
+  // Remediation projects (from endpoint scores)
+  const remediationProjects = (report.endpoint_scores || []).slice(0, 5).map((ep) => {
+    const estCost = ep.security_score < 30 ? 10000 : ep.security_score < 70 ? 5000 : 2000;
+    const rosi = estCost > 0 ? ((100 - ep.security_score) / 100 * 100).toFixed(0) : "0";
+    return {
+      name: ep.name,
+      security_score: ep.security_score,
+      estCost,
+      rosi,
+    };
+  });
+
   return (
-    <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
+    <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6 print:bg-white">
       <div className="w-full space-y-6">
-        {/* Header - matching PlatformDetails gradient */}
+        {/* Gradient header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
           className="rounded-[24px] bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 text-white shadow-lg"
         >
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0 flex-1">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
               <div className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                  {platformName}
+                <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium">
+                  {formatMonthYear(report.metadata.year, report.metadata.month)}
                 </span>
+                <Badge variant="outline" className="border-white/30 bg-white/15 text-white hover:bg-white/25">
+                  {report.metadata.risk_status} Risk
+                </Badge>
               </div>
-              <h1 className="text-2xl lg:text-3xl font-bold leading-tight tracking-tight mb-3">
-                CISO Security Report
-              </h1>
-              <p className="text-sm text-blue-100 max-w-xl">
-                Executive summary for API security posture and threat landscape
+              <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">CISO Executive Dashboard</h1>
+              <p className="text-sm text-blue-100 mt-1">
+                API Security Posture & Financial Risk – Last 30 Days
               </p>
             </div>
-
             <div className="flex flex-wrap items-center gap-3">
-              <select
-                className="rounded-lg border border-white/30 bg-white/15 px-3 py-2 text-sm text-white backdrop-blur-sm focus:outline-none"
-                value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
-              >
-                {TIME_RANGES.map((range) => (
-                  <option key={range.value} value={range.value} className="text-slate-900">
-                    {range.label}
-                  </option>
-                ))}
-              </select>
-              <Button
-                variant="outline"
-                onClick={exportToCSV}
-                className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25 hover:!text-white"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                CSV
+              <Button variant="outline" onClick={exportToPDF} disabled={exporting} className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25">
+                <Download className="mr-2 h-4 w-4" /> PDF
               </Button>
-              <Button
-                variant="outline"
-                onClick={exportToPDF}
-                disabled={exporting}
-                className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25 hover:!text-white"
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                {exporting ? "Generating..." : "PDF"}
+              <Button variant="outline" onClick={() => setSelectedReport(null)} className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25">
+                <ChevronLeft className="mr-2 h-4 w-4" /> All Reports
               </Button>
             </div>
           </div>
         </motion.div>
 
-        <div id="ciso-report-content" className="space-y-6">
-          {/* Metric Cards - same style as PlatformDetails */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-          >
-            <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">total_requests</span>
-                  <Activity className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div className="mt-4"><AnimatedNumber value={totalRequests} className="font-sans tabular-nums text-3xl font-semibold leading-none tracking-[-0.05em] text-slate-900 dark:text-white" /></div>
-                <p className="mt-3 text-sm font-medium text-slate-400 dark:text-slate-500">Requests received</p>
-                <div className="mt-4 h-1.5 rounded-full bg-blue-50 dark:bg-slate-800">
-                  <div className="h-1.5 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 transition-all duration-700" style={{ width: totalRequests > 0 ? "100%" : "0%" }} />
-                </div>
-              </CardContent>
-            </Card>
+        {/* Executive Summary */}
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+          <CardHeader className="border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
+            <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Executive Summary</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              {report.executive_summary ||
+                `Overall API risk status is ${report.metadata.risk_status} with a risk index of ${report.risk_index}/100. 
+                Total requests: ${report.total_requests}, blocked threats: ${report.blocked_requests}. 
+                Estimated financial loss (30d): $${report.weighted_loss_30d.toLocaleString()}. 
+                Control score: ${report.control_score}%.`}
+            </p>
+          </CardContent>
+        </Card>
 
-            <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">blocked_threats</span>
-                  <Shield className="h-4 w-4 text-red-500 dark:text-red-400" />
-                </div>
-                <div className="mt-4"><AnimatedNumber value={blockedRequests} className="font-sans tabular-nums text-3xl font-semibold leading-none tracking-[-0.05em] text-slate-900 dark:text-white" /></div>
-                <p className="mt-3 text-sm font-medium text-slate-400 dark:text-slate-500">Threats mitigated</p>
-                <div className="mt-4 h-1.5 rounded-full bg-red-50 dark:bg-slate-800">
-                  <div className="h-1.5 rounded-full bg-red-500 transition-all duration-700" style={{ width: totalRequests > 0 ? `${(blockedRequests / totalRequests) * 100}%` : "0%" }} />
-                </div>
-              </CardContent>
-            </Card>
+        {/* KPI Cards */}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard title="Total Requests" value={report.total_requests.toLocaleString()} icon={<Activity />} color="blue" />
+          <KpiCard title="Blocked Threats" value={report.blocked_requests.toLocaleString()} subtitle={`${blockedPercent}% of traffic`} icon={<AlertTriangle />} color="red" />
+          <KpiCard title="Weighted Loss (30d)" value={`$${report.weighted_loss_30d.toLocaleString()}`} subtitle={`ALE: $${report.ale.toLocaleString()}`} icon={<DollarSign />} color="emerald" />
+          <KpiCard title="Control Score / Risk Index" value={`${report.control_score}% / ${report.risk_index}%`} subtitle="Effectiveness vs Residual Risk" icon={<Shield />} color="purple" />
+        </div>
 
-            <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">success_rate</span>
-                  <TrendingUp className="h-4 w-4 text-green-500 dark:text-green-400" />
-                </div>
-                <div className="mt-4"><AnimatedNumber value={successRate} decimals={1} suffix="%" className="font-sans tabular-nums text-3xl font-semibold leading-none tracking-[-0.05em] text-slate-900 dark:text-white" /></div>
-                <p className="mt-3 text-sm font-medium text-slate-400 dark:text-slate-500">Successful requests</p>
-                <div className="mt-4 h-1.5 rounded-full bg-green-50 dark:bg-slate-800">
-                  <div className="h-1.5 rounded-full bg-green-500 transition-all duration-700" style={{ width: `${successRate}%` }} />
-                </div>
-              </CardContent>
-            </Card>
+        {/* Charts Row */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ChartCard title="Threat Type Distribution">
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie data={report.threat_distribution} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                  {report.threat_distribution.map((_, idx) => <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />)}
+                </Pie>
+                <Tooltip formatter={(val) => `${val}%`} />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartCard>
+          <ChartCard title="Top Threats by Financial Impact">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={report.threat_distribution} layout="vertical" margin={{ left: 40 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" tickFormatter={(v) => `$${v.toLocaleString()}`} />
+                <YAxis type="category" dataKey="name" width={100} />
+                <Tooltip formatter={(val) => `$${val.toLocaleString()}`} />
+                <Bar dataKey="financial_impact" fill="#ef4444" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        </div>
 
-            <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">block_rate</span>
-                  <AlertTriangle className="h-4 w-4 text-orange-500 dark:text-orange-400" />
-                </div>
-                <div className="mt-4"><AnimatedNumber value={blockedRate} decimals={1} suffix="%" className="font-sans tabular-nums text-3xl font-semibold leading-none tracking-[-0.05em] text-slate-900 dark:text-white" /></div>
-                <p className="mt-3 text-sm font-medium text-slate-400 dark:text-slate-500">Requests blocked</p>
-                <div className="mt-4 h-1.5 rounded-full bg-orange-50 dark:bg-slate-800">
-                  <div className="h-1.5 rounded-full bg-orange-500 transition-all duration-700" style={{ width: `${Math.min(blockedRate, 100)}%` }} />
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+        {/* Risk Matrix & Top Countries */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ChartCard title="Risk Matrix (Likelihood × Impact)">
+            <table className="w-full border-collapse text-sm">
+              <thead><tr className="bg-slate-100 dark:bg-slate-800"><th className="border p-2 text-left">Likelihood \ Impact</th><th className="border p-2">Low</th><th className="border p-2">Medium</th><th className="border p-2">High</th></tr></thead>
+              <tbody>
+                <tr><td className="border p-2 font-medium">High</td><td className="border p-2 text-center">—</td><td className="border p-2 text-center bg-yellow-50 dark:bg-yellow-950/30">{report.risk_matrix.high_med} med</td><td className="border p-2 text-center">—</td></tr>
+                <tr><td className="border p-2 font-medium">Medium</td><td className="border p-2 text-center">—</td><td className="border p-2 text-center">—</td><td className="border p-2 text-center bg-orange-50 dark:bg-orange-950/30">{report.risk_matrix.med_high} med</td></tr>
+                <tr><td className="border p-2 font-medium">Low</td><td className="border p-2 text-center">—</td><td className="border p-2 text-center">—</td><td className="border p-2 text-center">—</td></tr>
+              </tbody>
+            </table>
+          </ChartCard>
+          <ChartCard title="Top Request Origins">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={report.top_countries} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis type="category" dataKey="country" width={80} />
+                <Tooltip />
+                <Bar dataKey="requests" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        </div>
 
-          {/* Threat Trends Chart */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
-            <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-              <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4">
-                <div>
-                  <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Threat Trends</CardTitle>
-                  <CardDescription className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    {trendData.length && trendData[0]?.date ? "Daily blocked vs allowed requests" : "Request volume by HTTP method"}
-                  </CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6 pt-0">
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    {trendData.length && trendData[0]?.date ? (
-                      <AreaChart data={trendData}>
-                        <defs>
-                          <linearGradient id="blockedGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05} />
-                          </linearGradient>
-                          <linearGradient id="allowedGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0.05} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-                        <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Area type="monotone" dataKey="blocked" stroke="#ef4444" fill="url(#blockedGradient)" strokeWidth={2} name="Blocked" />
-                        <Area type="monotone" dataKey="allowed" stroke="#22c55e" fill="url(#allowedGradient)" strokeWidth={2} name="Allowed" />
-                      </AreaChart>
-                    ) : (
-                      <AreaChart data={trendData}>
-                        <defs>
-                          <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#93C5FD" stopOpacity={0.05} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-                        <XAxis dataKey="method" tick={{ fontSize: 12 }} />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Area type="monotone" dataKey="total" stroke="#2563EB" fill="url(#trendGradient)" strokeWidth={2} />
-                      </AreaChart>
-                    )}
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+        {/* Remediation Projects Table */}
+        {remediationProjects.length > 0 && (
+          <ChartCard title="Remediation Projects" icon={<TrendingUp />}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800">
+                  <tr><th className="p-3 text-left font-semibold">Endpoint</th><th className="p-3 text-left font-semibold">Security Score</th><th className="p-3 text-left font-semibold">Est. Project Cost</th><th className="p-3 text-left font-semibold">RoSI</th></tr>
+                </thead>
+                <tbody>
+                  {remediationProjects.map((proj, idx) => (
+                    <tr key={idx} className="border-b border-slate-200 dark:border-slate-700">
+                      <td className="p-3 font-mono text-xs">{proj.name}</td>
+                      <td className="p-3"><div className="flex items-center gap-2"><span className="text-sm">{proj.security_score}</span><div className="h-1.5 w-16 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${proj.security_score}%` }} /></div></div></td>
+                      <td className="p-3">${proj.estCost.toLocaleString()}</td>
+                      <td className="p-3 text-emerald-600 dark:text-emerald-400 font-medium">{proj.rosi}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </ChartCard>
+        )}
 
-          {/* Two-column: Attack Types & Countries */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
-              <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold">Top Attack Types</CardTitle>
-                  <CardDescription>Most frequent threat patterns</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {topAttacks.length > 0 ? (
-                    <div className="space-y-3">
-                      {topAttacks.map((item, idx) => (
-                        <div key={item.name} className="flex items-center justify-between rounded-lg px-3 py-2 border border-slate-200/70 dark:border-slate-800/80">
-                          <div className="flex items-center gap-2">
-                            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: colors[idx % colors.length] }} />
-                            <span className="text-sm text-slate-700 dark:text-slate-300">{item.name}</span>
-                          </div>
-                          <span className="font-mono text-sm font-semibold text-slate-500 dark:text-slate-400">{item.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex h-32 items-center justify-center">
-                      <p className="text-sm text-slate-500 dark:text-slate-400">No threat data available</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }}>
-              <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold">Top Attacking Countries</CardTitle>
-                  <CardDescription>Geographic distribution of requests</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {topCountries.length > 0 ? (
-                    <div className="space-y-3">
-                      {topCountries.map((country) => (
-                        <div key={country.code} className="flex items-center justify-between rounded-lg px-3 py-2 border border-slate-200/70 dark:border-slate-800/80">
-                          <div className="flex items-center gap-2">
-                            <Globe className="h-4 w-4 text-slate-400" />
-                            <span className="text-sm text-slate-700 dark:text-slate-300">{country.name} ({country.code})</span>
-                          </div>
-                          <span className="font-mono text-sm font-semibold text-slate-500 dark:text-slate-400">{country.count.toLocaleString()}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex h-32 items-center justify-center">
-                      <p className="text-sm text-slate-500 dark:text-slate-400">No country data available</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-
-          {/* Endpoint Security Scores */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }}>
-            <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Endpoint Security Scores</CardTitle>
-                <CardDescription>Security and health scores for top endpoints</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {endpointScores.length > 0 ? (
-                  <div className="space-y-3">
-                    {endpointScores.map((ep, idx) => (
-                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-lg px-4 py-3 border border-slate-200/70 dark:border-slate-800/80">
-                        <span className="truncate text-sm font-medium text-slate-800 dark:text-slate-200 max-w-[200px]">{ep.name}</span>
-                        <div className="flex gap-4 mt-2 sm:mt-0">
-                          <div className="flex items-center gap-1">
-                            <Shield className="h-3.5 w-3.5 text-blue-500" />
-                            <span className="text-sm">Security: <span className="font-mono font-bold">{ep.security_score}</span></span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Activity className="h-3.5 w-3.5 text-green-500" />
-                            <span className="text-sm">Health: <span className="font-mono font-bold">{ep.health_score}</span></span>
+        {/* ========== NEW: Discovered Endpoints Table ========== */}
+        {report.endpoint_scores && report.endpoint_scores.length > 0 && (
+          <ChartCard title="Discovered Endpoints (from API Discovery)" icon={<Server />}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800">
+                  <tr>
+                    <th className="p-3 text-left font-semibold">Endpoint</th>
+                    <th className="p-3 text-left font-semibold">Security Score</th>
+                    <th className="p-3 text-left font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.endpoint_scores.slice(0, 10).map((ep, idx) => (
+                    <tr key={idx} className="border-b border-slate-200 dark:border-slate-700">
+                      <td className="p-3 font-mono text-xs">{ep.name}</td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{ep.security_score}</span>
+                          <div className="h-1.5 w-16 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${ep.security_score}%` }} />
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex h-32 items-center justify-center">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">No endpoint scores available</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+                      </td>
+                      <td className="p-3">
+                        <Button variant="ghost" size="sm" className="text-xs">Protect</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </ChartCard>
+        )}
+
+        {/* Blocked Threats Trend */}
+        {report.daily_trend.length > 0 && (
+          <ChartCard title="Blocked Threats Trend (Last 30 days)">
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={report.daily_trend}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Area type="monotone" dataKey="count" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        )}
+
+        {/* API Estate & Vulnerability Posture */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ChartCard title="API Estate Overview" icon={<Server />}>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <StatItem label="Total APIs" value={report.api_estate.total} />
+              <StatItem label="Production" value={report.api_estate.production} />
+              <StatItem label="Shadow / Undocumented" value={report.api_estate.shadow} highlight />
+              <StatItem label="Internet‑facing" value={report.api_estate.internet_facing} />
+              <StatItem label="Internal" value={report.api_estate.internal} />
+              <StatItem label="Third‑party" value={report.api_estate.third_party} />
+              <StatItem label="New this month" value={report.api_estate.new_this_month} trend="up" />
+              <StatItem label="Retired" value={report.api_estate.retired_this_month} trend="down" />
+            </div>
+          </ChartCard>
+          <ChartCard title="Vulnerability & Exposure Posture" icon={<Lock />}>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <VulnItem label="Missing Auth" value={report.vulnerability_posture.missing_auth} />
+              <VulnItem label="Weak Auth Flows" value={report.vulnerability_posture.weak_auth} />
+              <VulnItem label="Excessive Data Exposure" value={report.vulnerability_posture.excessive_data} />
+              <VulnItem label="Deprecated Versions" value={report.vulnerability_posture.deprecated_versions} />
+              <VulnItem label="Sensitive Data Leakage" value={report.vulnerability_posture.sensitive_data_leakage} />
+              <VulnItem label="Missing Rate Limits" value={report.vulnerability_posture.missing_rate_limits} />
+              <VulnItem label="BOLA Findings" value={report.vulnerability_posture.bola_findings} />
+              <VulnItem label="TLS/Cert Issues" value={report.vulnerability_posture.tls_issues} />
+              <VulnItem label="Misconfigurations" value={report.vulnerability_posture.misconfigurations} />
+            </div>
+          </ChartCard>
+        </div>
+
+        {/* Incident Summary */}
+        <ChartCard title="Incident Summary" icon={<AlertTriangle />}>
+          {!report.incident_summary.has_incidents ? (
+            <p className="text-green-600">No material API security incidents this month.</p>
+          ) : (
+            report.incident_summary.incidents.map((inc, idx) => (
+              <div key={idx} className="border-l-4 border-red-400 pl-4 py-2 bg-red-50/30 dark:bg-red-950/20 rounded mb-3">
+                <p><strong>What happened:</strong> {inc.what}</p>
+                <p><strong>Impact:</strong> {inc.impact}</p>
+                <p><strong>Duration:</strong> {inc.duration} | <strong>Containment:</strong> {inc.containment}</p>
+                <p><strong>Root cause:</strong> {inc.root_cause}</p>
+                <p><strong>Lessons learned:</strong> {inc.lessons}</p>
+              </div>
+            ))
+          )}
+        </ChartCard>
+
+        {/* Compliance & Governance + Operational Performance */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ChartCard title="Compliance / Governance" icon={<CheckCircle />}>
+            <StatItem label="APIs handling PII" value={report.compliance.apis_handling_pii} />
+            <StatItem label="Third‑party review" value={report.compliance.third_party_review} />
+            <StatItem label="OWASP API Top 10 alignment" value={`${report.compliance.owasp_alignment}%`} />
+            <div className="mt-2"><span className="font-medium">Detected controls:</span><ul className="list-disc list-inside mt-1 text-slate-600 dark:text-slate-400">{report.compliance.controls.map((c, i) => <li key={i}>{c}</li>)}</ul></div>
+          </ChartCard>
+          <ChartCard title="Operational Performance" icon={<BarChart3 />}>
+            <StatItem label="Avg Response Time" value={`${report.operational.avg_response_ms} ms`} />
+            <StatItem label="Error Rate" value={`${report.operational.error_rate}%`} />
+            <StatItem label="Uptime" value={`${report.operational.uptime}%`} />
+            <StatItem label="Requests/sec" value={report.operational.rps} />
+          </ChartCard>
+        </div>
+
+        {/* Top Risks */}
+        <ChartCard title="Top Risks (if any)" icon={<TrendingUp />}>
+          {report.top_risks.length === 0 ? (
+            <p className="text-green-600">No outstanding top risks identified.</p>
+          ) : (
+            report.top_risks.map((risk, i) => (
+              <div key={i} className="bg-orange-50 dark:bg-orange-950/20 p-3 rounded-lg mb-3">
+                <p className="font-semibold">{risk.description}</p>
+                <div className="flex gap-4 mt-1 text-sm"><span>Likelihood: {risk.likelihood}</span><span>Impact: {risk.impact}</span></div>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Mitigation: {risk.mitigation}</p>
+              </div>
+            ))
+          )}
+        </ChartCard>
+
+        <div className="text-center text-xs text-slate-400 border-t pt-6 mt-4">
+          This report is automatically generated based on API traffic, discovery scans, and security alerts.
         </div>
       </div>
     </div>
   );
 };
+
+// ============================================================================
+// Helper Components
+// ============================================================================
+const KpiCard = ({ title, value, subtitle, icon, color }: any) => {
+  const colorClasses: Record<string, string> = {
+    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",
+    emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    purple: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
+  };
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm p-5">
+      <div className={`p-2 rounded-xl w-fit ${colorClasses[color]}`}>{icon}</div>
+      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-4">{title}</p>
+      <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
+      {subtitle && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{subtitle}</p>}
+    </div>
+  );
+};
+
+const ChartCard = ({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) => (
+  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm overflow-hidden">
+    <div className="p-4 border-b border-slate-200/70 dark:border-slate-800/70 flex items-center gap-2">
+      {icon && <span className="text-slate-500">{icon}</span>}
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h3>
+    </div>
+    <div className="p-4">{children}</div>
+  </div>
+);
+
+const StatItem = ({ label, value, highlight, trend }: any) => (
+  <div className={`flex justify-between items-center p-2 rounded-lg ${highlight ? "bg-red-50 dark:bg-red-950/20" : ""}`}>
+    <span className="text-sm text-slate-600 dark:text-slate-400">{label}</span>
+    <span className="font-mono font-semibold flex items-center gap-1">
+      {value}
+      {trend === "up" && <span className="text-green-600 text-xs">▲</span>}
+      {trend === "down" && <span className="text-red-600 text-xs">▼</span>}
+    </span>
+  </div>
+);
+
+const VulnItem = ({ label, value }: { label: string; value: number }) => (
+  <div className="flex justify-between items-center p-1">
+    <span className="text-xs text-slate-600 dark:text-slate-400">{label}</span>
+    <span className={`text-xs font-mono font-bold ${value > 0 ? "text-red-600" : "text-green-600"}`}>{value}</span>
+  </div>
+);
+
 
 export default CISOReports;

@@ -182,9 +182,14 @@ const CISOReports = () => {
     try {
       const data = await apiService.request(`/ciso-reports/?platform_id=${platformId}`, { method: "GET" });
       const fetchedReports = data.results || data;
-      setReports(fetchedReports);
+      // Sort reports by year and month (ascending = Jan, Feb, Mar, ...)
+      const sortedReports = [...fetchedReports].sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return a.month - b.month;
+      });
+      setReports(sortedReports);
       const savedReportId = localStorage.getItem("selected_ciso_report_id");
-      if (savedReportId && fetchedReports.some((r: MonthlyReportMetadata) => r.id === savedReportId)) {
+      if (savedReportId && sortedReports.some((r: MonthlyReportMetadata) => r.id === savedReportId)) {
         loadReportDetail(savedReportId);
       }
     } catch (error) {
@@ -213,21 +218,28 @@ const CISOReports = () => {
     }
   };
 
+  // Use apiService.request (no hardcoded localhost)
   const handleGenerateReport = async () => {
   const platformId = localStorage.getItem("selected_platform_id");
   if (!platformId) {
     toast({ title: "Error", description: "No platform selected", variant: "destructive" });
     return;
   }
+  const token = localStorage.getItem("auth_token");
+  if (!token) {
+    toast({ title: "Error", description: "Authentication token missing. Please log out and back in.", variant: "destructive" });
+    return;
+  }
+
   setGenerating(true);
   try {
-    const token = localStorage.getItem("auth_token");          // get the token
-    const response = await fetch("http://127.0.0.1:8000/api/v1/ciso-reports/generate/", {
+    const baseUrl = import.meta.env.VITE_API_URL || "https://staging.breachnet.io/api/v1";
+    const response = await fetch(`${baseUrl}/ciso-reports/generate/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Token ${token}`,                     // ← add this
-        "X-Platform-Id": platformId,                           // ← custom header
+        "Authorization": `Token ${token}`,
+        "X-Platform-Id": platformId,
       },
       body: JSON.stringify({
         year: genYear,
@@ -235,10 +247,12 @@ const CISOReports = () => {
         ai_notes: aiNotes,
       }),
     });
+
     if (!response.ok) {
       const text = await response.text();
       throw new Error(text || "Generation failed");
     }
+
     toast({ title: "Report generation started", description: "The report will appear shortly." });
     setGenerateOpen(false);
     setAiNotes("");
@@ -267,163 +281,163 @@ const CISOReports = () => {
   };
 
   // --------------------------------------------------------------------------
-  // LIST VIEW (with Generate button)
+  // LIST VIEW (with Generate button + shimmer card)
   // --------------------------------------------------------------------------
-  // --------------------------------------------------------------------------
-// LIST VIEW (with Generate button + shimmering "generating" card)
-// --------------------------------------------------------------------------
-if (!selectedReport) {
-  return (
-    <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-8 flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">CISO Monthly Reports</h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">Select a month to view the security dashboard</p>
+  if (!selectedReport) {
+    // Ensure shimmer keyframes exist
+    if (typeof document !== "undefined" && !document.querySelector("#shimmer-keyframes")) {
+      const style = document.createElement("style");
+      style.id = "shimmer-keyframes";
+      style.textContent = `
+        @keyframes shimmer {
+          100% { transform: translateX(100%); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    return (
+      <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-8 flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">CISO Monthly Reports</h1>
+              <p className="text-slate-500 dark:text-slate-400 mt-1">Select a month to view the security dashboard</p>
+            </div>
+            <Button onClick={() => setGenerateOpen(true)} className="rounded-full shadow-md">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Generate Report
+            </Button>
           </div>
-          <Button
-            onClick={() => setGenerateOpen(true)}
-            className="rounded-full shadow-md"
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Generate Report
-          </Button>
+
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {reports.map((report) => (
+                <motion.div
+                  key={report.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                  onClick={() => loadReportDetail(report.id)}
+                >
+                  <div className="p-5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <Calendar className="h-5 w-5 text-indigo-500 mb-2" />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                          {formatMonthYear(report.year, report.month)}
+                        </h3>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={
+                          report.risk_status === "Low"
+                            ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400"
+                            : report.risk_status === "Moderate"
+                            ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400"
+                        }
+                      >
+                        {report.risk_status} Risk
+                      </Badge>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between text-sm">
+                      <span className="text-slate-500 dark:text-slate-400">Risk Index</span>
+                      <span className="font-mono font-semibold">{report.risk_index}/100</span>
+                    </div>
+                    <div className="mt-2 text-xs text-slate-400">
+                      Generated {new Date(report.generated_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+
+              {/* AI‑style “Generating report” shimmer card */}
+              {generating && (
+                <div className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm overflow-hidden cursor-wait">
+                  <div className="p-5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="h-5 w-5 bg-indigo-200 dark:bg-indigo-800 rounded-full mb-2 animate-pulse" />
+                        <div className="h-6 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                      </div>
+                      <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse" />
+                    </div>
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                      <div className="h-4 w-12 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                    </div>
+                    <div className="mt-3 flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400">
+                      <div className="relative flex h-4 w-4">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500 top-1 left-1" />
+                      </div>
+                      <span className="animate-pulse font-medium">AI generating report...</span>
+                    </div>
+                  </div>
+                  {/* Shimmer overlay */}
+                  <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent dark:via-white/5" />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Existing reports */}
-            {reports.map((report) => (
-              <motion.div
-                key={report.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm hover:shadow-md transition-all cursor-pointer"
-                onClick={() => loadReportDetail(report.id)}
-              >
-                <div className="p-5">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <Calendar className="h-5 w-5 text-indigo-500 mb-2" />
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                        {formatMonthYear(report.year, report.month)}
-                      </h3>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={
-                        report.risk_status === "Low"
-                          ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400"
-                          : report.risk_status === "Moderate"
-                          ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400"
-                          : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400"
-                      }
-                    >
-                      {report.risk_status} Risk
-                    </Badge>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between text-sm">
-                    <span className="text-slate-500 dark:text-slate-400">Risk Index</span>
-                    <span className="font-mono font-semibold">{report.risk_index}/100</span>
-                  </div>
-                  <div className="mt-2 text-xs text-slate-400">
-                    Generated {new Date(report.generated_at).toLocaleDateString()}
-                  </div>
+        {/* Generate Report Modal */}
+        <Dialog open={generateOpen} onOpenChange={setGenerateOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Generate Monthly CISO Report</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="year">Year</Label>
+                  <Input
+                    id="year"
+                    type="number"
+                    value={genYear}
+                    onChange={(e) => setGenYear(parseInt(e.target.value))}
+                  />
                 </div>
-              </motion.div>
-            ))}
-
-            {/* AI-style "Generating report" shimmer card */}
-            {generating && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.2 }}
-                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm overflow-hidden cursor-wait"
-              >
-                <div className="p-5">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="h-5 w-5 bg-indigo-200 dark:bg-indigo-800 rounded-full mb-2 animate-pulse" />
-                      <div className="h-6 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                    </div>
-                    <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse" />
-                  </div>
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                    <div className="h-4 w-12 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                  </div>
-                  <div className="mt-3 flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400">
-                    <div className="relative flex h-4 w-4">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500 top-1 left-1" />
-                    </div>
-                    <span className="animate-pulse font-medium">AI generating report...</span>
-                  </div>
+                <div>
+                  <Label htmlFor="month">Month</Label>
+                  <Input
+                    id="month"
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={genMonth}
+                    onChange={(e) => setGenMonth(parseInt(e.target.value))}
+                  />
                 </div>
-                {/* Shimmer overlay */}
-                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent dark:via-white/5" />
-              </motion.div>
-            )}
-          </div>
-        )}
+              </div>
+              <div>
+                <Label htmlFor="aiNotes">AI Notes (optional)</Label>
+                <Textarea
+                  id="aiNotes"
+                  placeholder="Add context for the AI summary (e.g., major incidents, business priorities)..."
+                  value={aiNotes}
+                  onChange={(e) => setAiNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setGenerateOpen(false)}>Cancel</Button>
+              <Button onClick={handleGenerateReport} disabled={generating}>
+                {generating ? "Generating..." : "Generate"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-
-      {/* Generate Report Modal (unchanged) */}
-      <Dialog open={generateOpen} onOpenChange={setGenerateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Generate Monthly CISO Report</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label htmlFor="year">Year</Label>
-                <Input
-                  id="year"
-                  type="number"
-                  value={genYear}
-                  onChange={(e) => setGenYear(parseInt(e.target.value))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="month">Month</Label>
-                <Input
-                  id="month"
-                  type="number"
-                  min={1}
-                  max={12}
-                  value={genMonth}
-                  onChange={(e) => setGenMonth(parseInt(e.target.value))}
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="aiNotes">AI Notes (optional)</Label>
-              <Textarea
-                id="aiNotes"
-                placeholder="Add context for the AI summary (e.g., major incidents, business priorities)..."
-                value={aiNotes}
-                onChange={(e) => setAiNotes(e.target.value)}
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setGenerateOpen(false)}>Cancel</Button>
-            <Button onClick={handleGenerateReport} disabled={generating}>
-              {generating ? "Generating..." : "Generate"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+    );
+  }
 
   // --------------------------------------------------------------------------
   // DETAIL DASHBOARD (unchanged)

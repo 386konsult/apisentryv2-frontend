@@ -21,7 +21,18 @@ import {
   DollarSign,
   Gauge,
   Zap,
+  PlusCircle,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   PieChart,
   Pie,
@@ -40,7 +51,7 @@ import {
 } from "recharts";
 
 // ============================================================================
-// TYPES (unchanged)
+// TYPES
 // ============================================================================
 interface MonthlyReportMetadata {
   id: string;
@@ -97,6 +108,56 @@ const THREAT_COLORS = ["#ef4444", "#f97316", "#eab308", "#3b82f6", "#06b6d4"];
 const COLORS = ["#ef4444", "#f97316", "#eab308", "#3b82f6", "#8b5cf6"];
 
 // ============================================================================
+// HELPER COMPONENTS
+// ============================================================================
+const KpiCard = ({ title, value, subtitle, icon, color }: any) => {
+  const colorClasses: Record<string, string> = {
+    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",
+    emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    purple: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
+  };
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm p-5">
+      <div className={`p-2 rounded-xl w-fit ${colorClasses[color]}`}>{icon}</div>
+      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-4">{title}</p>
+      <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
+      {subtitle && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{subtitle}</p>}
+    </div>
+  );
+};
+
+const ChartCard = ({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) => (
+  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm overflow-hidden">
+    <div className="p-4 border-b border-slate-200/70 dark:border-slate-800/70 flex items-center gap-2 bg-white dark:bg-slate-900">
+      {icon && <span className="text-slate-500">{icon}</span>}
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h3>
+    </div>
+    <div className="p-4">{children}</div>
+  </div>
+);
+
+const StatItem = ({ label, value, highlight, trend }: any) => (
+  <div
+    className={`flex justify-between items-center p-2 rounded-lg ${highlight ? "bg-red-50 dark:bg-red-950/20" : ""}`}
+  >
+    <span className="text-sm text-slate-600 dark:text-slate-400">{label}</span>
+    <span className="font-mono font-semibold flex items-center gap-1">
+      {value}
+      {trend === "up" && <span className="text-green-600 text-xs">▲</span>}
+      {trend === "down" && <span className="text-red-600 text-xs">▼</span>}
+    </span>
+  </div>
+);
+
+const VulnItem = ({ label, value }: { label: string; value: number }) => (
+  <div className="flex justify-between items-center p-1">
+    <span className="text-xs text-slate-600 dark:text-slate-400">{label}</span>
+    <span className={`text-xs font-mono font-bold ${value > 0 ? "text-red-600" : "text-green-600"}`}>{value}</span>
+  </div>
+);
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 const CISOReports = () => {
@@ -104,33 +165,37 @@ const CISOReports = () => {
   const [selectedReport, setSelectedReport] = useState<CisoReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genYear, setGenYear] = useState(new Date().getFullYear());
+  const [genMonth, setGenMonth] = useState(new Date().getMonth() + 1);
+  const [aiNotes, setAiNotes] = useState("");
   const { toast } = useToast();
 
-  // Load report list
-  useEffect(() => {
-    const loadReports = async () => {
-      const platformId = localStorage.getItem("selected_platform_id");
-      if (!platformId) {
-        toast({ title: "Error", description: "No platform selected", variant: "destructive" });
-        setLoading(false);
-        return;
+  const loadReports = async () => {
+    const platformId = localStorage.getItem("selected_platform_id");
+    if (!platformId) {
+      toast({ title: "Error", description: "No platform selected", variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+    try {
+      const data = await apiService.request(`/ciso-reports/?platform_id=${platformId}`, { method: "GET" });
+      const fetchedReports = data.results || data;
+      setReports(fetchedReports);
+      const savedReportId = localStorage.getItem("selected_ciso_report_id");
+      if (savedReportId && fetchedReports.some((r: MonthlyReportMetadata) => r.id === savedReportId)) {
+        loadReportDetail(savedReportId);
       }
-      try {
-        const data = await apiService.request(`/ciso-reports/?platform_id=${platformId}`, { method: "GET" });
-        const fetchedReports = data.results || data;
-        setReports(fetchedReports);
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Error", description: "Failed to load report list", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        const savedReportId = localStorage.getItem("selected_ciso_report_id");
-        if (savedReportId && fetchedReports.some((r: MonthlyReportMetadata) => r.id === savedReportId)) {
-          loadReportDetail(savedReportId);
-        }
-      } catch (error) {
-        console.error(error);
-        toast({ title: "Error", description: "Failed to load report list", variant: "destructive" });
-      } finally {
-        setLoading(false);
-      }
-    };
+  useEffect(() => {
     loadReports();
   }, [toast]);
 
@@ -148,6 +213,44 @@ const CISOReports = () => {
     }
   };
 
+  const handleGenerateReport = async () => {
+  const platformId = localStorage.getItem("selected_platform_id");
+  if (!platformId) {
+    toast({ title: "Error", description: "No platform selected", variant: "destructive" });
+    return;
+  }
+  setGenerating(true);
+  try {
+    const token = localStorage.getItem("auth_token");          // get the token
+    const response = await fetch("http://127.0.0.1:8000/api/v1/ciso-reports/generate/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Token ${token}`,                     // ← add this
+        "X-Platform-Id": platformId,                           // ← custom header
+      },
+      body: JSON.stringify({
+        year: genYear,
+        month: genMonth,
+        ai_notes: aiNotes,
+      }),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || "Generation failed");
+    }
+    toast({ title: "Report generation started", description: "The report will appear shortly." });
+    setGenerateOpen(false);
+    setAiNotes("");
+    setTimeout(() => loadReports(), 2000);
+  } catch (error: any) {
+    console.error(error);
+    toast({ title: "Error", description: error?.message || "Failed to generate report", variant: "destructive" });
+  } finally {
+    setGenerating(false);
+  }
+};
+
   const exportToPDF = () => {
     setExporting(true);
     window.print();
@@ -164,75 +267,166 @@ const CISOReports = () => {
   };
 
   // --------------------------------------------------------------------------
-  // LIST VIEW
+  // LIST VIEW (with Generate button)
   // --------------------------------------------------------------------------
-  if (!selectedReport) {
-    return (
-      <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-8">
+  // --------------------------------------------------------------------------
+// LIST VIEW (with Generate button + shimmering "generating" card)
+// --------------------------------------------------------------------------
+if (!selectedReport) {
+  return (
+    <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] p-6">
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-8 flex justify-between items-center">
+          <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">CISO Monthly Reports</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">Select a month to view the security dashboard</p>
           </div>
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-            </div>
-          ) : reports.length === 0 ? (
-            <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-xl">
-              <FileText className="h-12 w-12 mx-auto text-slate-400" />
-              <p className="mt-3 text-slate-500">No reports available yet.</p>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {reports.map((report) => (
-                <motion.div
-                  key={report.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm hover:shadow-md transition-all cursor-pointer"
-                  onClick={() => loadReportDetail(report.id)}
-                >
-                  <div className="p-5">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <Calendar className="h-5 w-5 text-indigo-500 mb-2" />
-                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                          {formatMonthYear(report.year, report.month)}
-                        </h3>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={
-                          report.risk_status === "Low"
-                            ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400"
-                            : report.risk_status === "Moderate"
-                            ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400"
-                            : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400"
-                        }
-                      >
-                        {report.risk_status} Risk
-                      </Badge>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between text-sm">
-                      <span className="text-slate-500 dark:text-slate-400">Risk Index</span>
-                      <span className="font-mono font-semibold">{report.risk_index}/100</span>
-                    </div>
-                    <div className="mt-2 text-xs text-slate-400">
-                      Generated {new Date(report.generated_at).toLocaleDateString()}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
+          <Button
+            onClick={() => setGenerateOpen(true)}
+            className="rounded-full shadow-md"
+          >
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Generate Report
+          </Button>
         </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* Existing reports */}
+            {reports.map((report) => (
+              <motion.div
+                key={report.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                onClick={() => loadReportDetail(report.id)}
+              >
+                <div className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <Calendar className="h-5 w-5 text-indigo-500 mb-2" />
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                        {formatMonthYear(report.year, report.month)}
+                      </h3>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={
+                        report.risk_status === "Low"
+                          ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400"
+                          : report.risk_status === "Moderate"
+                          ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400"
+                          : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400"
+                      }
+                    >
+                      {report.risk_status} Risk
+                    </Badge>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between text-sm">
+                    <span className="text-slate-500 dark:text-slate-400">Risk Index</span>
+                    <span className="font-mono font-semibold">{report.risk_index}/100</span>
+                  </div>
+                  <div className="mt-2 text-xs text-slate-400">
+                    Generated {new Date(report.generated_at).toLocaleDateString()}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+
+            {/* AI-style "Generating report" shimmer card */}
+            {generating && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.2 }}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm overflow-hidden cursor-wait"
+              >
+                <div className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="h-5 w-5 bg-indigo-200 dark:bg-indigo-800 rounded-full mb-2 animate-pulse" />
+                      <div className="h-6 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                    </div>
+                    <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse" />
+                  </div>
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                    <div className="h-4 w-12 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400">
+                    <div className="relative flex h-4 w-4">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500 top-1 left-1" />
+                    </div>
+                    <span className="animate-pulse font-medium">AI generating report...</span>
+                  </div>
+                </div>
+                {/* Shimmer overlay */}
+                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent dark:via-white/5" />
+              </motion.div>
+            )}
+          </div>
+        )}
       </div>
-    );
-  }
+
+      {/* Generate Report Modal (unchanged) */}
+      <Dialog open={generateOpen} onOpenChange={setGenerateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate Monthly CISO Report</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="year">Year</Label>
+                <Input
+                  id="year"
+                  type="number"
+                  value={genYear}
+                  onChange={(e) => setGenYear(parseInt(e.target.value))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="month">Month</Label>
+                <Input
+                  id="month"
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={genMonth}
+                  onChange={(e) => setGenMonth(parseInt(e.target.value))}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="aiNotes">AI Notes (optional)</Label>
+              <Textarea
+                id="aiNotes"
+                placeholder="Add context for the AI summary (e.g., major incidents, business priorities)..."
+                value={aiNotes}
+                onChange={(e) => setAiNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenerateOpen(false)}>Cancel</Button>
+            <Button onClick={handleGenerateReport} disabled={generating}>
+              {generating ? "Generating..." : "Generate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
   // --------------------------------------------------------------------------
-  // DETAIL DASHBOARD
+  // DETAIL DASHBOARD (unchanged)
   // --------------------------------------------------------------------------
   const report = selectedReport;
   const blockedPercent = report.total_requests
@@ -281,19 +475,10 @@ const CISOReports = () => {
               <p className="text-sm text-blue-100 mt-1">API Security Posture & Financial Risk – Last 30 Days</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={exportToPDF}
-                disabled={exporting}
-                className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25"
-              >
+              <Button variant="outline" onClick={exportToPDF} disabled={exporting} className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25">
                 <Download className="mr-2 h-4 w-4" /> PDF
               </Button>
-              <Button
-                variant="outline"
-                onClick={handleBackToList}
-                className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25"
-              >
+              <Button variant="outline" onClick={handleBackToList} className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25">
                 <ChevronLeft className="mr-2 h-4 w-4" /> All Reports
               </Button>
             </div>
@@ -348,30 +533,11 @@ const CISOReports = () => {
             <CardContent className="pt-2">
               <ResponsiveContainer width="100%" height={140}>
                 <RadialBarChart innerRadius="70%" outerRadius="100%" data={riskGaugeData} startAngle={180} endAngle={0}>
-                  <RadialBar
-                    minAngle={15}
-                    background
-                    clockWise
-                    dataKey="value"
-                    cornerRadius={10}
-                    fill={riskGaugeData[0].fill}
-                  />
-                  <text
-                    x="50%"
-                    y="50%"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="text-2xl font-bold fill-slate-900 dark:fill-white"
-                  >
+                  <RadialBar minAngle={15} background clockWise dataKey="value" cornerRadius={10} fill={riskGaugeData[0].fill} />
+                  <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" className="text-2xl font-bold fill-slate-900 dark:fill-white">
                     {report.risk_index}
                   </text>
-                  <text
-                    x="50%"
-                    y="65%"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="text-xs fill-slate-500 dark:fill-slate-400"
-                  >
+                  <text x="50%" y="65%" textAnchor="middle" dominantBaseline="middle" className="text-xs fill-slate-500 dark:fill-slate-400">
                     /100
                   </text>
                 </RadialBarChart>
@@ -396,10 +562,7 @@ const CISOReports = () => {
                 </div>
               </div>
               <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-700">
-                <div
-                  className="h-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
-                  style={{ width: `${postureScore}%` }}
-                />
+                <div className="h-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500" style={{ width: `${postureScore}%` }} />
               </div>
             </CardContent>
           </Card>
@@ -411,9 +574,7 @@ const CISOReports = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-4xl font-bold text-slate-900 dark:text-white">
-                {report.compliance.owasp_alignment}%
-              </div>
+              <div className="text-4xl font-bold text-slate-900 dark:text-white">{report.compliance.owasp_alignment}%</div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">OWASP Top 10 Alignment</p>
               <div className="mt-4 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                 <span className="font-medium">Third‑party review:</span> {report.compliance.third_party_review}
@@ -425,27 +586,9 @@ const CISOReports = () => {
         {/* KPI Cards */}
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard title="Total Requests" value={report.total_requests.toLocaleString()} icon={<Activity />} color="blue" />
-          <KpiCard
-            title="Blocked Threats"
-            value={report.blocked_requests.toLocaleString()}
-            subtitle={`${blockedPercent}% of traffic`}
-            icon={<AlertTriangle />}
-            color="red"
-          />
-          <KpiCard
-            title="Weighted Loss (30d)"
-            value={`$${report.weighted_loss_30d.toLocaleString()}`}
-            subtitle={`ALE: $${report.ale.toLocaleString()}`}
-            icon={<DollarSign />}
-            color="emerald"
-          />
-          <KpiCard
-            title="Control Score / Risk Index"
-            value={`${report.control_score}% / ${report.risk_index}%`}
-            subtitle="Effectiveness vs Residual Risk"
-            icon={<Shield />}
-            color="purple"
-          />
+          <KpiCard title="Blocked Threats" value={report.blocked_requests.toLocaleString()} subtitle={`${blockedPercent}% of traffic`} icon={<AlertTriangle />} color="red" />
+          <KpiCard title="Weighted Loss (30d)" value={`$${report.weighted_loss_30d.toLocaleString()}`} subtitle={`ALE: $${report.ale.toLocaleString()}`} icon={<DollarSign />} color="emerald" />
+          <KpiCard title="Control Score / Risk Index" value={`${report.control_score}% / ${report.risk_index}%`} subtitle="Effectiveness vs Residual Risk" icon={<Shield />} color="purple" />
         </div>
 
         {/* Executive Summary */}
@@ -482,18 +625,14 @@ const CISOReports = () => {
                 <tr>
                   <td className="border p-2 font-medium">High</td>
                   <td className="border p-2 text-center">—</td>
-                  <td className="border p-2 text-center bg-yellow-50 dark:bg-yellow-950/30">
-                    {report.risk_matrix.high_med} med
-                  </td>
+                  <td className="border p-2 text-center bg-yellow-50 dark:bg-yellow-950/30">{report.risk_matrix.high_med} med</td>
                   <td className="border p-2 text-center">—</td>
                 </tr>
                 <tr>
                   <td className="border p-2 font-medium">Medium</td>
                   <td className="border p-2 text-center">—</td>
                   <td className="border p-2 text-center">—</td>
-                  <td className="border p-2 text-center bg-orange-50 dark:bg-orange-950/30">
-                    {report.risk_matrix.med_high} med
-                  </td>
+                  <td className="border p-2 text-center bg-orange-50 dark:bg-orange-950/30">{report.risk_matrix.med_high} med</td>
                 </tr>
                 <tr>
                   <td className="border p-2 font-medium">Low</td>
@@ -538,17 +677,12 @@ const CISOReports = () => {
                         <div className="flex items-center gap-2">
                           <span className="text-sm">{proj.security_score}</span>
                           <div className="h-1.5 w-16 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-emerald-500"
-                              style={{ width: `${proj.security_score}%` }}
-                            />
+                            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${proj.security_score}%` }} />
                           </div>
                         </div>
                       </td>
                       <td className="p-3">${proj.estCost.toLocaleString()}</td>
-                      <td className="p-3 text-emerald-600 dark:text-emerald-400 font-medium">
-                        {proj.rosi}%
-                      </td>
+                      <td className="p-3 text-emerald-600 dark:text-emerald-400 font-medium">{proj.rosi}%</td>
                     </tr>
                   ))}
                 </tbody>
@@ -577,17 +711,12 @@ const CISOReports = () => {
                         <div className="flex items-center gap-2">
                           <span className="text-sm">{ep.security_score}</span>
                           <div className="h-1.5 w-16 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-emerald-500"
-                              style={{ width: `${ep.security_score}%` }}
-                            />
+                            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${ep.security_score}%` }} />
                           </div>
                         </div>
                       </td>
                       <td className="p-3">
-                        <Button variant="ghost" size="sm" className="text-xs">
-                          Protect
-                        </Button>
+                        <Button variant="ghost" size="sm" className="text-xs">Protect</Button>
                       </td>
                     </tr>
                   ))}
@@ -606,13 +735,7 @@ const CISOReports = () => {
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
-                <Area
-                  type="monotone"
-                  dataKey="count"
-                  stroke="#8b5cf6"
-                  fill="#8b5cf6"
-                  fillOpacity={0.2}
-                />
+                <Area type="monotone" dataKey="count" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} />
               </AreaChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -653,10 +776,7 @@ const CISOReports = () => {
             <p className="text-green-600">No material API security incidents this month.</p>
           ) : (
             report.incident_summary.incidents.map((inc, idx) => (
-              <div
-                key={idx}
-                className="border-l-4 border-red-400 pl-4 py-2 bg-red-50/30 dark:bg-red-950/20 rounded mb-3"
-              >
+              <div key={idx} className="border-l-4 border-red-400 pl-4 py-2 bg-red-50/30 dark:bg-red-950/20 rounded mb-3">
                 <p><strong>What happened:</strong> {inc.what}</p>
                 <p><strong>Impact:</strong> {inc.impact}</p>
                 <p><strong>Duration:</strong> {inc.duration} | <strong>Containment:</strong> {inc.containment}</p>
@@ -676,9 +796,7 @@ const CISOReports = () => {
             <div className="mt-2">
               <span className="font-medium">Detected controls:</span>
               <ul className="list-disc list-inside mt-1 text-slate-600 dark:text-slate-400">
-                {report.compliance.controls.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
+                {report.compliance.controls.map((c, i) => <li key={i}>{c}</li>)}
               </ul>
             </div>
           </ChartCard>
@@ -702,15 +820,13 @@ const CISOReports = () => {
                   <span>Likelihood: {risk.likelihood}</span>
                   <span>Impact: {risk.impact}</span>
                 </div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                  Mitigation: {risk.mitigation}
-                </p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Mitigation: {risk.mitigation}</p>
               </div>
             ))
           )}
         </ChartCard>
 
-        {/* AI Incident Summary Card (placed here) */}
+        {/* AI Incident Summary Card */}
         <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
           <CardHeader className="border-b border-slate-200/70 dark:border-slate-800/70 bg-gradient-to-r from-purple-50 to-transparent dark:from-purple-900/20">
             <CardTitle className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -734,25 +850,15 @@ const CISOReports = () => {
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-slate-700 dark:text-slate-300">
-                  ⚠️ <strong>Incident activity detected.</strong> During{" "}
-                  {formatMonthYear(report.metadata.year, report.metadata.month)},
-                  the system recorded{" "}
-                  <span className="font-bold text-amber-600">
-                    {report.incident_summary.incidents.length}
-                  </span>{" "}
-                  material incident(s).
+                  ⚠️ <strong>Incident activity detected.</strong> During {formatMonthYear(report.metadata.year, report.metadata.month)},
+                  the system recorded <span className="font-bold text-amber-600">{report.incident_summary.incidents.length}</span> material incident(s).
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-sm text-slate-600 dark:text-slate-400">
                   {report.incident_summary.incidents.slice(0, 3).map((inc, idx) => (
-                    <li key={idx}>
-                      <span className="font-medium">{inc.what}</span> – {inc.impact} (Root cause:{" "}
-                      {inc.root_cause})
-                    </li>
+                    <li key={idx}><span className="font-medium">{inc.what}</span> – {inc.impact} (Root cause: {inc.root_cause})</li>
                   ))}
                   {report.incident_summary.incidents.length > 3 && (
-                    <li className="text-xs italic">
-                      + {report.incident_summary.incidents.length - 3} more incident(s)
-                    </li>
+                    <li className="text-xs italic">+ {report.incident_summary.incidents.length - 3} more incident(s)</li>
                   )}
                 </ul>
                 <div className="mt-3 pt-2 border-t border-slate-200 dark:border-slate-700">
@@ -768,64 +874,11 @@ const CISOReports = () => {
 
         {/* Footer */}
         <div className="text-center text-xs text-slate-400 border-t pt-6 mt-4">
-          This report is automatically generated based on API traffic, discovery scans, and security
-          alerts.
+          This report is automatically generated based on API traffic, discovery scans, and security alerts.
         </div>
       </div>
     </div>
   );
 };
-
-// ============================================================================
-// HELPER COMPONENTS
-// ============================================================================
-const KpiCard = ({ title, value, subtitle, icon, color }: any) => {
-  const colorClasses: Record<string, string> = {
-    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
-    red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",
-    emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    purple: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
-  };
-  return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm p-5">
-      <div className={`p-2 rounded-xl w-fit ${colorClasses[color]}`}>{icon}</div>
-      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-4">{title}</p>
-      <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
-      {subtitle && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{subtitle}</p>}
-    </div>
-  );
-};
-
-const ChartCard = ({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) => (
-  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm overflow-hidden">
-    <div className="p-4 border-b border-slate-200/70 dark:border-slate-800/70 flex items-center gap-2 bg-white dark:bg-slate-900">
-      {icon && <span className="text-slate-500">{icon}</span>}
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h3>
-    </div>
-    <div className="p-4">{children}</div>
-  </div>
-);
-
-const StatItem = ({ label, value, highlight, trend }: any) => (
-  <div
-    className={`flex justify-between items-center p-2 rounded-lg ${highlight ? "bg-red-50 dark:bg-red-950/20" : ""}`}
-  >
-    <span className="text-sm text-slate-600 dark:text-slate-400">{label}</span>
-    <span className="font-mono font-semibold flex items-center gap-1">
-      {value}
-      {trend === "up" && <span className="text-green-600 text-xs">▲</span>}
-      {trend === "down" && <span className="text-red-600 text-xs">▼</span>}
-    </span>
-  </div>
-);
-
-const VulnItem = ({ label, value }: { label: string; value: number }) => (
-  <div className="flex justify-between items-center p-1">
-    <span className="text-xs text-slate-600 dark:text-slate-400">{label}</span>
-    <span className={`text-xs font-mono font-bold ${value > 0 ? "text-red-600" : "text-green-600"}`}>
-      {value}
-    </span>
-  </div>
-);
 
 export default CISOReports;

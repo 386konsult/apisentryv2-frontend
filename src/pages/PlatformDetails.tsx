@@ -1127,5 +1127,4 @@ const PlatformDetails: React.FC = () => {
     </div>
   );
 };
-
 export default PlatformDetails;

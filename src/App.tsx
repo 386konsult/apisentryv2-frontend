@@ -63,6 +63,7 @@ import AuditLogs from "./pages/AuditLogs";
 import AcceptInvitation from "./pages/AcceptInvitation";
 import Invitations from "./components/Invitations"; // Import the Invitations component
 import VerifyEmail from './pages/VerifyEmail';
+import RateLimiting from "@/pages/RateLimiting";
 const queryClient = new QueryClient();
 
 const THEME_STORAGE_KEY = "app-theme";
@@ -407,6 +408,7 @@ const AppContent = () => {
                             </ProtectedPlatformRoute>
                           }
                         />
+                        <Route path="/workspace/:id/rate-limiting" element={<RateLimiting />} />
 
                         <Route path="/audit-logs" element={<AuditLogs />} />
                         <Route path="*" element={<NotFound />} />

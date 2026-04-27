@@ -19,6 +19,7 @@ import {
   BarChart3,
   CheckCircle,
   DollarSign,
+  Gauge,
 } from "lucide-react";
 import {
   PieChart,
@@ -33,11 +34,12 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  RadialBarChart,
+  RadialBar,
 } from "recharts";
 
-
 // ============================================================================
-// TYPES (including endpoint_scores)
+// TYPES
 // ============================================================================
 interface MonthlyReportMetadata {
   id: string;
@@ -90,6 +92,8 @@ interface CisoReport {
   top_risks: Array<{ description: string; likelihood: string; impact: string; mitigation: string }>;
 }
 
+const THREAT_COLORS = ["#ef4444", "#f97316", "#eab308", "#3b82f6", "#06b6d4"];
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -111,7 +115,15 @@ const CISOReports = () => {
       }
       try {
         const data = await apiService.request(`/ciso-reports/?platform_id=${platformId}`, { method: "GET" });
-        setReports(data.results || data);
+        const fetchedReports = data.results || data;
+        setReports(fetchedReports);
+
+        // After reports are loaded, check localStorage for a saved report ID
+        const savedReportId = localStorage.getItem("selected_ciso_report_id");
+        if (savedReportId && fetchedReports.some((r: MonthlyReportMetadata) => r.id === savedReportId)) {
+          // Load that report automatically
+          loadReportDetail(savedReportId);
+        }
       } catch (error) {
         console.error(error);
         toast({ title: "Error", description: "Failed to load report list", variant: "destructive" });
@@ -127,6 +139,8 @@ const CISOReports = () => {
     try {
       const report = await apiService.request(`/ciso-reports/${reportId}/`, { method: "GET" });
       setSelectedReport(report.report_data || report);
+      // Save the current report ID to localStorage so it persists after refresh
+      localStorage.setItem("selected_ciso_report_id", reportId);
     } catch (error) {
       console.error(error);
       toast({ title: "Error", description: "Failed to load report", variant: "destructive" });
@@ -216,29 +230,34 @@ const CISOReports = () => {
   }
 
   // --------------------------------------------------------------------------
-  // DETAILED DASHBOARD VIEW (with Discovered Endpoints Table)
+  // DETAILED DASHBOARD VIEW
   // --------------------------------------------------------------------------
   const report = selectedReport;
   const blockedPercent = report.total_requests
     ? ((report.blocked_requests / report.total_requests) * 100).toFixed(1)
     : "0";
 
-  // Remediation projects (from endpoint scores)
   const remediationProjects = (report.endpoint_scores || []).slice(0, 5).map((ep) => {
     const estCost = ep.security_score < 30 ? 10000 : ep.security_score < 70 ? 5000 : 2000;
     const rosi = estCost > 0 ? ((100 - ep.security_score) / 100 * 100).toFixed(0) : "0";
-    return {
-      name: ep.name,
-      security_score: ep.security_score,
-      estCost,
-      rosi,
-    };
+    return { name: ep.name, security_score: ep.security_score, estCost, rosi };
   });
+
+  const riskGaugeData = [
+    { name: "Risk Index", value: report.risk_index, fill: report.risk_index < 30 ? "#10b981" : report.risk_index < 70 ? "#f59e0b" : "#ef4444" },
+  ];
+  const postureScore = Math.round((report.control_score + (100 - report.risk_index)) / 2);
+
+  // Function to go back to list & clear saved report ID
+  const handleBackToList = () => {
+    localStorage.removeItem("selected_ciso_report_id");
+    setSelectedReport(null);
+  };
 
   return (
     <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6 print:bg-white">
       <div className="w-full space-y-6">
-        {/* Gradient header */}
+        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -251,49 +270,30 @@ const CISOReports = () => {
                 <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium">
                   {formatMonthYear(report.metadata.year, report.metadata.month)}
                 </span>
-                <Badge variant="outline" className="border-white/30 bg-white/15 text-white hover:bg-white/25">
+                <Badge variant="outline" className="border-white/30 bg-white/15 text-white">
                   {report.metadata.risk_status} Risk
                 </Badge>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/30 px-3 py-1 text-xs font-medium border border-emerald-400/50">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                  </span>
+                  Live
+                </span>
               </div>
               <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">CISO Executive Dashboard</h1>
-              <p className="text-sm text-blue-100 mt-1">
-                API Security Posture & Financial Risk – Last 30 Days
-              </p>
+              <p className="text-sm text-blue-100 mt-1">API Security Posture & Financial Risk – Last 30 Days</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button variant="outline" onClick={exportToPDF} disabled={exporting} className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25">
                 <Download className="mr-2 h-4 w-4" /> PDF
               </Button>
-              <Button variant="outline" onClick={() => setSelectedReport(null)} className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25">
+              <Button variant="outline" onClick={handleBackToList} className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25">
                 <ChevronLeft className="mr-2 h-4 w-4" /> All Reports
               </Button>
             </div>
           </div>
         </motion.div>
-
-        {/* Executive Summary */}
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className="border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
-            <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Executive Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              {report.executive_summary ||
-                `Overall API risk status is ${report.metadata.risk_status} with a risk index of ${report.risk_index}/100. 
-                Total requests: ${report.total_requests}, blocked threats: ${report.blocked_requests}. 
-                Estimated financial loss (30d): $${report.weighted_loss_30d.toLocaleString()}. 
-                Control score: ${report.control_score}%.`}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* KPI Cards */}
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard title="Total Requests" value={report.total_requests.toLocaleString()} icon={<Activity />} color="blue" />
-          <KpiCard title="Blocked Threats" value={report.blocked_requests.toLocaleString()} subtitle={`${blockedPercent}% of traffic`} icon={<AlertTriangle />} color="red" />
-          <KpiCard title="Weighted Loss (30d)" value={`$${report.weighted_loss_30d.toLocaleString()}`} subtitle={`ALE: $${report.ale.toLocaleString()}`} icon={<DollarSign />} color="emerald" />
-          <KpiCard title="Control Score / Risk Index" value={`${report.control_score}% / ${report.risk_index}%`} subtitle="Effectiveness vs Residual Risk" icon={<Shield />} color="purple" />
-        </div>
 
         {/* Charts Row */}
         <div className="grid gap-6 lg:grid-cols-2">
@@ -320,6 +320,93 @@ const CISOReports = () => {
           </ChartCard>
         </div>
 
+        {/* Security Posture Overview */}
+        <div className="grid gap-5 lg:grid-cols-3">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="pb-0">
+              <CardTitle className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <Gauge className="h-4 w-4 text-purple-500" /> Risk Index
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-2">
+              <ResponsiveContainer width="100%" height={140}>
+                <RadialBarChart innerRadius="70%" outerRadius="100%" data={riskGaugeData} startAngle={180} endAngle={0}>
+                  <RadialBar minAngle={15} background clockWise dataKey="value" cornerRadius={10} fill={riskGaugeData[0].fill} />
+                  <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" className="text-2xl font-bold fill-slate-900 dark:fill-white">
+                    {report.risk_index}
+                  </text>
+                  <text x="50%" y="65%" textAnchor="middle" dominantBaseline="middle" className="text-xs fill-slate-500 dark:fill-slate-400">
+                    /100
+                  </text>
+                </RadialBarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl">
+            <CardHeader className="pb-0">
+              <CardTitle className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <Shield className="h-4 w-4 text-emerald-500" /> Security Posture
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-4xl font-bold text-slate-900 dark:text-white">{postureScore}</div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">/100 – Composite score</p>
+                </div>
+                <div className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+                  {postureScore >= 80 ? "Strong" : postureScore >= 50 ? "Moderate" : "Weak"}
+                </div>
+              </div>
+              <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-700">
+                <div className="h-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500" style={{ width: `${postureScore}%` }} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl">
+            <CardHeader className="pb-0">
+              <CardTitle className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-blue-500" /> Compliance Alignment
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold text-slate-900 dark:text-white">{report.compliance.owasp_alignment}%</div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">OWASP Top 10 Alignment</p>
+              <div className="mt-4 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                <span className="font-medium">Third‑party review:</span> {report.compliance.third_party_review}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard title="Total Requests" value={report.total_requests.toLocaleString()} icon={<Activity />} color="blue" />
+          <KpiCard title="Blocked Threats" value={report.blocked_requests.toLocaleString()} subtitle={`${blockedPercent}% of traffic`} icon={<AlertTriangle />} color="red" />
+          <KpiCard title="Weighted Loss (30d)" value={`$${report.weighted_loss_30d.toLocaleString()}`} subtitle={`ALE: $${report.ale.toLocaleString()}`} icon={<DollarSign />} color="emerald" />
+          <KpiCard title="Control Score / Risk Index" value={`${report.control_score}% / ${report.risk_index}%`} subtitle="Effectiveness vs Residual Risk" icon={<Shield />} color="purple" />
+        </div>
+
+        {/* Executive Summary */}
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+          <CardHeader className="border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
+            <CardTitle className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <FileText className="h-4 w-4 text-indigo-500" /> Executive Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              {report.executive_summary ||
+                `Overall API risk status is ${report.metadata.risk_status} with a risk index of ${report.risk_index}/100. 
+                Total requests: ${report.total_requests}, blocked threats: ${report.blocked_requests}. 
+                Estimated financial loss (30d): $${report.weighted_loss_30d.toLocaleString()}. 
+                Control score: ${report.control_score}%.`}
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Risk Matrix & Top Countries */}
         <div className="grid gap-6 lg:grid-cols-2">
           <ChartCard title="Risk Matrix (Likelihood × Impact)">
@@ -345,7 +432,7 @@ const CISOReports = () => {
           </ChartCard>
         </div>
 
-        {/* Remediation Projects Table */}
+        {/* Remediation Projects */}
         {remediationProjects.length > 0 && (
           <ChartCard title="Remediation Projects" icon={<TrendingUp />}>
             <div className="overflow-x-auto">
@@ -368,33 +455,20 @@ const CISOReports = () => {
           </ChartCard>
         )}
 
-        {/* ========== NEW: Discovered Endpoints Table ========== */}
+        {/* Discovered Endpoints */}
         {report.endpoint_scores && report.endpoint_scores.length > 0 && (
           <ChartCard title="Discovered Endpoints (from API Discovery)" icon={<Server />}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-800">
-                  <tr>
-                    <th className="p-3 text-left font-semibold">Endpoint</th>
-                    <th className="p-3 text-left font-semibold">Security Score</th>
-                    <th className="p-3 text-left font-semibold">Actions</th>
-                  </tr>
+                  <tr><th className="p-3 text-left font-semibold">Endpoint</th><th className="p-3 text-left font-semibold">Security Score</th><th className="p-3 text-left font-semibold">Actions</th></tr>
                 </thead>
                 <tbody>
                   {report.endpoint_scores.slice(0, 10).map((ep, idx) => (
                     <tr key={idx} className="border-b border-slate-200 dark:border-slate-700">
                       <td className="p-3 font-mono text-xs">{ep.name}</td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">{ep.security_score}</span>
-                          <div className="h-1.5 w-16 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${ep.security_score}%` }} />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <Button variant="ghost" size="sm" className="text-xs">Protect</Button>
-                      </td>
+                      <td className="p-3"><div className="flex items-center gap-2"><span className="text-sm">{ep.security_score}</span><div className="h-1.5 w-16 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${ep.security_score}%` }} /></div></div></td>
+                      <td className="p-3"><Button variant="ghost" size="sm" className="text-xs">Protect</Button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -418,7 +492,7 @@ const CISOReports = () => {
           </ChartCard>
         )}
 
-        {/* API Estate & Vulnerability Posture */}
+        {/* API Estate & Vulnerability */}
         <div className="grid gap-6 lg:grid-cols-2">
           <ChartCard title="API Estate Overview" icon={<Server />}>
             <div className="grid grid-cols-2 gap-3 text-sm">
@@ -504,7 +578,7 @@ const CISOReports = () => {
 };
 
 // ============================================================================
-// Helper Components
+// Helper Components (unchanged)
 // ============================================================================
 const KpiCard = ({ title, value, subtitle, icon, color }: any) => {
   const colorClasses: Record<string, string> = {
@@ -525,7 +599,7 @@ const KpiCard = ({ title, value, subtitle, icon, color }: any) => {
 
 const ChartCard = ({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) => (
   <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm overflow-hidden">
-    <div className="p-4 border-b border-slate-200/70 dark:border-slate-800/70 flex items-center gap-2">
+    <div className="p-4 border-b border-slate-200/70 dark:border-slate-800/70 flex items-center gap-2 bg-white dark:bg-slate-900">
       {icon && <span className="text-slate-500">{icon}</span>}
       <h3 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h3>
     </div>
@@ -550,6 +624,5 @@ const VulnItem = ({ label, value }: { label: string; value: number }) => (
     <span className={`text-xs font-mono font-bold ${value > 0 ? "text-red-600" : "text-green-600"}`}>{value}</span>
   </div>
 );
-
 
 export default CISOReports;

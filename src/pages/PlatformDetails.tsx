@@ -518,259 +518,260 @@ const PlatformDetails: React.FC = () => {
 
         {/* MAIN GRID — Traffic Overview (left) + Top Threats (right) */}
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-  {/* ── LEFT COLUMN: Traffic Overview Card (with chart fix) ── */}
-  <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
-    <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4 border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
-          <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-        </div>
-        <div>
-          <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Traffic Overview</CardTitle>
-          <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Track request changes and protection metrics
-          </CardDescription>
-        </div>
-      </div>
-      <select
-        className="rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
-        value={timeRange}
-        onChange={(e) => setTimeRange(e.target.value)}
-      >
-        {TIME_RANGES.map((range) => (
-          <option key={range.value} value={range.value}>
-            {range.label}
-          </option>
-        ))}
-      </select>
-    </CardHeader>
-    <CardContent className="p-6 pt-0">
-      <div className="mb-6 grid grid-cols-3 gap-4">
-        <div>
-          <div className="text-4xl font-semibold text-slate-900 dark:text-white">
-            {totalRequests.toLocaleString()}
-          </div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total requests</div>
-          {totalRequests > 0 && (
-            <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
-              <Activity className="h-3 w-3" />
-              Active
-            </div>
-          )}
-        </div>
-        <div className="text-right">
-          <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Blocked</div>
-          <div className="mt-1 text-2xl font-semibold text-red-500 dark:text-red-400">
-            {blockedRequests.toLocaleString()}
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Block rate</div>
-          <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
-            {totalRequests > 0 ? `${blockedRate.toFixed(1)}%` : "0.00%"}
-          </div>
-        </div>
-      </div>
-
-      {/* Chart container – fixed height + fallback */}
-      <div className="h-64 w-full mt-4">
-        {trafficOverviewData.length > 0 && trafficOverviewData.some((item) => item.total > 0) ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={trafficOverviewData}>
-              <defs>
-                <linearGradient id="trafficGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#93C5FD" stopOpacity={0.05} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-              <XAxis dataKey="method" tick={{ fontSize: 12, fill: "#64748B" }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64748B" }} />
-              <Tooltip />
-              <Area
-                type="monotone"
-                dataKey="total"
-                stroke="#2563EB"
-                fill="url(#trafficGradient)"
-                strokeWidth={2}
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">
-            No traffic data available for the selected period
-          </div>
-        )}
-      </div>
-    </CardContent>
-  </Card>
-
-  {/* ── RIGHT COLUMN: Top Threats + Team Members (stacked) ── */}
-  <div className="space-y-6">
-    {/* Top Threats Card */}
-    <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
-      <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4 border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
-        <div>
-          <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Top threats</CardTitle>
-          <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Highest-volume attack patterns
-          </CardDescription>
-        </div>
-        <button
-          onClick={() => navigate("/threat-logs")}
-          className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-        >
-          view_all
-        </button>
-      </CardHeader>
-      <CardContent className="p-6 pt-0">
-        {topThreats.length > 0 ? (
-          (() => {
-            const threat = topThreats[0];
-            const getThreatCode = (name: string) => {
-              const words = (name || "").split(" ");
-              if (words.length === 1) return (words[0] || "").slice(0, 3).toUpperCase();
-              return words
-                .map((word) => word[0])
-                .join("")
-                .slice(0, 3)
-                .toUpperCase();
-            };
-            const getThreatBadgeClass = (name: string) => {
-              const value = (name || "").toLowerCase();
-              if (value.includes("sql"))
-                return "border border-red-200/60 bg-red-50 text-red-500 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400";
-              if (value.includes("xss") || value.includes("script"))
-                return "border border-amber-200/60 bg-amber-50 text-amber-500 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400";
-              if (value.includes("brute") || value.includes("auth") || value.includes("rate"))
-                return "border border-blue-200/60 bg-blue-50 text-blue-600 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400";
-              return "border border-cyan-200/60 bg-cyan-50 text-cyan-600 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-400";
-            };
-            const threatCode = getThreatCode(threat.name);
-            const threatBadgeClass = getThreatBadgeClass(threat.name);
-            const threatValue = Number(threat.value || 0);
-            const maxThreatValue = threatValue;
-            const progressWidth = maxThreatValue > 0 ? (threatValue / maxThreatValue) * 100 : 0;
-            return (
+          {/* ── LEFT COLUMN: Traffic Overview Card ── */}
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4 border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
               <div className="flex items-center gap-3">
-                <span
-                  className={`flex-shrink-0 rounded-md px-2 py-1 font-mono text-[10px] font-bold ${threatBadgeClass}`}
-                >
-                  {threatCode}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
-                  {threat.name}
-                </span>
-                <div className="h-1.5 w-16 flex-shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${Math.min(progressWidth, 100)}%`,
-                      backgroundColor: threat.color || "#9ca3af",
-                    }}
-                  />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
+                  <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
-                <span className="w-8 flex-shrink-0 text-right font-sans tabular-nums text-[12px] font-semibold text-slate-500 dark:text-slate-400">
-                  {threatValue}
-                </span>
+                <div>
+                  <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">Traffic Overview</CardTitle>
+                  <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Track request changes and protection metrics
+                  </CardDescription>
+                </div>
               </div>
-            );
-          })()
-        ) : (
-          <div className="flex h-24 items-center justify-center rounded-lg border border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-            <div className="text-center">
-              <Shield className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
-              <p className="text-sm text-slate-500 dark:text-slate-400">No threat data available</p>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-
-    {/* Team Members Card */}
-    <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 p-6 pb-4 border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-500/10">
-            <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-          </div>
-        </div>
-        <button
-          onClick={() => navigate("/users")}
-          className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-        >
-          view_all
-        </button>
-      </CardHeader>
-      <CardContent className="p-6 pt-0">
-        {membersLoading ? (
-          <div className="flex h-40 items-center justify-center">
-            <Activity className="h-6 w-6 animate-spin text-blue-600" />
-          </div>
-        ) : platformMembers.length === 0 ? (
-          <div className="flex h-40 flex-col items-center justify-center rounded-lg border border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-            <Users className="h-8 w-8 text-slate-400 mb-2" />
-            <p className="text-sm text-slate-500 dark:text-slate-400">No team members yet</p>
-            <Button
-              variant="link"
-              className="mt-2 text-blue-600"
-              onClick={() => navigate("/users")}
-            >
-              Invite users
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {platformMembers.slice(0, 5).map((member) => (
-              <div
-                key={member.id}
-                className="flex items-center justify-between rounded-lg border border-slate-200/70 bg-white p-3 dark:border-slate-800 dark:bg-slate-800/50"
+              <select
+                className="rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
-                      {member.user_name?.charAt(0).toUpperCase() || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                      {member.user_name || member.user_email}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                      {member.user_email}
-                    </p>
+                {TIME_RANGES.map((range) => (
+                  <option key={range.value} value={range.value}>
+                    {range.label}
+                  </option>
+                ))}
+              </select>
+            </CardHeader>
+            <CardContent className="p-6 pt-0">
+              <div className="mb-6 grid grid-cols-3 gap-4">
+                <div>
+                  <div className="text-4xl font-semibold text-slate-900 dark:text-white">
+                    {totalRequests.toLocaleString()}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total requests</div>
+                  {totalRequests > 0 && (
+                    <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
+                      <Activity className="h-3 w-3" />
+                      Active
+                    </div>
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Blocked</div>
+                  <div className="mt-1 text-2xl font-semibold text-red-500 dark:text-red-400">
+                    {blockedRequests.toLocaleString()}
                   </div>
                 </div>
-                <Badge
-                  className={
-                    member.is_owner
-                      ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-                      : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
-                  }
-                >
-                  {member.is_owner ? "Owner" : member.role || "Member"}
-                </Badge>
+                <div className="text-right">
+                  <div className="text-sm font-medium text-slate-500 dark:text-slate-400">Block rate</div>
+                  <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
+                    {totalRequests > 0 ? `${blockedRate.toFixed(1)}%` : "0.00%"}
+                  </div>
+                </div>
               </div>
-            ))}
-            {platformMembers.length > 5 && (
-              <div className="text-center mt-2">
+
+              {/* Chart container – fixed height + fallback */}
+              <div className="h-64 w-full mt-4">
+                {trafficOverviewData.length > 0 && trafficOverviewData.some((item) => item.total > 0) ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={trafficOverviewData}>
+                      <defs>
+                        <linearGradient id="trafficGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#93C5FD" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
+                      <XAxis dataKey="method" tick={{ fontSize: 12, fill: "#64748B" }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64748B" }} />
+                      <Tooltip />
+                      <Area
+                        type="monotone"
+                        dataKey="total"
+                        stroke="#2563EB"
+                        fill="url(#trafficGradient)"
+                        strokeWidth={2}
+                        isAnimationActive={true}
+                        animationDuration={1000}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                    No traffic data available for the selected period
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── RIGHT COLUMN: Top Threats + Team Members (stacked) ── */}
+          <div className="space-y-6">
+            {/* Top Threats Card */}
+            <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4 border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
+                <div>
+                  <CardTitle className="text-base font-semibold text-slate-900 dark:text-white">Top threats</CardTitle>
+                  <CardDescription className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Highest-volume attack patterns
+                  </CardDescription>
+                </div>
+                <button
+                  onClick={() => navigate("/threat-logs")}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                >
+                  view_all
+                </button>
+              </CardHeader>
+              <CardContent className="p-6 pt-0">
+                {topThreats.length > 0 ? (
+                  (() => {
+                    const threat = topThreats[0];
+                    const getThreatCode = (name: string) => {
+                      const words = (name || "").split(" ");
+                      if (words.length === 1) return (words[0] || "").slice(0, 3).toUpperCase();
+                      return words
+                        .map((word) => word[0])
+                        .join("")
+                        .slice(0, 3)
+                        .toUpperCase();
+                    };
+                    const getThreatBadgeClass = (name: string) => {
+                      const value = (name || "").toLowerCase();
+                      if (value.includes("sql"))
+                        return "border border-red-200/60 bg-red-50 text-red-500 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400";
+                      if (value.includes("xss") || value.includes("script"))
+                        return "border border-amber-200/60 bg-amber-50 text-amber-500 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400";
+                      if (value.includes("brute") || value.includes("auth") || value.includes("rate"))
+                        return "border border-blue-200/60 bg-blue-50 text-blue-600 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400";
+                      return "border border-cyan-200/60 bg-cyan-50 text-cyan-600 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-400";
+                    };
+                    const threatCode = getThreatCode(threat.name);
+                    const threatBadgeClass = getThreatBadgeClass(threat.name);
+                    const threatValue = Number(threat.value || 0);
+                    const maxThreatValue = threatValue;
+                    const progressWidth = maxThreatValue > 0 ? (threatValue / maxThreatValue) * 100 : 0;
+                    return (
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`flex-shrink-0 rounded-md px-2 py-1 font-mono text-[10px] font-bold ${threatBadgeClass}`}
+                        >
+                          {threatCode}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
+                          {threat.name}
+                        </span>
+                        <div className="h-1.5 w-16 flex-shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${Math.min(progressWidth, 100)}%`,
+                              backgroundColor: threat.color || "#9ca3af",
+                            }}
+                          />
+                        </div>
+                        <span className="w-8 flex-shrink-0 text-right font-sans tabular-nums text-[12px] font-semibold text-slate-500 dark:text-slate-400">
+                          {threatValue}
+                        </span>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="flex h-24 items-center justify-center rounded-lg border border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+                    <div className="text-center">
+                      <Shield className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400">No threat data available</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Team Members Card */}
+            <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-6 pb-4 border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-500/10">
+                    <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                </div>
                 <button
                   onClick={() => navigate("/users")}
-                  className="text-xs text-blue-600 hover:underline"
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                 >
-                  +{platformMembers.length - 5} more
+                  view_all
                 </button>
-              </div>
-            )}
+              </CardHeader>
+              <CardContent className="p-6 pt-0">
+                {membersLoading ? (
+                  <div className="flex h-40 items-center justify-center">
+                    <Activity className="h-6 w-6 animate-spin text-blue-600" />
+                  </div>
+                ) : platformMembers.length === 0 ? (
+                  <div className="flex h-40 flex-col items-center justify-center rounded-lg border border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+                    <Users className="h-8 w-8 text-slate-400 mb-2" />
+                    <p className="text-sm text-slate-500 dark:text-slate-400">No team members yet</p>
+                    <Button
+                      variant="link"
+                      className="mt-2 text-blue-600"
+                      onClick={() => navigate("/users")}
+                    >
+                      Invite users
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {platformMembers.slice(0, 5).map((member) => (
+                      <div
+                        key={member.id}
+                        className="flex items-center justify-between rounded-lg border border-slate-200/70 bg-white p-3 dark:border-slate-800 dark:bg-slate-800/50"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
+                              {member.user_name?.charAt(0).toUpperCase() || "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                              {member.user_name || member.user_email}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                              {member.user_email}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge
+                          className={
+                            member.is_owner
+                              ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                              : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                          }
+                        >
+                          {member.is_owner ? "Owner" : member.role || "Member"}
+                        </Badge>
+                      </div>
+                    ))}
+                    {platformMembers.length > 5 && (
+                      <div className="text-center mt-2">
+                        <button
+                          onClick={() => navigate("/users")}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          +{platformMembers.length - 5} more
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
-        )}
-      </CardContent>
-    </Card>
-  </div>
-</div>
+        </div>
 
-        {/* METRIC CARDS (4) */}
+        {/* METRIC CARDS (4) – animated numbers already present */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {/* Total Requests */}
           <Card className={cardClass}>
@@ -981,7 +982,7 @@ const PlatformDetails: React.FC = () => {
                 <div className="space-y-4">
                   <ResponsiveContainer width="100%" height={200}>
                     <PieChart>
-                      <Pie data={threatTypes} dataKey="value" innerRadius={40} outerRadius={70} paddingAngle={2} isAnimationActive={false}>
+                      <Pie data={threatTypes} dataKey="value" innerRadius={40} outerRadius={70} paddingAngle={2} isAnimationActive={true} animationDuration={800}>
                         {threatTypes.map((entry: any, index: number) => (<Cell key={`resp-${index}`} fill={entry.color} />))}
                       </Pie>
                       <Tooltip />
@@ -1071,7 +1072,7 @@ const PlatformDetails: React.FC = () => {
                     <XAxis dataKey="name" hide />
                     <YAxis hide />
                     <Tooltip />
-                    <Area type="monotone" dataKey="count" stroke="#2563EB" fill="url(#owaspFill)" strokeWidth={2} isAnimationActive={false} />
+                    <Area type="monotone" dataKey="count" stroke="#2563EB" fill="url(#owaspFill)" strokeWidth={2} isAnimationActive={true} animationDuration={800} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (

@@ -306,6 +306,7 @@ const AppContent = () => {
                             </ProtectedPlatformRoute>
                           }
                         />
+                        <Route path="/endpoint-analytics/:endpointId" element={<EndpointAnalytics />} />
 
                         <Route
                           path="/code-review-team"

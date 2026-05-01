@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { API_BASE_URL } from "@/services/api";
+import { apiService } from "@/services/api";          // ✅ use apiService
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -131,8 +131,8 @@ const AnimatedNumber = ({ value, decimals = 0, suffix = "", className = "" }: an
   );
 };
 
-// Helper components for consistent cards
-const KpiCard = ({ title, value, subtitle, icon, color }: any) => {
+// Helper components for consistent cards (fixed to accept suffix)
+const KpiCard = ({ title, value, suffix = "", subtitle, icon, color }: any) => {
   const colorClasses: Record<string, string> = {
     blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
     red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",
@@ -141,12 +141,15 @@ const KpiCard = ({ title, value, subtitle, icon, color }: any) => {
     orange: "bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400",
     green: "bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400",
   };
+  const numericValue = typeof value === "string" ? parseFloat(value) : value;
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm p-5">
       <div className={`p-2 rounded-xl w-fit ${colorClasses[color]}`}>{icon}</div>
       <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-4">{title}</p>
-      <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
-      {subtitle && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{subtitle}</p>}
+      <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+        {isNaN(numericValue) ? value : <AnimatedNumber value={numericValue} suffix={suffix} />}
+      </p>
+      {subtitle && <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{subtitle}</div>}
     </div>
   );
 };
@@ -174,7 +177,7 @@ const EndpointAnalytics = () => {
   const [error, setError] = useState("");
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
 
-  // Fetch analytics (same as before)
+  // Fetch analytics using apiService (fix)
   useEffect(() => {
     const fetchAnalytics = async () => {
       if (!endpointId) {
@@ -184,17 +187,17 @@ const EndpointAnalytics = () => {
       }
       try {
         setLoading(true);
-        const token = localStorage.getItem("auth_token");
-        const headers = token ? { Authorization: `Token ${token}` } : {};
-        const response = await fetch(`${API_BASE_URL}/api-endpoints/${endpointId}/analytics/`, { headers });
-        if (!response.ok) throw new Error(`Failed to fetch analytics: ${response.status}`);
-        const data = await response.json();
+        // Use apiService.request – it automatically adds auth token and uses the correct base URL
+        const data = await apiService.request(`/api-endpoints/${endpointId}/analytics/`, {
+          method: "GET",
+        });
         setAnalyticsData(data);
         setError("");
       } catch (err: any) {
         console.error(err);
-        setError(err.message || "Failed to load analytics data");
-        toast({ title: "Error", description: err.message || "Failed to load analytics data", variant: "destructive" });
+        const msg = err.message || "Failed to load analytics data";
+        setError(msg);
+        toast({ title: "Error", description: msg, variant: "destructive" });
       } finally {
         setLoading(false);
       }
@@ -202,7 +205,7 @@ const EndpointAnalytics = () => {
     fetchAnalytics();
   }, [endpointId, toast]);
 
-  // Derived data
+  // Derived data (unchanged)
   const trafficData30d = analyticsData?.traffic_data?.["30d"] || [];
   const trafficData1y = analyticsData?.traffic_data?.["1y"] || [];
   const securityIssues = analyticsData?.security_issues || [];
@@ -215,7 +218,7 @@ const EndpointAnalytics = () => {
     avg_response_time: 0, avg_response_time_change: 0, performance_score: 0,
   };
 
-  // Filter logs
+  // Filter logs (unchanged)
   const filteredLogs = requestLogs.filter(log => {
     const matchesSearch = searchTerm === "" || log.ip.includes(searchTerm) || log.country.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || String(log.status).startsWith(statusFilter);
@@ -277,7 +280,7 @@ const EndpointAnalytics = () => {
   return (
     <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
       <div className="w-full space-y-6">
-        {/* Gradient Header (PlatformDetails style) */}
+        {/* Gradient Header */}
         <div className="rounded-[24px] bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 text-white shadow-lg">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
@@ -291,7 +294,7 @@ const EndpointAnalytics = () => {
                   <ArrowLeft className="h-4 w-4 mr-2" /> Back to Endpoints
                 </Button>
                 <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium">
-                  {analyticsData?.endpoint_method || "GET"} {analyticsData?.endpoint_path || `/api/v1/users/${endpointId}`}
+                  {analyticsData?.endpoint_method || "GET"} {analyticsData?.endpoint_path || ""}
                 </span>
                 <span className="inline-flex items-center rounded-full bg-emerald-500/30 px-3 py-1 text-xs font-medium border border-emerald-400/50">
                   <span className="relative flex h-2 w-2 mr-1">
@@ -307,36 +310,42 @@ const EndpointAnalytics = () => {
           </div>
         </div>
 
-        {/* KPI Cards (5) */}
+        {/* KPI Cards (5) – fixed suffix handling */}
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
           <KpiCard title="Security Score" value={metrics.security_score} suffix="/100" icon={<Shield />} color="blue" />
           <KpiCard title="Health Score" value={metrics.health_score} suffix="/100" icon={<Activity />} color="green" />
           <KpiCard
             title="Error Rate"
-            value={`${metrics.error_rate}%`}
-            subtitle={metrics.error_rate_change !== undefined && metrics.error_rate_change !== 0 ? (
-              <span className={metrics.error_rate_change < 0 ? "text-green-500" : "text-red-500"}>
-                {metrics.error_rate_change < 0 ? "▼" : "▲"} {Math.abs(metrics.error_rate_change)}% from last week
-              </span>
-            ) : undefined}
+            value={metrics.error_rate}
+            suffix="%"
+            subtitle={
+              metrics.error_rate_change !== undefined && metrics.error_rate_change !== 0 ? (
+                <span className={metrics.error_rate_change < 0 ? "text-green-500" : "text-red-500"}>
+                  {metrics.error_rate_change < 0 ? "▼" : "▲"} {Math.abs(metrics.error_rate_change)}% from last week
+                </span>
+              ) : undefined
+            }
             icon={<AlertTriangle />}
             color="red"
           />
           <KpiCard
             title="Avg Response Time"
-            value={`${metrics.avg_response_time}ms`}
-            subtitle={metrics.avg_response_time_change !== undefined && metrics.avg_response_time_change !== 0 ? (
-              <span className={metrics.avg_response_time_change < 0 ? "text-green-500" : "text-red-500"}>
-                {metrics.avg_response_time_change < 0 ? "▼" : "▲"} {Math.abs(metrics.avg_response_time_change)}ms
-              </span>
-            ) : undefined}
+            value={metrics.avg_response_time}
+            suffix="ms"
+            subtitle={
+              metrics.avg_response_time_change !== undefined && metrics.avg_response_time_change !== 0 ? (
+                <span className={metrics.avg_response_time_change < 0 ? "text-green-500" : "text-red-500"}>
+                  {metrics.avg_response_time_change < 0 ? "▼" : "▲"} {Math.abs(metrics.avg_response_time_change)}ms
+                </span>
+              ) : undefined
+            }
             icon={<Clock />}
             color="purple"
           />
-          <KpiCard title="Performance Score" value={`${metrics.performance_score}%`} suffix="/100" icon={<TrendingUp />} color="orange" />
+          <KpiCard title="Performance Score" value={metrics.performance_score} suffix="%" icon={<TrendingUp />} color="orange" />
         </div>
 
-        {/* Traffic Chart */}
+        {/* Traffic Chart (unchanged) */}
         <ChartCard title="Traffic Overview" icon={<Globe />}>
           <div className="flex justify-end mb-4">
             <Select value={timeRange} onValueChange={(v: any) => setTimeRange(v)}>
@@ -367,7 +376,7 @@ const EndpointAnalytics = () => {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Security & Performance Issues */}
+        {/* Security & Performance Issues (unchanged) */}
         <div className="grid gap-6 lg:grid-cols-2">
           <ChartCard title="Security Issues" icon={<Shield />}>
             {securityIssues.length === 0 ? (
@@ -419,7 +428,7 @@ const EndpointAnalytics = () => {
           </ChartCard>
         </div>
 
-        {/* Top IP Addresses */}
+        {/* Top IP Addresses (unchanged) */}
         {topIPs.length > 0 && (
           <ChartCard title="Top IP Addresses by Request Volume" icon={<Globe />}>
             <div className="grid gap-6 lg:grid-cols-2">
@@ -454,9 +463,8 @@ const EndpointAnalytics = () => {
           </ChartCard>
         )}
 
-        {/* Request Logs */}
+        {/* Request Logs (unchanged) */}
         <ChartCard title="Request Logs" icon={<Activity />}>
-          {/* Filters */}
           <div className="flex flex-wrap items-center gap-3 mb-5">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
@@ -476,7 +484,6 @@ const EndpointAnalytics = () => {
             <Input type="date" placeholder="Filter by date..." value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-[150px]" />
           </div>
 
-          {/* Logs table */}
           {filteredLogs.length === 0 ? (
             <div className="text-center py-8 text-slate-400">No logs found matching the filters</div>
           ) : (

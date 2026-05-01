@@ -547,7 +547,7 @@ const APIEndpoints = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => navigate(`/api-endpoints/${status.endpoint.id}/analytics`)}
+                                onClick={() => navigate(`/endpoint-analytics/${status.endpoint.id}`)}
                                 className="rounded-lg"
                               >
                                 <BarChart3 className="h-4 w-4 mr-2" />
@@ -631,7 +631,7 @@ const APIEndpoints = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/api-endpoints/${status.endpoint.id}/analytics`)}
+                          onClick={() => navigate(`/endpoint-analytics/${status.endpoint.id}`)}
                           className="rounded-lg"
                         >
                           <BarChart3 className="h-4 w-4 mr-2" />

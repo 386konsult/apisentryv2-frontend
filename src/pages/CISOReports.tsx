@@ -265,36 +265,63 @@ const CISOReports = () => {
     }
   };
 
-  // New PDF export using html2canvas + jsPDF
+  // IMPROVED PDF EXPORT (multi-page, waits for charts, white background)
   const exportToPDF = async () => {
-  const element = document.getElementById("ciso-report-content");
-  if (!element) {
-    toast({ title: "Error", description: "Report content not found", variant: "destructive" });
-    return;
-  }
-  setExporting(true);
-  try {
-    const canvas = await html2canvas(element, {
-      scale: 2,
-      logging: false,
-      useCORS: true,
-    });
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
-    const imgWidth = 210;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
-    pdf.save(`ciso-report-${report.metadata.year}-${report.metadata.month}.pdf`);
-    toast({ title: "PDF Ready", description: "Report downloaded successfully" });
-  } catch (error) {
-    console.error("PDF generation failed, falling back to print:", error);
-    // Fallback to browser print
-    window.print();
-    toast({ title: "Print dialog opened", description: "Use 'Save as PDF' in the print dialog." });
-  } finally {
-    setExporting(false);
-  }
-};
+    const element = document.getElementById("ciso-report-content");
+    if (!element) {
+      toast({ title: "Error", description: "Report content not found", variant: "destructive" });
+      return;
+    }
+    setExporting(true);
+    try {
+      // Wait for any pending layout / recharts rendering
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Force all images to load (if any)
+      const images = Array.from(element.querySelectorAll('img'));
+      await Promise.all(images.map(img => img.decode().catch(() => {})));
+
+      // Extra delay for SVG charts (recharts)
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        logging: false,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: "#ffffff",
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const imgWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`ciso-report-${report.metadata.year}-${report.metadata.month}.pdf`);
+      toast({ title: "PDF Ready", description: "Report downloaded successfully" });
+    } catch (error) {
+      console.error("PDF generation failed, falling back to print:", error);
+      window.print();
+      toast({ title: "Print dialog opened", description: "Use 'Save as PDF' in the print dialog." });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const formatMonthYear = (year: number, month: number) =>
     new Date(year, month - 1).toLocaleString("default", { month: "long", year: "numeric" });
@@ -655,7 +682,7 @@ const CISOReports = () => {
                     <th className="border p-2">Low</th>
                     <th className="border p-2">Medium</th>
                     <th className="border p-2">High</th>
-                  </tr>
+                   </tr>
                 </thead>
                 <tbody>
                   <tr>

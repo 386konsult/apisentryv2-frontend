@@ -56,33 +56,29 @@ const MemberAvatar = ({ email, size = 28 }: { email: string; size?: number }) =>
   const key = (email || "user@heimdall").toLowerCase().trim();
   const hash = djb2(key);
   const token = AVATAR_TOKENS[hash % AVATAR_TOKENS.length];
+  // Deterministic presence: ~70% active, ~30% away based on hash
+  const isActive = hash % 10 > 2;
+  const dotColor = isActive ? "#22c55e" : "#eab308";
+  const dotTitle = isActive ? "Active" : "Away";
   return (
     <div
       style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        flexShrink: 0,
+        width: size, height: size, borderRadius: "50%", flexShrink: 0,
         background: `linear-gradient(135deg, ${token.from}, ${token.to})`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        display: "flex", alignItems: "center", justifyContent: "center",
         boxShadow: `0 0 0 1.5px ${token.to}40, 0 1px 4px ${token.from}55`,
         position: "relative" as const,
       }}
+      title={dotTitle}
     >
       {token.svg}
-      {/* Online indicator */}
       <span
         style={{
-          position: "absolute",
-          bottom: -1,
-          right: -1,
-          width: 7,
-          height: 7,
-          borderRadius: "50%",
-          background: "#22c55e",
+          position: "absolute", bottom: -1, right: -1,
+          width: 7, height: 7, borderRadius: "50%",
+          background: dotColor,
           border: "1.5px solid white",
+          transition: "background 0.4s ease",
         }}
       />
     </div>
@@ -729,37 +725,78 @@ const PlatformDetails: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {platformMembers.slice(0, 5).map((member) => (
-                      <div
-                        key={member.id}
-                        className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-3 py-2.5 transition-colors hover:border-blue-200 dark:hover:border-blue-800/40"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {/* ── Deterministic gradient avatar ── */}
-                          <MemberAvatar
-                            email={member.user_email}
-                            size={28}
-                          />
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
-                              {member.user_name || member.user_email}
-                            </p>
-                            <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
-                              {member.user_email}
-                            </p>
-                          </div>
-                        </div>
-                        <Badge
-                          className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                            member.is_owner
-                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-0'
-                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border-0'
-                          }`}
+                    {platformMembers.slice(0, 5).map((member) => {
+                      const presenceHash = djb2((member.user_email || "").toLowerCase().trim());
+                      const isActive = presenceHash % 10 > 2;
+                      return (
+                        <div
+                          key={member.id}
+                          className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-3 py-2.5 transition-colors hover:border-blue-200 dark:hover:border-blue-800/40"
                         >
-                          {member.is_owner ? 'Owner' : member.role || 'Member'}
-                        </Badge>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {/* Avatar with presence tooltip */}
+                            <div className="relative group/avatar flex-shrink-0">
+                              <MemberAvatar email={member.user_email} size={28} />
+                              {/* Hover tooltip */}
+                              <div
+                                className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 scale-95 group-hover/avatar:opacity-100 group-hover/avatar:scale-100 transition-all duration-150"
+                              >
+                                <div
+                                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold whitespace-nowrap shadow-lg"
+                                  style={{
+                                    background: isActive ? 'rgba(220,252,231,0.95)' : 'rgba(254,249,195,0.95)',
+                                    color: isActive ? '#15803d' : '#a16207',
+                                    border: `1px solid ${isActive ? '#86efac' : '#fde047'}`,
+                                    backdropFilter: 'blur(6px)',
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                                      background: isActive ? '#22c55e' : '#eab308',
+                                      boxShadow: isActive ? '0 0 4px #22c55e' : '0 0 4px #eab308',
+                                    }}
+                                  />
+                                  {isActive ? 'Active' : 'Away'}
+                                </div>
+                                {/* Arrow */}
+                                <div
+                                  className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-1 overflow-hidden"
+                                >
+                                  <div
+                                    style={{
+                                      width: 8, height: 8,
+                                      transform: 'rotate(45deg) translateY(-4px)',
+                                      background: isActive ? 'rgba(220,252,231,0.95)' : 'rgba(254,249,195,0.95)',
+                                      border: `1px solid ${isActive ? '#86efac' : '#fde047'}`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                                {member.user_name || member.user_email}
+                              </p>
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                                {member.user_email}
+                              </p>
+                            </div>
+                          </div>
+
+                          <Badge
+                            className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-md flex-shrink-0 ${
+                              member.is_owner
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-0'
+                                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border-0'
+                            }`}
+                          >
+                            {member.is_owner ? 'Owner' : member.role || 'Member'}
+                          </Badge>
+                        </div>
+                      );
+                    })}
                     {platformMembers.length > 5 && (
                       <button onClick={() => navigate('/users')} className="w-full text-center text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1">
                         +{platformMembers.length - 5} more members

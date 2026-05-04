@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import apiService from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
+import { Switch } from "@/components/ui/switch";
 
 const ALERT_TYPES = [
   {
@@ -120,6 +121,7 @@ const CreateAlert = () => {
     rateAnomalyAllIPs: false,
     rateAnomalyPercentage: '',
     rateAnomalyTimeWindow: '',
+    
 
     responseAnomalyEndpoint: '',
     responseAnomalyAllEndpoints: false,
@@ -140,6 +142,7 @@ const CreateAlert = () => {
     bruteForceTimeWindow: '60',
 
     customRulesEndpoint: '',
+    autoIncident: false,
 
     slackWebhook: '',
     teamsWebhook: '',
@@ -254,6 +257,7 @@ const CreateAlert = () => {
 
       const alertData = {
         platform_uuid: platformId,
+        auto_incident: formData.autoIncident,
         alert_type: selectedAlertType,
         name: `${ALERT_TYPES.find((t) => t.id === selectedAlertType)?.name} Alert`,
         description: `Alert for ${ALERT_TYPES.find((t) => t.id === selectedAlertType)?.description}`,
@@ -1252,7 +1256,21 @@ const CreateAlert = () => {
               Define how your team should receive alerts when this rule triggers.
             </CardDescription>
           </CardHeader>
-
+           <div className="flex items-center justify-between p-4 rounded-xl border">
+  <div className="space-y-0.5">
+    <Label htmlFor="auto-incident">Automatically create an incident</Label>
+    <p className="text-xs text-slate-500 dark:text-slate-400">
+      When this alert triggers, a new incident will be created automatically.
+    </p>
+  </div>
+  <Switch
+    id="auto-incident"
+    checked={formData.autoIncident}
+    onCheckedChange={(checked) =>
+      setFormData((prev) => ({ ...prev, autoIncident: checked }))
+    }
+  />
+</div>
           <CardContent className="p-6">
             {renderNotificationConfig()}
           </CardContent>

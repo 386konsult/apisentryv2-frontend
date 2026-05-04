@@ -82,31 +82,35 @@ export default function RateLimiting() {
   }, [platformId]);
 
   const handleSave = async () => {
-    try {
-      if (editingRule) {
-        await apiService.request(`/rate-limits/${editingRule.id}/`, {
-          method: "PUT",
-          body: JSON.stringify({ ...form, platform: platformId }),
-        });
-        toast({ title: "Rule updated", description: "Rate limit rule has been updated." });
-      } else {
-        await apiService.request("/rate-limits/", {
-          method: "POST",
-          body: JSON.stringify({ ...form, platform: platformId }),
-        });
-        toast({ title: "Rule created", description: "New rate limit rule added." });
-      }
-      setDialogOpen(false);
-      setEditingRule(null);
-      loadRules();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to save rule",
-        variant: "destructive",
+  try {
+    // Normalise endpoint: empty or whitespace becomes "*"
+    const endpointValue = form.endpoint.trim() === "" ? "*" : form.endpoint;
+    const payload = { ...form, endpoint: endpointValue, platform: platformId };
+
+    if (editingRule) {
+      await apiService.request(`/rate-limits/${editingRule.id}/`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
       });
+      toast({ title: "Rule updated", description: "Rate limit rule has been updated." });
+    } else {
+      await apiService.request("/rate-limits/", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      toast({ title: "Rule created", description: "New rate limit rule added." });
     }
-  };
+    setDialogOpen(false);
+    setEditingRule(null);
+    loadRules();
+  } catch (error: any) {
+    toast({
+      title: "Error",
+      description: error?.message || "Failed to save rule",
+      variant: "destructive",
+    });
+  }
+};
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this rule?")) return;

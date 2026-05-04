@@ -361,7 +361,7 @@ const UserAvatar = ({ email, size = "sm" }: { email: string; size?: "sm" | "md" 
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PlatformIndicator component
+// PlatformIndicator component – FIXED: removed asChild from DropdownMenuContent
 // ─────────────────────────────────────────────────────────────────────────────
 const PlatformIndicator: React.FC = () => {
   const { hasSelectedPlatform } = usePlatform();
@@ -371,7 +371,6 @@ const PlatformIndicator: React.FC = () => {
 
   const isOnPlatformsPage = location.pathname === '/platforms';
 
-  // Theme state (syncs with localStorage and html class)
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('heimdall_theme');
     if (saved === 'dark') return true;
@@ -391,22 +390,17 @@ const PlatformIndicator: React.FC = () => {
 
   const toggleTheme = () => setIsDark(prev => !prev);
 
-  // Invitation mock (replace with real API call)
   const [hasPendingInvitations, setHasPendingInvitations] = useState(true);
-
-  // Search state
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      // Wire up to real search routing as needed
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 
   const handleInvitationsClick = () => navigate('/invitations');
-
   const handleLogout = async () => {
     try {
       await logout();
@@ -416,13 +410,7 @@ const PlatformIndicator: React.FC = () => {
     }
   };
 
-  // ── Button class helpers ──────────────────────────────────────────────────
-
-  // Borderless icon button — hover colour only, no border/bg at rest
-  const iconButtonClass =
-    "flex items-center justify-center rounded-full p-1.5 transition-colors";
-
-  // Borderless workspace selector — text + icon only
+  const iconButtonClass = "flex items-center justify-center rounded-full p-1.5 transition-colors";
   const cleanPlatformButtonClass = (isActive: boolean) =>
     `flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
       isActive
@@ -432,8 +420,7 @@ const PlatformIndicator: React.FC = () => {
 
   return (
     <div className="flex items-center gap-2 w-full">
-
-      {/* ── Search bar (left) ──────────────────────────────────────────── */}
+      {/* Search bar */}
       <form
         onSubmit={handleSearchSubmit}
         className="flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-1.5 w-56 focus-within:ring-2 focus-within:ring-blue-400/40 transition-shadow"
@@ -448,10 +435,9 @@ const PlatformIndicator: React.FC = () => {
         />
       </form>
 
-      {/* Spacer pushes right-side controls to the right */}
       <div className="flex-1" />
 
-      {/* ── Invitation icon ────────────────────────────────────────────── */}
+      {/* Invitation button */}
       <button
         onClick={handleInvitationsClick}
         className={`${iconButtonClass} text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950`}
@@ -465,7 +451,7 @@ const PlatformIndicator: React.FC = () => {
         </div>
       </button>
 
-      {/* ── Theme toggle ───────────────────────────────────────────────── */}
+      {/* Theme toggle */}
       <button
         onClick={toggleTheme}
         className={`${iconButtonClass} text-amber-500 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950`}
@@ -474,7 +460,7 @@ const PlatformIndicator: React.FC = () => {
         {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
       </button>
 
-      {/* ── Workspace selector ─────────────────────────────────────────── */}
+      {/* Workspace selector */}
       <button
         onClick={() => navigate('/platforms')}
         className={cleanPlatformButtonClass(isOnPlatformsPage || !hasSelectedPlatform)}
@@ -484,7 +470,7 @@ const PlatformIndicator: React.FC = () => {
         <ChevronDown className="h-3 w-3 opacity-60" />
       </button>
 
-      {/* ── Account dropdown ───────────────────────────────────────────── */}
+      {/* Account dropdown – FIXED: removed `asChild` and used motion.div inside */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -494,18 +480,12 @@ const PlatformIndicator: React.FC = () => {
             <UserAvatar email={user?.email || ""} size="sm" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" sideOffset={8} forceMount asChild>
+        <DropdownMenuContent align="end" sideOffset={8} className="w-48 rounded-[30px] border border-white/20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl shadow-2xl p-1">
           <motion.div
             initial={{ opacity: 0, y: -8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
-            transition={{
-              type: "spring",
-              stiffness: 450,
-              damping: 30,
-              mass: 0.7,
-            }}
-            className="w-48 rounded-[30px] border border-white/20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl shadow-2xl p-1"
+            transition={{ type: "spring", stiffness: 450, damping: 30, mass: 0.7 }}
           >
             <DropdownMenuLabel>
               <div className="flex flex-col">
@@ -535,7 +515,6 @@ const PlatformIndicator: React.FC = () => {
           </motion.div>
         </DropdownMenuContent>
       </DropdownMenu>
-
     </div>
   );
 };

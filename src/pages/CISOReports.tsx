@@ -174,6 +174,9 @@ const CISOReports = () => {
   const [aiNotes, setAiNotes] = useState("");
   const { toast } = useToast();
 
+  // NEW: track which month/year is being generated
+  const [generatingMonthYear, setGeneratingMonthYear] = useState<{ year: number; month: number } | null>(null);
+
   const loadReports = async () => {
     const platformId = localStorage.getItem("selected_platform_id");
     if (!platformId) {
@@ -232,6 +235,8 @@ const CISOReports = () => {
     }
 
     setGenerating(true);
+    setGeneratingMonthYear({ year: genYear, month: genMonth }); // show progress card
+
     try {
       const baseUrl = import.meta.env.VITE_API_URL || "https://staging.breachnet.io/api/v1";
       const response = await fetch(`${baseUrl}/ciso-reports/generate/`, {
@@ -256,16 +261,20 @@ const CISOReports = () => {
       toast({ title: "Report generation started", description: "The report will appear shortly." });
       setGenerateOpen(false);
       setAiNotes("");
-      setTimeout(() => loadReports(), 2000);
+      setTimeout(() => {
+        loadReports();
+        setGenerating(false);
+        setGeneratingMonthYear(null);
+      }, 2000);
     } catch (error: any) {
       console.error(error);
       toast({ title: "Error", description: error?.message || "Failed to generate report", variant: "destructive" });
-    } finally {
       setGenerating(false);
+      setGeneratingMonthYear(null);
     }
   };
 
-  // IMPROVED PDF EXPORT (multi-page, waits for charts, white background)
+  // PDF export (unchanged)
   const exportToPDF = async () => {
     const element = document.getElementById("ciso-report-content");
     if (!element) {
@@ -274,16 +283,10 @@ const CISOReports = () => {
     }
     setExporting(true);
     try {
-      // Wait for any pending layout / recharts rendering
       await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Force all images to load (if any)
       const images = Array.from(element.querySelectorAll('img'));
       await Promise.all(images.map(img => img.decode().catch(() => {})));
-
-      // Extra delay for SVG charts (recharts)
       await new Promise(resolve => setTimeout(resolve, 200));
-
       const canvas = await html2canvas(element, {
         scale: 2,
         logging: false,
@@ -293,7 +296,6 @@ const CISOReports = () => {
         windowWidth: element.scrollWidth,
         windowHeight: element.scrollHeight,
       });
-
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
       const imgWidth = 210;
@@ -301,17 +303,14 @@ const CISOReports = () => {
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
       let position = 0;
-
       pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
-
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
         pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
-
       pdf.save(`ciso-report-${report.metadata.year}-${report.metadata.month}.pdf`);
       toast({ title: "PDF Ready", description: "Report downloaded successfully" });
     } catch (error) {
@@ -332,15 +331,17 @@ const CISOReports = () => {
   };
 
   // --------------------------------------------------------------------------
-  // LIST VIEW (with Generate button + shimmer card)
+  // LIST VIEW (frosted glass cards + green progress bar)
   // --------------------------------------------------------------------------
   if (!selectedReport) {
-    if (typeof document !== "undefined" && !document.querySelector("#shimmer-keyframes")) {
+    if (typeof document !== "undefined" && !document.querySelector("#progress-bar-keyframes")) {
       const style = document.createElement("style");
-      style.id = "shimmer-keyframes";
+      style.id = "progress-bar-keyframes";
       style.textContent = `
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
+        @keyframes progressGlow {
+          0% { background-position: 0% 50%; width: 10%; }
+          50% { width: 90%; }
+          100% { background-position: 100% 50%; width: 10%; }
         }
       `;
       document.head.appendChild(style);
@@ -360,7 +361,7 @@ const CISOReports = () => {
             </Button>
           </div>
 
-          {loading ? (
+          {loading && !generatingMonthYear ? (
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
             </div>
@@ -371,10 +372,18 @@ const CISOReports = () => {
                   key={report.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                  className="relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.75)",
+                    backdropFilter: "blur(8px)",
+                    border: "1px solid rgba(255, 255, 255, 0.3)",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)",
+                  }}
                   onClick={() => loadReportDetail(report.id)}
                 >
-                  <div className="p-5">
+                  <div className="absolute inset-0 dark:block hidden" style={{ background: "rgba(15, 23, 42, 0.85)", backdropFilter: "blur(8px)" }} />
+                  <div className="absolute inset-0 dark:hidden" style={{ background: "rgba(255, 255, 255, 0.75)", backdropFilter: "blur(8px)" }} />
+                  <div className="relative z-10 p-5">
                     <div className="flex items-start justify-between">
                       <div>
                         <Calendar className="h-5 w-5 text-indigo-500 mb-2" />
@@ -406,29 +415,32 @@ const CISOReports = () => {
                 </motion.div>
               ))}
 
-              {generating && (
-                <div className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm overflow-hidden cursor-wait">
+              {generatingMonthYear && (
+                <div className="relative overflow-hidden rounded-2xl border border-indigo-200 dark:border-indigo-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-md">
                   <div className="p-5">
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="h-5 w-5 bg-indigo-200 dark:bg-indigo-800 rounded-full mb-2 animate-pulse" />
-                        <div className="h-6 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                        <Calendar className="h-5 w-5 text-indigo-500 mb-2" />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                          {formatMonthYear(generatingMonthYear.year, generatingMonthYear.month)}
+                        </h3>
                       </div>
-                      <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse" />
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400">
+                        Generating...
+                      </Badge>
                     </div>
-                    <div className="mt-4 flex items-center justify-between">
-                      <div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                      <div className="h-4 w-12 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                    </div>
-                    <div className="mt-3 flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400">
-                      <div className="relative flex h-4 w-4">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500 top-1 left-1" />
+                    <div className="mt-6">
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-emerald-400 to-emerald-600 h-2 rounded-full animate-[progressGlow_1.5s_ease-in-out_infinite]"
+                          style={{ width: "60%", backgroundSize: "200% auto" }}
+                        />
                       </div>
-                      <span className="animate-pulse font-medium">AI generating report...</span>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
+                        AI is analysing traffic and endpoints...
+                      </p>
                     </div>
                   </div>
-                  <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent dark:via-white/5" />
                 </div>
               )}
             </div>
@@ -487,7 +499,7 @@ const CISOReports = () => {
   }
 
   // --------------------------------------------------------------------------
-  // DETAIL DASHBOARD (wrapped with id="ciso-report-content" for PDF export)
+  // DETAIL DASHBOARD (exactly as in your original working file)
   // --------------------------------------------------------------------------
   const report = selectedReport;
   const blockedPercent = report.total_requests
@@ -682,7 +694,7 @@ const CISOReports = () => {
                     <th className="border p-2">Low</th>
                     <th className="border p-2">Medium</th>
                     <th className="border p-2">High</th>
-                   </tr>
+                  </tr>
                 </thead>
                 <tbody>
                   <tr>

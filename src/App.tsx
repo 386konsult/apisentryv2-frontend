@@ -8,8 +8,6 @@ import AppSidebar from "./components/AppSidebar";
 import ProtectedPlatformRoute from "./components/ProtectedPlatformRoute";
 import PlatformIndicator from "./components/PlatformIndicator";
 import { useEffect, useState } from "react";
-import { Moon, Sun } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlatformProvider } from "@/contexts/PlatformContext";
 
@@ -147,26 +145,11 @@ const AppContent = () => {
                   <AppSidebar isDark={isDark} />
 
                   <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
-                    <header className="h-16 border-b border-slate-200/70 bg-[#f4f8ff] flex items-center justify-between px-6 flex-shrink-0 dark:border-slate-800/80 dark:bg-[#0f1724]">
-                      <div className="flex items-center space-x-4 min-w-0">
-                        <h1 className="text-2xl font-bold gradient-primary bg-clip-text text-transparent">
-                          {/* Smartcomply Heimdall */}
-                        </h1>
-                      </div>
-
-                      <div className="flex items-center space-x-4 flex-shrink-0">
-                        <PlatformIndicator />
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={toggleDarkMode}
-                          className="h-8 w-8 rounded-xl text-slate-700 hover:bg-white/50 dark:text-slate-200 dark:hover:bg-white/10"
-                        >
-                          {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-                        </Button>
-                      </div>
-                    </header>
+                    <header className="h-16 border-b border-slate-200/70 bg-[#f4f8ff] flex items-center px-6 flex-shrink-0 dark:border-slate-800/80 dark:bg-[#0f1724]">
+  <div className="flex-1 min-w-0">
+    <PlatformIndicator />
+  </div>
+</header>
 
                     <main className="p-6 overflow-x-hidden overflow-y-auto flex-1 min-w-0">
                       <Routes>

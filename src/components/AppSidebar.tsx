@@ -1,11 +1,11 @@
 import type { ElementType } from "react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Shield, AlertTriangle, Globe, Settings, Users, Code, LogOut,
   Search, Clock, FileText, LayoutDashboard, Link2, BookOpen, Bell, BarChart3, Mail, Gauge,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarTrigger, useSidebar,
@@ -17,9 +17,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlatform } from "@/contexts/PlatformContext";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Unique click animations (stays outside)
-// ─────────────────────────────────────────────────────────────────────────────
+// Unique click animations
 const ANIM: Record<string, { a: object; ms: number }> = {
   "Dashboard": { a: { scaleY: [1, 0.25, 1.7, 0.8, 1.15, 1], originY: 1 }, ms: 600 },
   "Security Hub": { a: { x: [0, 11, -4, 7, 0], rotate: [0, 14, -8, 3, 0] }, ms: 500 },
@@ -44,8 +42,249 @@ const ANIM: Record<string, { a: object; ms: number }> = {
   "Rate Limiting": { a: { rotate: [0, 15, -8, 12, -5, 4, -2, 0], scale: [1, 1.12, 0.94, 1.06, 0.98, 1.02, 1], originX: 0.5, originY: 0.5 }, ms: 550 }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
+const monitorItems = [
+  { title: "Dashboard", url: null, icon: BarChart3, isDynamic: true },
+  { title: "Security Hub", url: "/security-hub", icon: Search },
+  { title: "Threat Logs", url: "/threat-logs", icon: AlertTriangle },
+  { title: "Security Alerts", url: "/security-alerts", icon: Bell },
+  { title: "Incidents", url: "/incidents", icon: FileText },
+];
+
+const securityItems = [
+  { title: "API Endpoints", url: "/api-endpoints", icon: Globe },
+  { title: "IP Blacklist", url: "/ip-blacklist", icon: Shield },
+  { title: "Playground", url: "/playground", icon: Code },
+  { title: "CISO Reports", url: "/ciso-reports", icon: FileText },
+  { title: "Rate Limiting", url: null, icon: Gauge, isDynamic: true },
+];
+
+const SHOW_SOURCE_CODE = false;
+
+const SECURITY_TIPS = [
+  "Rotate your API keys every 90 days to limit exposure from credential leaks.",
+  "Enable rate limiting on all public endpoints to prevent brute-force attacks.",
+  "Always validate and sanitize input server-side — never trust the client.",
+  "Use allowlists over blocklists for IP-based access control.",
+  "Monitor for unusual traffic spikes — they often precede DDoS attempts.",
+  "Disable unused HTTP methods (PUT, DELETE) on endpoints that don't need them.",
+  "Set short expiry times on JWT tokens and refresh them silently.",
+  "Log every 4xx and 5xx response — anomalies hide in the noise.",
+  "Use HSTS headers to prevent protocol downgrade attacks.",
+  "Segment your APIs — internal and external endpoints should never share auth.",
+];
+
+// ─── Live digital clock with dynamic greeting ───────────────────────────────
+const DigitalClock = ({ p, collapsed, userName }: { p: any; collapsed: boolean; userName?: string }) => {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const hh = now.getHours().toString().padStart(2, "0");
+  const mm = now.getMinutes().toString().padStart(2, "0");
+  const ss = now.getSeconds().toString().padStart(2, "0");
+  const hour = now.getHours();
+
+  // Greeting logic
+  let greeting = "";
+  if (hour >= 5 && hour < 12) greeting = "Good morning";
+  else if (hour >= 12 && hour < 17) greeting = "Good afternoon";
+  else if (hour >= 17 && hour < 21) greeting = "Good evening";
+  else greeting = "Welcome back";
+
+  const displayName = userName || "User";
+
+  // Timezone label
+  const tz = now.toLocaleTimeString(undefined, { timeZoneName: "short" })
+               .split(" ").pop() || "";
+
+  if (collapsed) {
+    return (
+      <div style={{
+        margin: "6px 4px 4px",
+        borderRadius: 10,
+        padding: "8px 4px",
+        background: p.hoverBg,
+        border: `1px solid ${p.border}`,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 2,
+      }}>
+        <span style={{
+          fontFamily: "'DM Mono', 'Courier New', monospace",
+          fontSize: 9,
+          fontWeight: 700,
+          color: p.accent,
+          letterSpacing: "0.05em",
+        }}>{hh}</span>
+        <span style={{ color: p.muted, fontSize: 8 }}>:</span>
+        <span style={{
+          fontFamily: "'DM Mono', 'Courier New', monospace",
+          fontSize: 9,
+          fontWeight: 700,
+          color: p.accent,
+          letterSpacing: "0.05em",
+        }}>{mm}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      margin: "6px 4px 4px",
+      borderRadius: 14,
+      padding: "10px 14px",
+      background: p.hoverBg,
+      border: `1px solid ${p.border}`,
+    }}>
+      {/* Greeting line */}
+      <div style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color: p.accent,
+        fontFamily: "'DM Sans', sans-serif",
+        letterSpacing: "0.02em",
+        marginBottom: 6,
+      }}>
+        {greeting}, {displayName}
+      </div>
+      {/* Time row */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
+          <span style={{
+            fontFamily: "'DM Mono', 'Courier New', monospace",
+            fontSize: 22,
+            fontWeight: 700,
+            color: p.accent,
+            letterSpacing: "0.04em",
+            lineHeight: 1,
+          }}>
+            {hh}<span style={{ opacity: 0.45, fontSize: 18 }}>:</span>{mm}
+          </span>
+          <span style={{
+            fontFamily: "'DM Mono', 'Courier New', monospace",
+            fontSize: 13,
+            fontWeight: 600,
+            color: p.muted,
+            letterSpacing: "0.04em",
+            marginLeft: 2,
+          }}>
+            <span style={{ opacity: 0.55 }}>:</span>{ss}
+          </span>
+        </div>
+        <span style={{
+          fontSize: 9,
+          fontWeight: 700,
+          color: p.accent,
+          background: `${p.accent}18`,
+          border: `1px solid ${p.accent}30`,
+          borderRadius: 6,
+          padding: "2px 6px",
+          letterSpacing: "0.07em",
+          fontFamily: "'DM Sans', sans-serif",
+        }}>
+          {tz}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// ─── Rotating security tip card ───────────────────────────────────────────────
+const SecurityTipCard = ({ p, collapsed }: { p: any; collapsed: boolean }) => {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      // fade out → swap → fade in
+      setVisible(false);
+      setTimeout(() => {
+        setIndex((prev) => (prev + 1) % SECURITY_TIPS.length);
+        setVisible(true);
+      }, 350);
+    }, 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (collapsed) return null;
+
+  return (
+    <div style={{
+      margin: "4px 4px 10px",
+      borderRadius: 14,
+      padding: "12px",
+      background: p.hoverBg,
+      border: `1px solid ${p.border}`,
+      minHeight: 90,
+    }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
+        <div style={{
+          width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+          background: "linear-gradient(135deg, #1e3a8a, #06b6d4)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <svg width="11" height="11" viewBox="0 0 20 20" fill="none">
+            <path d="M10 2 L16 5 L16 10 C16 13.5 13 16.5 10 18 C7 16.5 4 13.5 4 10 L4 5 Z"
+              fill="white" fillOpacity="0.9" />
+            <rect x="9" y="8.5" width="2" height="4.5" rx="1" fill="#06b6d4" />
+            <circle cx="10" cy="7" r="1" fill="#06b6d4" />
+          </svg>
+        </div>
+        <span style={{
+          fontSize: 10, fontWeight: 700, color: p.accent,
+          fontFamily: "'DM Sans', sans-serif",
+          letterSpacing: "0.08em", textTransform: "uppercase" as const,
+          flex: 1,
+        }}>
+          Security Tip
+        </span>
+        {/* Dot indicators */}
+        <div style={{ display: "flex", gap: 3 }}>
+          {SECURITY_TIPS.map((_, i) => (
+            <div
+              key={i}
+              onClick={() => { setVisible(false); setTimeout(() => { setIndex(i); setVisible(true); }, 200); }}
+              style={{
+                width: i === index ? 12 : 5,
+                height: 5,
+                borderRadius: 999,
+                background: i === index ? p.accent : `${p.accent}40`,
+                transition: "width 0.3s ease, background 0.3s ease",
+                cursor: "pointer",
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Tip text — crossfade */}
+      <AnimatePresence mode="wait">
+        <motion.p
+          key={index}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : -4 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.35, ease: "easeInOut" }}
+          style={{
+            fontSize: 10.5, color: p.muted,
+            fontFamily: "'DM Sans', sans-serif",
+            lineHeight: 1.55, margin: 0,
+          }}
+        >
+          {SECURITY_TIPS[index]}
+        </motion.p>
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// ─── Main sidebar ─────────────────────────────────────────────────────────────
+const AppSidebar = () => {
   const { state } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
@@ -55,42 +294,34 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
 
   const [animating, setAnimating] = useState<Record<string, boolean>>({});
 
-  // Because selectedPlatformId is now in scope, we can define the menu items inside the component
-  const monitorItems = [
-    { title: "Dashboard", url: null, icon: BarChart3, isDynamic: true },
-    { title: "Security Hub", url: "/security-hub", icon: Search },
-    { title: "Threat Logs", url: "/threat-logs", icon: AlertTriangle },
-    { title: "Security Alerts", url: "/security-alerts", icon: Bell },
-    { title: "Incidents", url: "/incidents", icon: FileText },
-  ];
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('heimdall_theme');
+    if (saved === 'dark') return true;
+    if (saved === 'light') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
 
-  const securityItems = [
-    { title: "API Endpoints", url: "/api-endpoints", icon: Globe },
-    { title: "IP Blacklist", url: "/ip-blacklist", icon: Shield },
-    { title: "Playground", url: "/playground", icon: Code },
-    { title: "CISO Reports", url: "/ciso-reports", icon: FileText },
-    { title: "Rate Limiting", url: `/workspace/${selectedPlatformId}/rate-limiting`, icon: Gauge },
-  ];
+  useEffect(() => {
+    const handleThemeChange = () => {
+      const saved = localStorage.getItem('heimdall_theme');
+      setIsDark(saved === 'dark');
+    };
+    window.addEventListener('storage', handleThemeChange);
+    window.addEventListener('localStorageChange', handleThemeChange);
+    return () => {
+      window.removeEventListener('storage', handleThemeChange);
+      window.removeEventListener('localStorageChange', handleThemeChange);
+    };
+  }, []);
 
-  const sourceCodeItems = [
-    { title: "Dashboard ", url: "/code-review-dashboard", icon: LayoutDashboard },
-    { title: "Connect Repo", url: "/code-review-connect", icon: Link2 },
-    { title: "Repositories", url: "/code-review-repos", icon: BookOpen },
-    { title: "Scan Reports", url: "/code-review-scan-reports", icon: FileText },
-    { title: "Git Auto Scan", url: "/git-automated-scan", icon: Clock },
-  ];
-  const SHOW_SOURCE_CODE = false;
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
-  const settingItems = [
-    { title: "Users & Teams", url: "/users", icon: Users },
-    { title: "Invitations", url: "/invitations", icon: Mail },
-    { title: "Settings", url: "/settings", icon: Settings },
-    { title: "Audit Logs", url: "/audit-logs", icon: Clock },
-  ];
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Styles (unchanged)
-  // ─────────────────────────────────────────────────────────────────────────────
   const p = isDark
     ? {
         bg: "#15171C", border: "rgba(255,255,255,0.06)", topBorder: "rgba(255,255,255,0.06)",
@@ -110,12 +341,6 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
 
   const handleLogout = async () => { try { await logout(); } catch {} };
 
-  const displayName = user
-    ? `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email?.split("@")[0] || "Account"
-    : "Account";
-  const emailLabel = user?.email || "";
-  const userInitial = displayName.charAt(0).toUpperCase() || "U";
-
   const fire = useCallback((title: string) => {
     const cfg = ANIM[title];
     if (!cfg) return;
@@ -127,7 +352,7 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
     const cfg = ANIM[title];
     const on = !!animating[title];
     return (
-      <motion.div 
+      <motion.div
         animate={on && cfg ? cfg.a : {}}
         transition={on && cfg ? { duration: cfg.ms / 1000, ease: "easeInOut" } : {}}
         style={{ display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
@@ -137,51 +362,42 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
     );
   };
 
-  const NavItem = ({ title, url, icon: Icon, isDynamic = false }: {
-    title: string; url: string | null; icon: ElementType; isDynamic?: boolean;
-  }) => {
-    const to = isDynamic && selectedPlatformId ? `/platforms/${selectedPlatformId}` : url || "#";
+  const NavItem = ({ title, url, icon: Icon, isDynamic }: any) => {
+    let finalUrl = url || "#";
+    if (isDynamic && selectedPlatformId) {
+      if (title === "Dashboard") finalUrl = `/platforms/${selectedPlatformId}`;
+      else if (title === "Rate Limiting") finalUrl = `/workspace/${selectedPlatformId}/rate-limiting`;
+      else finalUrl = url ? `/platforms/${selectedPlatformId}${url}` : "#";
+    }
+
     const active = isDynamic && selectedPlatformId
-      ? location.pathname === `/platforms/${selectedPlatformId}`
-      : isActive(url || "");
+      ? location.pathname === finalUrl
+      : location.pathname === url;
 
     return (
-      <SidebarMenuItem>
+      <SidebarMenuItem style={{ listStyle: "none" }}>
         <SidebarMenuButton asChild>
           <NavLink
-            to={to}
-            end={to === "/"}
+            to={finalUrl}
+            end
             onClick={() => fire(title)}
+            title={collapsed ? title : ""}
             style={{
-              display: "flex", alignItems: "center", gap: collapsed ? 0 : 14,
-              padding: collapsed ? "10px 0" : "10px 14px", borderRadius: 12,
-              textDecoration: "none", transition: "background 0.15s ease",
+              display: "flex", alignItems: "center", gap: collapsed ? 0 : 10,
+              justifyContent: collapsed ? "center" : "flex-start",
+              padding: collapsed ? "9px 0" : "9px 12px",
+              borderRadius: 10, border: "none", textDecoration: "none", cursor: "pointer",
               background: active ? p.activeBg : "transparent",
-              justifyContent: collapsed ? "center" : "flex-start", width: "100%",
+              transition: "background 0.15s ease",
+              width: "100%",
             }}
-            onMouseEnter={(e) => { if (!active)(e.currentTarget as HTMLElement).style.background = p.hoverBg; }}
-            onMouseLeave={(e) => { if (!active)(e.currentTarget as HTMLElement).style.background = "transparent"; }}
+            onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = p.hoverBg; }}
+            onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
           >
-            {!collapsed && (
-              <span style={{
-                width: 5, height: 5, borderRadius: "50%", flexShrink: 0,
-                background: active ? p.iconActive : "transparent",
-                boxShadow: active ? `0 0 8px ${isDark ? "rgba(96,165,250,0.55)" : "rgba(37,99,235,0.45)"}` : "none",
-                transition: "all 0.15s ease",
-              }} />
-            )}
-
             <AnimIcon Icon={Icon} active={active} title={title} />
-
             {!collapsed && (
-              <span style={{
-                fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                fontWeight: active ? 600 : 500,
-                color: active ? p.text : p.muted,
-                transition: "color 0.15s ease", whiteSpace: "nowrap",
-                flex: 1, textAlign: "left", letterSpacing: "0.55px",
-              }}>
-                {title.trim()}
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: active ? 600 : 500, color: active ? p.text : p.muted, letterSpacing: "0.3px", whiteSpace: "nowrap" }}>
+                {title}
               </span>
             )}
           </NavLink>
@@ -190,29 +406,20 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
     );
   };
 
-  const AccountItem = ({ title, url, icon: Icon }: { title: string; url: string; icon: ElementType }) => {
-    const active = isActive(url);
-    return (
-      <DropdownMenuItem
-        onClick={() => { fire(title); navigate(url); }}
-        style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, cursor: "pointer", background: active ? p.activeBg : "transparent", margin: "2px 0" }}
-      >
-        <AnimIcon Icon={Icon} active={active} title={title} />
-        <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: active ? 600 : 500, color: active ? p.text : p.muted, flex: 1, letterSpacing: "0.55px" }}>
-          {title}
-        </span>
-      </DropdownMenuItem>
-    );
-  };
-
   const SectionLabel = ({ label }: { label: string }) =>
     collapsed ? null : (
-      <div style={{ fontFamily: "'Sora', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", color: p.sectionText, padding: "18px 14px 10px", userSelect: "none" }}>
+      <div style={{ padding: "8px 12px 4px", fontFamily: "'DM Sans', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: p.sectionText, textTransform: "uppercase" }}>
         {label}
       </div>
     );
 
-  // If a platform is not selected, show only the workspaces section
+  const SidebarBottom = () => (
+    <div style={{ marginTop: "auto", paddingTop: 8 }}>
+      <DigitalClock p={p} collapsed={collapsed} userName={user?.first_name || user?.email?.split('@')[0] || "User"} />
+      <SecurityTipCard p={p} collapsed={collapsed} />
+    </div>
+  );
+
   if (!hasSelectedPlatform) {
     return (
       <Sidebar className={`${collapsed ? "w-20" : "w-56"} transition-all duration-300`} collapsible="icon"
@@ -228,24 +435,21 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
           )}
           <SidebarTrigger style={{ color: p.muted, flexShrink: 0 }} />
         </div>
-        <SidebarContent style={{ padding: collapsed ? "8px 6px" : "8px 8px", overflowX: "hidden", background: p.bg }}>
+        <SidebarContent style={{ padding: collapsed ? "8px 6px" : "8px 8px", overflowX: "hidden", background: p.bg, display: "flex", flexDirection: "column" }}>
           <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>
-            <SectionLabel label="/WORKSPACES" />
+            <SectionLabel label="WORKSPACES" />
             <SidebarGroupContent>
-              <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <NavItem title="Workspaces" url="/platforms" icon={Shield} />
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          <SidebarGroup style={{ marginTop: "auto", padding: 0, paddingTop: 14, borderTop: `1px solid ${p.topBorder}` }}>
-            {/* account dropdown same as before – omitted for brevity, but keep it */}
-          </SidebarGroup>
+          <SidebarBottom />
         </SidebarContent>
       </Sidebar>
     );
   }
 
-  // Normal full sidebar when a platform is selected
   return (
     <Sidebar className={`${collapsed ? "w-20" : "w-56"} transition-all duration-300`} collapsible="icon"
       style={{ borderRight: `1px solid ${p.border}`, background: p.bg }}>
@@ -263,12 +467,12 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
         <SidebarTrigger style={{ color: p.muted, flexShrink: 0 }} />
       </div>
 
-      <SidebarContent style={{ padding: collapsed ? "8px 6px" : "8px 8px", overflowX: "hidden", background: p.bg }}>
+      <SidebarContent style={{ padding: collapsed ? "8px 6px" : "8px 8px", overflowX: "hidden", background: p.bg, display: "flex", flexDirection: "column" }}>
         {/* MONITOR */}
         <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>
-          <SectionLabel label="/MONITOR" />
+          <SectionLabel label="MONITOR" />
           <SidebarGroupContent>
-            <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {monitorItems.map((item) => <NavItem key={item.title} {...item} />)}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -276,69 +480,16 @@ const AppSidebar = ({ isDark = false }: { isDark?: boolean }) => {
 
         {/* SECURITY */}
         <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>
-          <SectionLabel label="/SECURITY" />
+          <SectionLabel label="SECURITY" />
           <SidebarGroupContent>
-            <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {securityItems.map((item) => <NavItem key={item.title} {...item} />)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {SHOW_SOURCE_CODE && (
-          <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>
-            <SectionLabel label="/SOURCE CODE" />
-            <SidebarGroupContent>
-              <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {sourceCodeItems.map((item) => <NavItem key={item.title} {...item} />)}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Account section (unchanged) */}
-        <SidebarGroup style={{ marginTop: "auto", padding: 0, paddingTop: 14, borderTop: `1px solid ${p.topBorder}` }}>
-          <SidebarGroupContent>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  style={{ width: "100%", display: "flex", alignItems: "center", gap: collapsed ? 0 : 12, justifyContent: collapsed ? "center" : "flex-start", padding: collapsed ? "10px 0" : "10px 12px", borderRadius: 12, border: "none", background: "transparent", cursor: "pointer", transition: "background 0.15s ease" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = p.hoverBg; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                >
-                  <div style={{ width: 34, height: 34, borderRadius: "999px", flexShrink: 0, background: isDark ? "rgba(255,255,255,0.12)" : "rgba(37,99,235,0.12)", color: isDark ? "#FFFFFF" : "#1E3A8A", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 700 }}>
-                    {userInitial}
-                  </div>
-                  {!collapsed && (
-                    <div style={{ minWidth: 0, textAlign: "left", flex: 1 }}>
-                      <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 600, color: p.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "0.55px" }}>
-                        {displayName}
-                      </div>
-                    </div>
-                  )}
-                </button>
-              </DropdownMenuTrigger>
-
-              <DropdownMenuContent align="start" side={collapsed ? "right" : "top"} sideOffset={8} collisionPadding={8}
-                style={{ width: collapsed ? 220 : 206, padding: 8, borderRadius: 16, border: `1px solid ${p.popupBorder}`, background: p.popupBg, boxShadow: isDark ? "0 10px 24px rgba(0,0,0,0.18)" : "0 10px 24px rgba(15,23,42,0.08)" }}>
-
-                <DropdownMenuLabel style={{ padding: "8px 10px 10px", fontFamily: "'DM Sans',sans-serif" }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: isDark ? "#F8FAFC" : "#0F172A", lineHeight: 1.2, letterSpacing: "0.45px" }}>{displayName}</div>
-                  {emailLabel && <div style={{ marginTop: 4, fontSize: 12, fontWeight: 500, color: isDark ? "#AEB8C8" : "#64748B", lineHeight: 1.2, wordBreak: "break-word", letterSpacing: "0.2px" }}>{emailLabel}</div>}
-                </DropdownMenuLabel>
-
-                <DropdownMenuSeparator style={{ margin: "2px 0 6px", background: isDark ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.08)" }} />
-                {settingItems.map((item) => <AccountItem key={item.title} {...item} />)}
-                <DropdownMenuSeparator style={{ margin: "6px 0 6px", background: isDark ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.08)" }} />
-
-                <DropdownMenuItem onClick={() => { fire("Log out"); handleLogout(); }}
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, cursor: "pointer", margin: "2px 0" }}>
-                  <AnimIcon Icon={LogOut} active={false} title="Log out" />
-                  <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, fontWeight: 500, color: p.muted, flex: 1, letterSpacing: "0.55px" }}>Log out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Clock + Tips pushed to bottom */}
+        <SidebarBottom />
       </SidebarContent>
     </Sidebar>
   );

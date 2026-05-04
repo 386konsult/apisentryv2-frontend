@@ -135,3 +135,34 @@ All colors MUST be HSL.
     background: linear-gradient(180deg, hsl(259 86% 71% / 0.2) 0%, hsl(259 86% 71% / 0.02) 100%);
   }
 }
+/* ── Custom Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F4F8FF;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #0F1724;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #1e2d45;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #0F1724;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #F4F8FF;
+  border-radius: 999px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}

@@ -650,13 +650,21 @@ class APIService {
   }
 
   async removeFromBlacklist(id: string): Promise<void> {
+    const csrfToken = this.getCSRFToken();
     const res = await fetch(`${this.baseURL}/blacklist/${id}/`, {
-      method: 'DELETE',
-      credentials: 'include',
-      headers: this.getHeaders(),
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+            ...this.getHeaders(),
+            'X-CSRFToken': csrfToken || '',
+        },
     });
-    if (!res.ok) throw new Error('Failed to remove IP from blacklist');
-  }
+    if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Delete failed:", res.status, errorText);
+        throw new Error(`Failed to remove IP: ${res.status}`);
+    }
+}
 
   // Update platform details
   async updatePlatform(platformId: string, data: { application_url?: string; listening_port?: string; forwarded_port?: string; name?: string }): Promise<any> {

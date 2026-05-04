@@ -37,7 +37,6 @@ import {
   Shield,
   MoreVertical,
   Trash2,
-  Activity,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -47,9 +46,10 @@ const IPBlacklist = () => {
   const [loading, setLoading] = useState(true);
   const [newIP, setNewIP] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; ip: any | null }>({
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; ip: any | null; id: string | null }>({
     open: false,
     ip: null,
+    id: null,
   });
   const { toast } = useToast();
 
@@ -61,6 +61,7 @@ const IPBlacklist = () => {
       const response = await apiService.getBlacklist(platformId);
       const respAny = response as any;
       const blacklistArray = Array.isArray(respAny) ? respAny : (respAny.results || respAny.data || []);
+      console.log("Fetched blacklist:", blacklistArray); // Debug log
       setBlacklist(blacklistArray);
     } catch (error) {
       toast({
@@ -102,22 +103,40 @@ const IPBlacklist = () => {
     }
   };
 
-  const removeIPFromBlacklist = async (ipItem: any) => {
+  const removeIPFromBlacklist = async () => {
+    const idToDelete = deleteDialog.id;
+    const ipToDelete = deleteDialog.ip?.ip || deleteDialog.ip;
+    
+    console.log("Removing IP with ID:", idToDelete);
+    console.log("IP address:", ipToDelete);
+    
+    if (!idToDelete) {
+      toast({
+        title: "Error removing IP",
+        description: "No ID found for this IP entry.",
+        variant: "destructive",
+      });
+      setDeleteDialog({ open: false, ip: null, id: null });
+      return;
+    }
+    
     try {
-      await apiService.removeFromBlacklist(ipItem.id);
+      await apiService.removeFromBlacklist(idToDelete);
       toast({
         title: "IP Removed",
-        description: `The IP ${ipItem.ip} has been removed from the blacklist.`,
+        description: `IP has been removed from the blacklist.`,
         variant: "default",
       });
-      setDeleteDialog({ open: false, ip: null });
+      setDeleteDialog({ open: false, ip: null, id: null });
       fetchBlacklist();
     } catch (error: any) {
+      console.error("Delete error:", error);
       toast({
         title: "Error removing IP",
         description: error.message || "Failed to remove IP from blacklist.",
         variant: "destructive",
       });
+      setDeleteDialog({ open: false, ip: null, id: null });
     }
   };
 
@@ -163,7 +182,7 @@ const IPBlacklist = () => {
     <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
       <div className="w-full space-y-6">
 
-        {/* Hero Banner (matching PlatformDetails) */}
+        {/* Hero Banner */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -374,12 +393,12 @@ const IPBlacklist = () => {
                           <th className="px-5 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[150px]">Blocked By</th>
                           <th className="px-5 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[100px]">Status</th>
                           <th className="px-5 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[80px]">Actions</th>
-                         </tr>
+                        </tr>
                       </thead>
                       <tbody>
                         {filteredBlacklist.map((item) => (
                           <tr
-                            key={item.id}
+                            key={item.id || item.ip_id || item.pk}
                             className="border-b border-slate-200/40 transition-colors hover:bg-blue-50/30 dark:border-slate-800/40 dark:hover:bg-slate-800/30"
                           >
                             <td className="px-5 py-4 align-middle">
@@ -424,7 +443,16 @@ const IPBlacklist = () => {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
-                                    onClick={() => setDeleteDialog({ open: true, ip: item })}
+                                    onClick={() => {
+                                      console.log("Delete clicked for item:", item);
+                                      const deleteId = item.id || item.ip_id || item.pk;
+                                      console.log("Using ID:", deleteId);
+                                      setDeleteDialog({ 
+                                        open: true, 
+                                        ip: item,
+                                        id: deleteId
+                                      });
+                                    }}
                                     className="text-destructive focus:text-destructive"
                                   >
                                     <Trash2 className="h-4 w-4 mr-2" />
@@ -443,7 +471,7 @@ const IPBlacklist = () => {
                   <div className="md:hidden p-4 space-y-3">
                     {filteredBlacklist.map((item) => (
                       <div
-                        key={item.id}
+                        key={item.id || item.ip_id || item.pk}
                         className="rounded-2xl border border-slate-200/60 bg-slate-50/60 p-4 dark:border-slate-700/60 dark:bg-slate-800/30"
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -474,7 +502,14 @@ const IPBlacklist = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setDeleteDialog({ open: true, ip: item })}
+                            onClick={() => {
+                              const deleteId = item.id || item.ip_id || item.pk;
+                              setDeleteDialog({ 
+                                open: true, 
+                                ip: item,
+                                id: deleteId
+                              });
+                            }}
                             className="rounded-lg text-destructive hover:text-destructive hover:bg-red-50 dark:hover:bg-red-900/20 text-xs"
                           >
                             <Trash2 className="h-3.5 w-3.5 mr-1.5" />
@@ -491,14 +526,16 @@ const IPBlacklist = () => {
         </motion.div>
 
         {/* Delete Confirmation Dialog */}
-        <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ open, ip: null })}>
+        <AlertDialog open={deleteDialog.open} onOpenChange={(open) => {
+          if (!open) setDeleteDialog({ open: false, ip: null, id: null });
+        }}>
           <AlertDialogContent className="rounded-2xl border border-slate-200/50 dark:border-slate-800/50">
             <AlertDialogHeader>
               <AlertDialogTitle>Remove IP from Blacklist?</AlertDialogTitle>
               <AlertDialogDescription>
                 Are you sure you want to unblock{" "}
                 <span className="font-mono font-semibold text-slate-900 dark:text-white">
-                  {deleteDialog.ip?.ip}
+                  {deleteDialog.ip?.ip || deleteDialog.ip}
                 </span>
                 ? Requests from this address will be allowed through again.
               </AlertDialogDescription>
@@ -506,7 +543,7 @@ const IPBlacklist = () => {
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => deleteDialog.ip && removeIPFromBlacklist(deleteDialog.ip)}
+                onClick={() => removeIPFromBlacklist()}
                 className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Remove

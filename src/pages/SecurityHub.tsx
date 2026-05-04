@@ -146,25 +146,41 @@ const SecurityHub = () => {
   const [platformName, setPlatformName] = useState<string>("");
 
   // ── Paginated fetch ────────────────────────────────────────────────────────
-  const fetchLogsPage = async (platformId: string, pageNum: number, append = false) => {
+ const fetchLogsPage = async (platformId: string, pageNum: number, append = false) => {
     if (loadingMore) return;
     setLoadingMore(true);
     try {
-      const response = await apiService.getPlatformRequestLogs(platformId, {
-        page: pageNum,
-        page_size: PAGE_SIZE,
-      });
-      const newLogs = response.results || [];
-      setLogs(prev => append ? [...prev, ...newLogs] : newLogs);
-      setHasMore(!!response.next);
+        const response = await apiService.getPlatformRequestLogs(platformId, {
+            page: pageNum,
+            page_size: PAGE_SIZE,
+        });
+        
+        // Handle different response formats
+        let newLogs = [];
+        if (response.results) {
+            newLogs = response.results;
+        } else if (response.logs) {
+            newLogs = response.logs;
+        } else if (Array.isArray(response)) {
+            newLogs = response;
+        } else if (response.data && Array.isArray(response.data)) {
+            newLogs = response.data;
+        } else {
+            newLogs = [];
+            console.warn("Unexpected response format:", response);
+        }
+        
+        console.log("Fetched logs:", newLogs.length);
+        setLogs(prev => append ? [...prev, ...newLogs] : newLogs);
+        setHasMore(!!response.next);
     } catch (error) {
-      console.error("Error loading logs:", error);
-      toast({ title: "Error loading logs", description: "Failed to fetch request logs", variant: "destructive" });
+        console.error("Error loading logs:", error);
+        toast({ title: "Error loading logs", description: "Failed to fetch request logs", variant: "destructive" });
     } finally {
-      setLoadingMore(false);
-      setLoading(false);
+        setLoadingMore(false);
+        setLoading(false);
     }
-  };
+};
 
   // Initial load
   useEffect(() => {

@@ -409,8 +409,8 @@ const Settings = () => {
                       <code className="text-sm font-mono flex-1 break-all text-slate-100">
                         {platformDetails
                           ? selectedOS === "linux"
-                            ? `curl -L https://raw.githubusercontent.com/386konsult/installation-script/main/install.sh -o install.sh && chmod +x install.sh && sudo ./install.sh ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port} ${API_BASE_URL}`
-                            : `curl -L https://raw.githubusercontent.com/386konsult/installation-script/main/install.bat -o install.bat && install.bat ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port} ${API_BASE_URL}`
+                            ? `curl -L https://raw.githubusercontent.com/386konsult/installation-script/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port}`
+                            : `curl -L https://raw.githubusercontent.com/386konsult/installation-script/main/install.bat -o install.bat && install.bat ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port}`
                           : "Loading..."}
                       </code>
 
@@ -421,8 +421,8 @@ const Settings = () => {
                         onClick={() => {
                           const command = platformDetails
                             ? selectedOS === "linux"
-                              ? `curl -L https://raw.githubusercontent.com/386konsult/installation-script/main/install.sh -o install.sh && chmod +x install.sh && sudo ./install.sh ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port} ${API_BASE_URL}`
-                              : `curl -L https://raw.githubusercontent.com/386konsult/installation-script/main/install.bat -o install.bat && install.bat ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port} ${API_BASE_URL}`
+                              ? `curl -L https://raw.githubusercontent.com/386konsult/installation-script/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port}`
+                              : `curl -L https://raw.githubusercontent.com/386konsult/installation-script/main/install.bat -o install.bat && install.bat ${platformDetails.id} ${platformDetails.listening_port} ${platformDetails.forwarded_port}`
                             : "";
                           navigator.clipboard.writeText(command);
                           toast({

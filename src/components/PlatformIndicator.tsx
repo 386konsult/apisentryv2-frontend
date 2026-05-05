@@ -1,24 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Globe, ChevronDown, Mail, Settings, LogOut, Sun, Moon, Users, Clock, Search, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Globe, ChevronDown, Mail, Settings, LogOut, Sun, Moon, Users, Clock, Search, Check, Command, ArrowUp, ArrowDown, CornerDownLeft, X, Home, Shield, AlertTriangle, Bell, Activity, Link, Ban, FlaskConical, FileText, Timer, Briefcase, Send, Zap } from 'lucide-react';
 import { usePlatform } from '@/contexts/PlatformContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/hooks/use-toast';
+import { apiService } from '@/services/api';
 
+// ── Hash ────────────────────────────────────────────────────────────────────
 const djb2 = (s: string) => {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
   return Math.abs(h >>> 0);
 };
 
+// ── Avatar tokens (unchanged) ───────────────────────────────────────────────
 const AVATAR_TOKENS = [
   { from: "#1e3a8a", to: "#06b6d4", svg: (<svg viewBox="0 0 20 20" fill="none" width="18" height="18"><circle cx="10" cy="10" r="2.5" fill="white" fillOpacity="0.95" /><circle cx="3" cy="3" r="1.5" fill="white" fillOpacity="0.6" /><circle cx="17" cy="3" r="1.5" fill="white" fillOpacity="0.6" /><circle cx="3" cy="17" r="1.5" fill="white" fillOpacity="0.6" /><circle cx="17" cy="17" r="1.5" fill="white" fillOpacity="0.6" /><line x1="3" y1="3" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /><line x1="17" y1="3" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /><line x1="3" y1="17" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /><line x1="17" y1="17" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /></svg>) },
   { from: "#312e81", to: "#6366f1", svg: (<svg viewBox="0 0 20 20" fill="none" width="18" height="18"><path d="M3 14 Q6 8 13 5" stroke="white" strokeOpacity="0.9" strokeWidth="1.6" strokeLinecap="round" /><path d="M5 16 Q9 11 15 8" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" strokeLinecap="round" /><path d="M7 18 Q12 14 17 11" stroke="white" strokeOpacity="0.3" strokeWidth="0.9" strokeLinecap="round" /><circle cx="13.5" cy="4.5" r="2.5" fill="white" fillOpacity="0.9" /><circle cx="13.5" cy="4.5" r="1" fill="white" /></svg>) },
@@ -46,29 +46,31 @@ const AVATAR_TOKENS = [
   { from: "#831843", to: "#fb7185", svg: (<svg viewBox="0 0 20 20" fill="none" width="18" height="18"><circle cx="10" cy="10" r="7.5" stroke="white" strokeOpacity="0.25" strokeWidth="1" fill="none" /><circle cx="10" cy="10" r="5" stroke="white" strokeOpacity="0.4" strokeWidth="1.2" fill="none" /><circle cx="10" cy="10" r="2.5" fill="white" fillOpacity="0.9" /><line x1="10" y1="2.5" x2="10" y2="5" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><line x1="10" y1="15" x2="10" y2="17.5" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><line x1="2.5" y1="10" x2="5" y2="10" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><line x1="15" y1="10" x2="17.5" y2="10" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /></svg>) },
 ];
 
+// ── Presence ─────────────────────────────────────────────────────────────────
 const IDLE_MS = 3 * 60 * 1000;
-
-// ── Persisted status key ─────────────────────────────────────────────────────
 const STATUS_STORAGE_KEY = 'heimdall_user_status';
+const getRecentSearchesKey = (userId?: number) => {
+  return userId ? `heimdall_recent_searches_${userId}` : 'heimdall_recent_searches_anonymous';
+};
 
 function usePresenceStatus() {
   const [isActive, setIsActive] = useState(true);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
-    const resetTimer = () => { setIsActive(true); clearTimeout(timer); timer = setTimeout(() => setIsActive(false), IDLE_MS); };
-    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'touchmove', 'scroll', 'wheel', 'click'];
-    events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }));
-    const onVisibility = () => { if (document.visibilityState === 'hidden') { clearTimeout(timer); setIsActive(false); } else resetTimer(); };
-    document.addEventListener('visibilitychange', onVisibility);
-    resetTimer();
-    return () => { clearTimeout(timer); events.forEach(e => window.removeEventListener(e, resetTimer)); document.removeEventListener('visibilitychange', onVisibility); };
+    const reset = () => { setIsActive(true); clearTimeout(timer); timer = setTimeout(() => setIsActive(false), IDLE_MS); };
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'wheel', 'click'];
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    const onVis = () => { if (document.visibilityState === 'hidden') { clearTimeout(timer); setIsActive(false); } else reset(); };
+    document.addEventListener('visibilitychange', onVis);
+    reset();
+    return () => { clearTimeout(timer); events.forEach(e => window.removeEventListener(e, reset)); document.removeEventListener('visibilitychange', onVis); };
   }, []);
   return isActive;
 }
 
+// ── Avatar ───────────────────────────────────────────────────────────────────
 const UserAvatar = ({ email, size = "sm", isActive = true }: { email: string; size?: "sm" | "md"; isActive?: boolean }) => {
-  const hash = djb2(email || "user@heimdall");
-  const token = AVATAR_TOKENS[hash % AVATAR_TOKENS.length];
+  const token = AVATAR_TOKENS[djb2(email || "user@heimdall") % AVATAR_TOKENS.length];
   const dim = size === "sm" ? 28 : 36;
   return (
     <div style={{ width: dim, height: dim, borderRadius: "50%", flexShrink: 0, background: `linear-gradient(135deg, ${token.from}, ${token.to})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 0 1.5px ${token.to}30, 0 1px 4px ${token.from}55`, position: "relative" }}>
@@ -78,23 +80,53 @@ const UserAvatar = ({ email, size = "sm", isActive = true }: { email: string; si
   );
 };
 
-// ── Page search index ────────────────────────────────────────────────────────
+// ── Helper to resolve dynamic paths (e.g., workspace/:id/rate-limiting) ─────
+const resolvePath = (path: string): string => {
+  if (path.includes(':id')) {
+    const platformId = localStorage.getItem('selected_platform_id');
+    if (!platformId) {
+      console.warn('No platform selected for dynamic path');
+      return '/platforms';
+    }
+    return path.replace(':id', platformId);
+  }
+  return path;
+};
+
+// ── Page index — comprehensive with Lucide icons ────────────────────────────
 const PAGE_INDEX = [
-  { label: 'Dashboard', path: '/platforms', keywords: ['dashboard', 'home', 'overview'] },
-  { label: 'Security Hub', path: '/security-hub', keywords: ['security', 'hub'] },
-  { label: 'Threat Logs', path: '/threat-logs', keywords: ['threat', 'logs', 'attacks'] },
-  { label: 'Security Alerts', path: '/security-alerts', keywords: ['alerts', 'notifications'] },
-  { label: 'Incidents', path: '/incidents', keywords: ['incidents', 'events'] },
-  { label: 'API Endpoints', path: '/api-endpoints', keywords: ['api', 'endpoints'] },
-  { label: 'IP Blacklist', path: '/ip-blacklist', keywords: ['ip', 'blacklist', 'block'] },
-  { label: 'Playground', path: '/playground', keywords: ['playground', 'test'] },
-  { label: 'CISO Reports', path: '/ciso-reports', keywords: ['ciso', 'reports'] },
-  { label: 'Users & Teams', path: '/users', keywords: ['users', 'teams', 'members'] },
-  { label: 'Invitations', path: '/invitations', keywords: ['invitations', 'invite'] },
-  { label: 'Settings', path: '/settings', keywords: ['settings', 'config'] },
-  { label: 'Audit Logs', path: '/audit-logs', keywords: ['audit', 'logs', 'history'] },
-  { label: 'Workspaces', path: '/platforms', keywords: ['workspace', 'platforms'] },
+  { label: 'Dashboard', path: '/platforms', keywords: ['dashboard', 'home', 'overview', 'main', 'start'], icon: Home },
+  { label: 'Security Hub', path: '/security-hub', keywords: ['security', 'hub', 'triage', 'center'], icon: Shield },
+  { label: 'Threat Logs', path: '/threat-logs', keywords: ['threat', 'log', 'logs', 'attack', 'attacks', 'waf', 'blocked', 'malicious'], icon: AlertTriangle },
+  { label: 'Security Alerts', path: '/security-alerts', keywords: ['alert', 'alerts', 'notification', 'notifications', 'warning'], icon: Bell },
+  { label: 'Incidents', path: '/incidents', keywords: ['incident', 'incidents', 'event', 'events', 'response', 'breach'], icon: Activity },
+  { label: 'API Endpoints', path: '/api-endpoints', keywords: ['api', 'endpoint', 'endpoints', 'route', 'routes', 'url'], icon: Link },
+  { label: 'IP Blacklist', path: '/ip-blacklist', keywords: ['ip', 'blacklist', 'block', 'ban', 'blocked', 'address', 'deny'], icon: Ban },
+  { label: 'Playground', path: '/playground', keywords: ['playground', 'test', 'try', 'simulate', 'demo', 'sandbox'], icon: FlaskConical },
+  { label: 'CISO Reports', path: '/ciso-reports', keywords: ['ciso', 'report', 'reports', 'executive', 'compliance', 'summary'], icon: FileText },
+  { label: 'Rate Limiting', path: '/workspace/:id/rate-limiting', keywords: ['rate', 'limit', 'limiting', 'throttle', 'throttling', 'quota', 'ratelimit', 'rate limit', 'rate-limit'], icon: Timer },
+  { label: 'Users & Teams', path: '/users', keywords: ['user', 'users', 'team', 'teams', 'member', 'members', 'people', 'staff', 'account'], icon: Users },
+  { label: 'Invitations', path: '/invitations', keywords: ['invitation', 'invitations', 'invite', 'invites', 'join', 'onboard'], icon: Send },
+  { label: 'Settings', path: '/settings', keywords: ['setting', 'settings', 'config', 'configuration', 'preferences', 'options', 'setup'], icon: Settings },
+  { label: 'Audit Logs', path: '/audit-logs', keywords: ['audit', 'log', 'logs', 'history', 'activity', 'trail', 'changes'], icon: Clock },
+  { label: 'Workspaces', path: '/platforms', keywords: ['workspace', 'workspaces', 'platform', 'platforms', 'project', 'space'], icon: Briefcase },
 ];
+
+// ── Smart search scoring ─────────────────────────────────────────────────────
+function scoreResult(item: typeof PAGE_INDEX[0], q: string): number {
+  const label = item.label.toLowerCase();
+  const words = q.toLowerCase().trim().split(/\s+/);
+  let score = 0;
+  for (const word of words) {
+    if (label === word) score += 100;
+    else if (label.startsWith(word)) score += 60;
+    else if (label.includes(word)) score += 30;
+    else if (item.keywords.some(k => k === word)) score += 50;
+    else if (item.keywords.some(k => k.startsWith(word))) score += 35;
+    else if (item.keywords.some(k => k.includes(word))) score += 15;
+  }
+  return score;
+}
 
 const PlatformIndicator: React.FC = () => {
   const { hasSelectedPlatform } = usePlatform();
@@ -103,23 +135,51 @@ const PlatformIndicator: React.FC = () => {
   const location = useLocation();
   const isActivePresence = usePresenceStatus();
   const isOnPlatformsPage = location.pathname === '/platforms';
+  const { toast } = useToast();
 
-  // ── Read persisted status on mount; fall back to null (auto-detect) ──────
-  const [manualStatus, setManualStatus] = useState<'active' | 'away' | null>(() => {
+const [manualStatus, setManualStatus] = useState<'active' | 'away' | null>(null);
+const [loadingStatus, setLoadingStatus] = useState(true);
+
+// Fetch status from backend on mount
+useEffect(() => {
+    const fetchStatus = async () => {
+        try {
+            const data = await apiService.getUserStatus();
+            setManualStatus(data.status as 'active' | 'away');
+        } catch (error) {
+            console.error('Failed to fetch user status', error);
+            setManualStatus('active'); // fallback
+        } finally {
+            setLoadingStatus(false);
+        }
+    };
+    fetchStatus();
+}, []);
+
+const setAndPersistStatus = async (status: 'active' | 'away') => {
+    const previous = manualStatus;
+    setManualStatus(status); // optimistic update
     try {
-      const saved = localStorage.getItem(STATUS_STORAGE_KEY);
-      if (saved === 'active' || saved === 'away') return saved;
-    } catch {}
-    return null;
-  });
+        await apiService.updateUserStatus(status);
+        toast({
+            title: "Status updated",
+            description: `Your status is now ${status}.`,
+            variant: "default",
+        });
+    } catch (error) {
+        // revert on error
+        setManualStatus(previous);
+        toast({
+            title: "Failed to update status",
+            description: "Please try again.",
+            variant: "destructive",
+        });
+    }
+};
 
-  // ── Write to localStorage whenever the user explicitly picks a status ────
-  const setAndPersistStatus = (status: 'active' | 'away') => {
-    try { localStorage.setItem(STATUS_STORAGE_KEY, status); } catch {}
-    setManualStatus(status);
-  };
 
-  const effectiveStatus = manualStatus !== null ? manualStatus === 'active' : isActivePresence;
+
+const effectiveStatus = manualStatus !== null ? manualStatus === 'active' : isActivePresence;
 
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('heimdall_theme');
@@ -134,73 +194,220 @@ const PlatformIndicator: React.FC = () => {
   }, [isDark]);
 
   const [hasPendingInvitations] = useState(true);
+
+  // ── Search state ────────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<typeof PAGE_INDEX>([]);
-  const [showResults, setShowResults] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+  const key = getRecentSearchesKey(user?.id);
+  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+});
   const searchRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!searchQuery.trim()) { setSearchResults([]); setShowResults(false); return; }
-    const q = searchQuery.toLowerCase();
-    const results = PAGE_INDEX.filter(p => p.label.toLowerCase().includes(q) || p.keywords.some(k => k.includes(q)));
-    setSearchResults(results);
-    setShowResults(true);
-  }, [searchQuery]);
+  const searchResults = searchQuery.trim()
+    ? PAGE_INDEX
+        .map(p => ({ ...p, score: scoreResult(p, searchQuery) }))
+        .filter(p => p.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 6)
+    : [];
 
+  const showDropdown = searchOpen && (searchQuery.trim() ? searchResults.length > 0 : recentSearches.length > 0);
+
+  const saveRecent = useCallback((label: string) => {
+  setRecentSearches(prev => {
+    const updated = [label, ...prev.filter(r => r !== label)].slice(0, 5);
+    const key = getRecentSearchesKey(user?.id);
+    try { localStorage.setItem(key, JSON.stringify(updated)); } catch {}
+    return updated;
+  });
+}, [user?.id]);
+
+  const navigateTo = useCallback((path: string, label: string) => {
+    const resolvedPath = resolvePath(path);
+    saveRecent(label);
+    
+    // Check if Rate Limiting and no platform selected
+    if (path.includes('rate-limiting') && !localStorage.getItem('selected_platform_id')) {
+      toast({
+        title: "Select a workspace first",
+        description: "Please select a workspace to access Rate Limiting",
+        variant: "default",
+      });
+      navigate('/platforms');
+      setSearchOpen(false);
+      setSearchQuery('');
+      return;
+    }
+    
+    navigate(resolvedPath);
+    setSearchQuery('');
+    setSearchOpen(false);
+    setSelectedIndex(0);
+  }, [navigate, saveRecent, toast]);
+
+  // Keyboard navigation
   useEffect(() => {
-    const handler = (e: MouseEvent) => { if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowResults(false); };
+    if (!searchOpen) return;
+    const items = searchQuery.trim() ? searchResults : recentSearches.map(r => PAGE_INDEX.find(p => p.label === r)).filter(Boolean) as typeof PAGE_INDEX;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(i => Math.min(i + 1, items.length - 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(i => Math.max(i - 1, 0)); }
+      else if (e.key === 'Enter') {
+        e.preventDefault();
+        const item = items[selectedIndex];
+        if (item) navigateTo(item.path, item.label);
+      }
+      else if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [searchOpen, searchQuery, searchResults, recentSearches, selectedIndex, navigateTo]);
+
+  // Reset selected index on query change
+  useEffect(() => { setSelectedIndex(0); }, [searchQuery]);
+
+  // Cmd+K global shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => inputRef.current?.focus(), 50);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchResults.length > 0) { navigate(searchResults[0].path); setShowResults(false); setSearchQuery(''); }
-  };
-
   const handleLogout = async () => {
-    try { await logout(); navigate('/login'); } catch (error) { console.error('Logout failed', error); }
+    try { await logout(); navigate('/login'); } catch {}
   };
 
-  const iconButtonClass = "flex items-center justify-center rounded-full p-1.5 transition-colors";
-  const platformButtonClass = (active: boolean) =>
+  const iconBtn = "flex items-center justify-center rounded-full p-1.5 transition-colors";
+  const platformBtn = (active: boolean) =>
     `flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${active ? "text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950" : "text-orange-500 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-950"}`;
+
+  const recentItems = recentSearches.map(r => PAGE_INDEX.find(p => p.label === r)).filter(Boolean) as typeof PAGE_INDEX;
+  const dropdownItems = searchQuery.trim() ? searchResults : recentItems;
 
   return (
     <div className="flex items-center gap-2 w-full">
 
-      {/* Search with dropdown results */}
+      {/* ── Global Search with same animation/transparency as user dropdown ── */}
       <div ref={searchRef} className="relative">
-        <form onSubmit={handleSearchSubmit} className="flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-1.5 w-56 focus-within:ring-2 focus-within:ring-blue-400/40 transition-shadow">
+        <div
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 w-64 transition-all duration-200 ${
+            searchOpen
+              ? 'bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl ring-2 ring-blue-400/40 shadow-lg'
+              : 'bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm hover:bg-white/80 dark:hover:bg-gray-800/80'
+          }`}
+        >
           <Search className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
           <input
+            ref={inputRef}
             type="text"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            onFocus={() => searchResults.length > 0 && setShowResults(true)}
+            onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+            onFocus={() => setSearchOpen(true)}
             placeholder="Search pages…"
             className="bg-transparent text-xs text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none w-full"
           />
-        </form>
+          {searchQuery ? (
+            <button onClick={() => { setSearchQuery(''); inputRef.current?.focus(); }} className="flex-shrink-0">
+              <X className="h-3 w-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" />
+            </button>
+          ) : (
+            <kbd className="hidden sm:flex items-center gap-0.5 rounded border border-gray-200 dark:border-gray-600 px-1.5 py-0.5 text-[9px] font-medium text-gray-400 dark:text-gray-500 flex-shrink-0">
+              <Command className="h-2.5 w-2.5" />K
+            </kbd>
+          )}
+        </div>
+
         <AnimatePresence>
-          {showResults && searchResults.length > 0 && (
+          {showDropdown && (
             <motion.div
-              initial={{ opacity: 0, y: -6, scale: 0.97 }}
+              initial={{ opacity: 0, y: -8, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.97 }}
-              transition={{ duration: 0.12 }}
-              className="absolute top-full mt-2 left-0 w-56 z-50 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900 shadow-xl overflow-hidden"
+              exit={{ opacity: 0, y: -8, scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 450, damping: 30, mass: 0.7 }}
+              className="absolute top-full mt-2 left-0 w-72 z-50 rounded-xl border border-white/20 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl shadow-2xl overflow-hidden"
             >
-              {searchResults.map((result, i) => (
-                <button
-                  key={result.path + i}
-                  onClick={() => { navigate(result.path); setShowResults(false); setSearchQuery(''); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                >
-                  <Search className="h-3 w-3 text-blue-400 flex-shrink-0" />
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-200">{result.label}</span>
-                </button>
-              ))}
+              {/* Header label */}
+              <div className="px-4 pt-3 pb-1.5 flex items-center justify-between border-b border-white/10">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                  {searchQuery.trim() ? `${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}` : 'Recent'}
+                </span>
+                {!searchQuery.trim() && recentSearches.length > 0 && (
+                  <button
+  onClick={() => {
+    setRecentSearches([]);
+    const key = getRecentSearchesKey(user?.id);
+    localStorage.removeItem(key);
+  }}
+  className="text-[9px] ..."
+>
+  Clear
+</button>
+                )}
+              </div>
+
+              {/* Results with Lucide icons */}
+              <div className="py-2">
+                {dropdownItems.map((item, i) => {
+                  const IconComponent = item.icon;
+                  return (
+                    <motion.button
+                      key={item.label}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.03 }}
+                      onClick={() => navigateTo(item.path, item.label)}
+                      onMouseEnter={() => setSelectedIndex(i)}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                        selectedIndex === i
+                          ? 'bg-blue-50 dark:bg-blue-900/20'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                      }`}
+                    >
+                      <IconComponent className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 block">{item.label}</span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate block">{item.path}</span>
+                      </div>
+                      {selectedIndex === i && (
+                        <CornerDownLeft className="h-3 w-3 text-blue-400 flex-shrink-0" />
+                      )}
+                    </motion.button>
+                  );
+                })}
+              </div>
+
+              {/* Footer hint */}
+              <div className="border-t border-white/10 px-4 py-2 flex items-center gap-3">
+                <div className="flex items-center gap-1 text-[9px] text-gray-400 dark:text-gray-600">
+                  <ArrowUp className="h-2.5 w-2.5" /><ArrowDown className="h-2.5 w-2.5" /> navigate
+                </div>
+                <div className="flex items-center gap-1 text-[9px] text-gray-400 dark:text-gray-600">
+                  <CornerDownLeft className="h-2.5 w-2.5" /> select
+                </div>
+                <div className="flex items-center gap-1 text-[9px] text-gray-400 dark:text-gray-600">
+                  esc close
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -208,37 +415,36 @@ const PlatformIndicator: React.FC = () => {
 
       <div className="flex-1" />
 
-      {/* Invitations */}
-      <button onClick={() => navigate('/invitations')} className={`${iconButtonClass} text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950`} title="Invitations">
+      {/* ── Invitations ────────────────────────────────────────────────────── */}
+      <button onClick={() => navigate('/invitations')} className={`${iconBtn} text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950`} title="Invitations">
         <div className="relative">
           <Mail className="h-5 w-5" />
           {hasPendingInvitations && <span className="absolute -bottom-1 -right-1.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-1 ring-white dark:ring-slate-900" />}
         </div>
       </button>
 
-      {/* Theme toggle */}
-      <button onClick={() => setIsDark(p => !p)} className={`${iconButtonClass} text-amber-500 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950`} title={isDark ? "Switch to light mode" : "Switch to dark mode"}>
+      {/* ── Theme toggle ───────────────────────────────────────────────────── */}
+      <button onClick={() => setIsDark(p => !p)} className={`${iconBtn} text-amber-500 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950`} title={isDark ? "Switch to light" : "Switch to dark"}>
         {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
       </button>
 
-      {/* Workspace selector */}
-      <button onClick={() => navigate('/platforms')} className={platformButtonClass(isOnPlatformsPage || !hasSelectedPlatform)}>
+      {/* ── Workspace selector ─────────────────────────────────────────────── */}
+      <button onClick={() => navigate('/platforms')} className={platformBtn(isOnPlatformsPage || !hasSelectedPlatform)}>
         <Globe className="h-4 w-4" />
         {isOnPlatformsPage || !hasSelectedPlatform ? 'Select Workspace' : 'Workspace Selected'}
         <ChevronDown className="h-3 w-3 opacity-60" />
       </button>
 
-      {/* Account dropdown */}
+      {/* ── Account dropdown ───────────────────────────────────────────────── */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className={`${iconButtonClass} hover:bg-gray-100 dark:hover:bg-gray-800`}>
+          <button className={`${iconBtn} hover:bg-gray-100 dark:hover:bg-gray-800`}>
             <UserAvatar email={user?.email || ""} size="sm" isActive={effectiveStatus} />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8} className="w-52 rounded-[20px] border border-white/20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl shadow-2xl p-1">
           <motion.div initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }} transition={{ type: "spring", stiffness: 450, damping: 30, mass: 0.7 }}>
 
-            {/* User info */}
             <DropdownMenuLabel>
               <div className="flex items-center gap-2.5 px-1 py-1">
                 <UserAvatar email={user?.email || ""} size="sm" isActive={effectiveStatus} />
@@ -253,23 +459,16 @@ const PlatformIndicator: React.FC = () => {
 
             <DropdownMenuSeparator className="bg-gray-200/50 dark:bg-gray-700/50" />
 
-            {/* Presence status options */}
             <div className="px-2 py-1">
               <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-1 px-1">Status</p>
-              <button
-                onClick={() => setAndPersistStatus('active')}
-                className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
-              >
+              <button onClick={() => setAndPersistStatus('active')} className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
                 <div className="flex items-center gap-2">
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 5px #22c55e88' }} />
                   <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Active</span>
                 </div>
                 {effectiveStatus && <Check className="h-3 w-3 text-emerald-500" />}
               </button>
-              <button
-                onClick={() => setAndPersistStatus('away')}
-                className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
-              >
+              <button onClick={() => setAndPersistStatus('away')} className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
                 <div className="flex items-center gap-2">
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#eab308', display: 'inline-block', boxShadow: '0 0 5px #eab30888' }} />
                   <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Away</span>
@@ -286,7 +485,9 @@ const PlatformIndicator: React.FC = () => {
 
             <DropdownMenuSeparator className="bg-gray-200/50 dark:bg-gray-700/50" />
 
-            <DropdownMenuItem onClick={handleLogout} className="rounded-2xl mx-1 text-red-500 dark:text-red-400 focus:text-red-500"><LogOut className="mr-2 h-4 w-4" /><span>Log out</span></DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} className="rounded-2xl mx-1 text-red-500 dark:text-red-400 focus:text-red-500">
+              <LogOut className="mr-2 h-4 w-4" /><span>Log out</span>
+            </DropdownMenuItem>
           </motion.div>
         </DropdownMenuContent>
       </DropdownMenu>

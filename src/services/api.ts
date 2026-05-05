@@ -14,6 +14,7 @@ export interface User {
   company_display_name?: string | null;
   is_verified: boolean;
   role: 'admin' | 'user' | 'viewer';
+  status?: 'active' | 'away';   // ← add this line
   created_at: string;
   updated_at: string;
 }
@@ -481,6 +482,18 @@ class APIService {
   async getUserInfo(): Promise<User> {
     return await this.request<User>('/auth/user-info/');
   }
+  // Get current user's status
+async getUserStatus(): Promise<{ status: 'active' | 'away' }> {
+    return await this.request<{ status: 'active' | 'away' }>('/auth/user-status/');
+}
+
+// Update current user's status
+async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 'away' }> {
+    return await this.request<{ status: 'active' | 'away' }>('/auth/user-status/', {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+    });
+}
 
   // API Endpoints methods
   async getEndpoints(): Promise<APIEndpoint[]> {

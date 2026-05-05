@@ -12,7 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -85,34 +84,24 @@ const AVATAR_TOKENS = [
   { from: "#831843", to: "#fb7185", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><circle cx="10" cy="10" r="7.5" stroke="white" strokeOpacity="0.25" strokeWidth="1" fill="none"/><circle cx="10" cy="10" r="5" stroke="white" strokeOpacity="0.4" strokeWidth="1.2" fill="none"/><circle cx="10" cy="10" r="2.5" fill="white" fillOpacity="0.9"/></svg>) },
 ];
 
-const STATUS_STORAGE_KEY = 'heimdall_user_status';
-
-/** Read status for any email from localStorage (only works for current user) */
-const getStatusForEmail = (email: string, currentUserEmail: string): 'active' | 'away' => {
-  if (email === currentUserEmail) {
-    try {
-      const s = localStorage.getItem(STATUS_STORAGE_KEY);
-      if (s === 'active' || s === 'away') return s;
-    } catch {}
-  }
-  return 'active';
-};
-
-/** Gradient avatar with status dot + hover dropdown */
+// ─────────────────────────────────────────────────────────────────────────────
+// Avatar with real status (from backend)
+// ─────────────────────────────────────────────────────────────────────────────
 const MemberAvatarWithStatus = ({
   email,
-  currentUserEmail,
+  isActive = false,
   size = 40,
 }: {
   email: string;
-  currentUserEmail: string;
+  isActive?: boolean;
   size?: number;
 }) => {
-  const key = (email || 'user@heimdall').toLowerCase().trim();
+  const key = (email || "user@heimdall").toLowerCase().trim();
   const hash = djb2(key);
   const token = AVATAR_TOKENS[hash % AVATAR_TOKENS.length];
-  const isActive = getStatusForEmail(email, currentUserEmail) === 'active';
   const [hovered, setHovered] = useState(false);
+  const dotColor = isActive ? "#22c55e" : "#eab308";
+  const dotTitle = isActive ? "Active" : "Away";
 
   return (
     <div
@@ -126,29 +115,29 @@ const MemberAvatarWithStatus = ({
         style={{
           width: size,
           height: size,
-          borderRadius: '50%',
+          borderRadius: "50%",
           background: `linear-gradient(135deg, ${token.from}, ${token.to})`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           boxShadow: `0 0 0 1.5px ${token.to}40, 0 1px 4px ${token.from}55`,
-          position: 'relative',
+          position: "relative",
         }}
       >
         {token.svg}
         {/* Status dot */}
         <span
           style={{
-            position: 'absolute',
+            position: "absolute",
             bottom: -1,
             right: -1,
             width: 10,
             height: 10,
-            borderRadius: '50%',
-            background: isActive ? '#22c55e' : '#eab308',
-            border: '1.5px solid white',
-            transition: 'background 0.4s ease',
-            boxShadow: isActive ? '0 0 4px #22c55e88' : '0 0 4px #eab30888',
+            borderRadius: "50%",
+            background: dotColor,
+            border: "1.5px solid white",
+            transition: "background 0.4s ease",
+            boxShadow: isActive ? "0 0 4px #22c55e88" : "0 0 4px #eab30888",
           }}
         />
       </div>
@@ -162,28 +151,28 @@ const MemberAvatarWithStatus = ({
             exit={{ opacity: 0, y: 4, scale: 0.95 }}
             transition={{ duration: 0.12 }}
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: size + 6,
-              left: '50%',
-              transform: 'translateX(-50%)',
+              left: "50%",
+              transform: "translateX(-50%)",
               zIndex: 50,
-              whiteSpace: 'nowrap',
+              whiteSpace: "nowrap",
             }}
             className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl px-3 py-2 min-w-[110px]"
           >
             {/* Arrow */}
             <div
               style={{
-                position: 'absolute',
+                position: "absolute",
                 top: -5,
-                left: '50%',
-                transform: 'translateX(-50%) rotate(45deg)',
+                left: "50%",
+                transform: "translateX(-50%) rotate(45deg)",
                 width: 8,
                 height: 8,
-                background: 'white',
-                borderTop: '1px solid',
-                borderLeft: '1px solid',
-                borderColor: 'rgba(148,163,184,0.3)',
+                background: "white",
+                borderTop: "1px solid",
+                borderLeft: "1px solid",
+                borderColor: "rgba(148,163,184,0.3)",
               }}
               className="dark:bg-slate-900"
             />
@@ -192,20 +181,20 @@ const MemberAvatarWithStatus = ({
                 style={{
                   width: 8,
                   height: 8,
-                  borderRadius: '50%',
-                  background: isActive ? '#22c55e' : '#eab308',
+                  borderRadius: "50%",
+                  background: dotColor,
                   flexShrink: 0,
-                  boxShadow: isActive ? '0 0 4px #22c55e88' : '0 0 4px #eab30888',
+                  boxShadow: isActive ? "0 0 4px #22c55e88" : "0 0 4px #eab30888",
                 }}
               />
               <span
                 className={`text-xs font-semibold ${
                   isActive
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-amber-500 dark:text-amber-400'
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-amber-500 dark:text-amber-400"
                 }`}
               >
-                {isActive ? 'Active' : 'Away'}
+                {dotTitle}
               </span>
             </div>
           </motion.div>
@@ -216,8 +205,8 @@ const MemberAvatarWithStatus = ({
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-
-/* ─── Counting animation ─────────────────────────────────────────────── */
+// Counting animation (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
 function useCountUp(target: number, duration = 1000, start = true) {
   const [value, setValue] = useState(0);
   useEffect(() => {
@@ -250,7 +239,6 @@ const AnimatedNumber = ({ value }: { value: number }) => {
   return <span ref={ref}>{count}</span>;
 };
 
-/* ─── Hover card wrapper ─────────────────────────────────────────────── */
 const HoverCard = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
   <motion.div
     whileHover={{ y: -3, scale: 1.01 }}
@@ -261,11 +249,11 @@ const HoverCard = ({ children, className = "" }: { children: React.ReactNode; cl
   </motion.div>
 );
 
-/* ─── Types ──────────────────────────────────────────────────────────── */
 interface NormalizedMember {
   id: string | number;
   role: 'admin' | 'analyst' | 'viewer';
   joined_at: string;
+  user_status?: string;          // ← real status from backend
   user: {
     id: number;
     email: string;
@@ -297,17 +285,6 @@ const Users = () => {
   const { toast } = useToast();
   const { selectedPlatformId } = usePlatform();
 
-  // Current user email (for status lookup)
-  const [currentUserEmail, setCurrentUserEmail] = useState('');
-  useEffect(() => {
-    try {
-      // Pull from localStorage where AuthContext stores it, or fall back
-      const raw = localStorage.getItem('heimdall_user') || '{}';
-      const parsed = JSON.parse(raw);
-      setCurrentUserEmail(parsed.email || '');
-    } catch {}
-  }, []);
-
   const loadData = async () => {
     if (!selectedPlatformId) {
       setLoading(false);
@@ -324,6 +301,7 @@ const Users = () => {
               id: member.id,
               role: (member.is_owner ? 'admin' : member.role || 'viewer') as 'admin' | 'analyst' | 'viewer',
               joined_at: member.created_at || member.updated_at || new Date().toISOString(),
+              user_status: member.user_status,   // ← include real status
               user: {
                 id: typeof member.user === 'number' ? member.user : 0,
                 email: member.user_email || '',
@@ -438,9 +416,6 @@ const Users = () => {
     return colors[status] || "bg-slate-100 text-slate-700";
   };
 
-  const getInitials = (first: string, last: string) =>
-    `${first?.[0] || ''}${last?.[0] || ''}`.toUpperCase() || '??';
-
   const statCards = [
     { label: "Team Members",  value: members.length,                                     icon: UsersIcon,  via: "via-blue-500/30",    iconBg: "bg-blue-50 dark:bg-blue-500/10",    iconColor: "text-blue-500",    border: "border-blue-200/50 dark:border-blue-800/30",    sub: `${sentInvitations.filter(i => i.status === 'pending').length} pending invitations` },
     { label: "Active Users",  value: members.length,                                     icon: CheckCircle,via: "via-green-500/30",   iconBg: "bg-green-50 dark:bg-green-500/10",  iconColor: "text-green-500",   border: "border-green-200/50 dark:border-green-800/30",   sub: "All members active"     },
@@ -475,11 +450,10 @@ const Users = () => {
     );
   }
 
-  /* ════════════════════════════════════════════════════════════════════════ */
   return (
     <div className="space-y-8 w-full min-w-0 max-w-full">
 
-      {/* ── Hero Banner ── */}
+      {/* Hero Banner (unchanged) */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 pt-7 pb-6 shadow-lg min-h-[140px]">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.18),transparent_55%)]" />
@@ -583,7 +557,7 @@ const Users = () => {
         </div>
       </motion.div>
 
-      {/* ── Stat Cards ── */}
+      {/* Stat cards (unchanged) */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.05 }} className="grid grid-cols-2 xl:grid-cols-4 gap-5">
         {statCards.map(({ label, value, icon: Icon, via, iconBg, iconColor, border, sub }) => (
           <HoverCard key={label}>
@@ -602,7 +576,7 @@ const Users = () => {
         ))}
       </motion.div>
 
-      {/* ── Tabs ── */}
+      {/* Tabs (unchanged) */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
         <div className="flex gap-1 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 bg-slate-100/60 dark:bg-slate-800/30 p-1 w-fit">
           {tabs.map(({ id, label, icon: Icon, count }) => (
@@ -620,7 +594,7 @@ const Users = () => {
         </div>
       </motion.div>
 
-      {/* ── Members Tab ── */}
+      {/* Members Tab */}
       {activeTab === "members" && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <Card className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
@@ -662,10 +636,10 @@ const Users = () => {
                       className="flex items-center justify-between px-5 py-4 hover:bg-blue-50/30 dark:hover:bg-slate-800/30 transition-colors"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        {/* ── Deterministic gradient avatar with status dot + hover dropdown ── */}
+                        {/* Avatar with real status */}
                         <MemberAvatarWithStatus
                           email={member.user.email}
-                          currentUserEmail={currentUserEmail}
+                          isActive={member.user_status === 'active'}
                           size={40}
                         />
                         <div className="min-w-0">
@@ -698,7 +672,7 @@ const Users = () => {
         </motion.div>
       )}
 
-      {/* ── Invitations Tab ── */}
+      {/* Invitations Tab (unchanged) */}
       {activeTab === "invitations" && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <Card className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
@@ -767,7 +741,7 @@ const Users = () => {
         </motion.div>
       )}
 
-      {/* ── API Tokens Tab ── */}
+      {/* API Tokens Tab (unchanged) */}
       {activeTab === "tokens" && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <Card className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
@@ -798,7 +772,7 @@ const Users = () => {
         </motion.div>
       )}
 
-      {/* ── Cancel Invitation Dialog ── */}
+      {/* Cancel Invitation Dialog */}
       <AlertDialogComponent open={cancelInviteId !== null} onOpenChange={(open) => !open && setCancelInviteId(null)}>
         <AlertDialogContentComponent className="rounded-2xl border border-slate-200/50 dark:border-slate-800/50 dark:bg-slate-900">
           <AlertDialogHeaderComponent>
@@ -812,7 +786,7 @@ const Users = () => {
         </AlertDialogContentComponent>
       </AlertDialogComponent>
 
-      {/* ── Remove Member Dialog ── */}
+      {/* Remove Member Dialog */}
       <AlertDialogComponent open={removeMemberId !== null} onOpenChange={(open) => !open && setRemoveMemberId(null)}>
         <AlertDialogContentComponent className="rounded-2xl border border-slate-200/50 dark:border-slate-800/50 dark:bg-slate-900">
           <AlertDialogHeaderComponent>

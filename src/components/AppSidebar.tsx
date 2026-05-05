@@ -74,6 +74,7 @@ const SECURITY_TIPS = [
 ];
 
 // ─── Live digital clock with dynamic greeting ───────────────────────────────
+// ─── Live digital clock with 12‑hour format, larger size & AM/PM (no timezone) ──
 const DigitalClock = ({ p, collapsed, userName }: { p: any; collapsed: boolean; userName?: string }) => {
   const [now, setNow] = useState(new Date());
 
@@ -82,9 +83,14 @@ const DigitalClock = ({ p, collapsed, userName }: { p: any; collapsed: boolean; 
     return () => clearInterval(id);
   }, []);
 
-  const hh = now.getHours().toString().padStart(2, "0");
-  const mm = now.getMinutes().toString().padStart(2, "0");
-  const ss = now.getSeconds().toString().padStart(2, "0");
+  // 12‑hour format
+  let hours = now.getHours();
+  const minutes = now.getMinutes().toString().padStart(2, "0");
+  const seconds = now.getSeconds().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12; // convert 0 → 12
+  const hh = hours.toString().padStart(2, "0");
+
   const hour = now.getHours();
 
   // Greeting logic
@@ -95,10 +101,6 @@ const DigitalClock = ({ p, collapsed, userName }: { p: any; collapsed: boolean; 
   else greeting = "Welcome back";
 
   const displayName = userName || "User";
-
-  // Timezone label
-  const tz = now.toLocaleTimeString(undefined, { timeZoneName: "short" })
-               .split(" ").pop() || "";
 
   if (collapsed) {
     return (
@@ -127,7 +129,7 @@ const DigitalClock = ({ p, collapsed, userName }: { p: any; collapsed: boolean; 
           fontWeight: 700,
           color: p.accent,
           letterSpacing: "0.05em",
-        }}>{mm}</span>
+        }}>{minutes}</span>
       </div>
     );
   }
@@ -136,7 +138,7 @@ const DigitalClock = ({ p, collapsed, userName }: { p: any; collapsed: boolean; 
     <div style={{
       margin: "6px 4px 4px",
       borderRadius: 14,
-      padding: "10px 14px",
+      padding: "12px 14px",
       background: p.hoverBg,
       border: `1px solid ${p.border}`,
     }}>
@@ -151,42 +153,37 @@ const DigitalClock = ({ p, collapsed, userName }: { p: any; collapsed: boolean; 
       }}>
         {greeting}, {displayName}
       </div>
-      {/* Time row */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-          <span style={{
-            fontFamily: "'DM Mono', 'Courier New', monospace",
-            fontSize: 22,
-            fontWeight: 700,
-            color: p.accent,
-            letterSpacing: "0.04em",
-            lineHeight: 1,
-          }}>
-            {hh}<span style={{ opacity: 0.45, fontSize: 18 }}>:</span>{mm}
-          </span>
-          <span style={{
-            fontFamily: "'DM Mono', 'Courier New', monospace",
-            fontSize: 13,
-            fontWeight: 600,
-            color: p.muted,
-            letterSpacing: "0.04em",
-            marginLeft: 2,
-          }}>
-            <span style={{ opacity: 0.55 }}>:</span>{ss}
-          </span>
-        </div>
+      {/* Time row – bigger, no timezone */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
         <span style={{
-          fontSize: 9,
+          fontFamily: "'DM Mono', 'Courier New', monospace",
+          fontSize: 28,
           fontWeight: 700,
           color: p.accent,
-          background: `${p.accent}18`,
-          border: `1px solid ${p.accent}30`,
-          borderRadius: 6,
-          padding: "2px 6px",
-          letterSpacing: "0.07em",
-          fontFamily: "'DM Sans', sans-serif",
+          letterSpacing: "0.04em",
+          lineHeight: 1,
         }}>
-          {tz}
+          {hh}<span style={{ opacity: 0.45, fontSize: 24 }}>:</span>{minutes}
+        </span>
+        <span style={{
+          fontFamily: "'DM Mono', 'Courier New', monospace",
+          fontSize: 13,
+          fontWeight: 600,
+          color: p.muted,
+          letterSpacing: "0.04em",
+          marginLeft: 2,
+        }}>
+          <span style={{ opacity: 0.55 }}>:</span>{seconds}
+        </span>
+        <span style={{
+          fontFamily: "'DM Sans', sans-serif",
+          fontSize: 12,
+          fontWeight: 700,
+          color: p.accent,
+          marginLeft: 6,
+          letterSpacing: "0.05em",
+        }}>
+          {ampm}
         </span>
       </div>
     </div>

@@ -52,20 +52,24 @@ const AVATAR_TOKENS = [
 ];
 
 /** Renders a deterministic gradient avatar based on email/name */
-const MemberAvatar = ({ email, size = 28 }: { email: string; size?: number }) => {
+const MemberAvatar = ({ email, size = 28, isActive = false }: { email: string; size?: number; isActive?: boolean }) => {
   const key = (email || "user@heimdall").toLowerCase().trim();
   const hash = djb2(key);
   const token = AVATAR_TOKENS[hash % AVATAR_TOKENS.length];
-  // Deterministic presence: ~70% active, ~30% away based on hash
-  const isActive = hash % 10 > 2;
   const dotColor = isActive ? "#22c55e" : "#eab308";
   const dotTitle = isActive ? "Active" : "Away";
+
   return (
     <div
       style={{
-        width: size, height: size, borderRadius: "50%", flexShrink: 0,
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        flexShrink: 0,
         background: `linear-gradient(135deg, ${token.from}, ${token.to})`,
-        display: "flex", alignItems: "center", justifyContent: "center",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         boxShadow: `0 0 0 1.5px ${token.to}40, 0 1px 4px ${token.from}55`,
         position: "relative" as const,
       }}
@@ -74,8 +78,12 @@ const MemberAvatar = ({ email, size = 28 }: { email: string; size?: number }) =>
       {token.svg}
       <span
         style={{
-          position: "absolute", bottom: -1, right: -1,
-          width: 7, height: 7, borderRadius: "50%",
+          position: "absolute",
+          bottom: -1,
+          right: -1,
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
           background: dotColor,
           border: "1.5px solid white",
           transition: "background 0.4s ease",
@@ -111,9 +119,10 @@ interface CountryData {
 }
 
 interface PlatformMember {
-  id: string;
+   id: string;
   user_email: string;
   user_name: string;
+  user_status?: string;  
   role: string;
   is_owner: boolean;
 }
@@ -150,6 +159,44 @@ const AnimatedNumber = ({ value, decimals = 0, suffix = '', className = '' }: An
         maximumFractionDigits: decimals,
       })}
       {suffix}
+    </span>
+  );
+};
+const PingIndicator = () => {
+  const [ping, setPing] = useState<number | null>(null);
+  const [measuring, setMeasuring] = useState(false);
+  const backendUrl = import.meta.env.VITE_API_URL || 'https://staging.breachnet.io/api/v1';
+
+  const measurePing = useCallback(async () => {
+    if (measuring) return;
+    setMeasuring(true);
+    const start = performance.now();
+    try {
+      await fetch(`${backendUrl}/health/`, { method: 'HEAD', cache: 'no-cache' });
+      const duration = performance.now() - start;
+      setPing(Math.round(duration));
+    } catch (err) {
+      // ignore – ping not available
+    } finally {
+      setMeasuring(false);
+    }
+  }, [measuring, backendUrl]);
+
+  useEffect(() => {
+    measurePing();
+    const interval = setInterval(measurePing, 30000);
+    return () => clearInterval(interval);
+  }, [measurePing]);
+
+  if (ping === null) return null;
+  const dotColor = ping < 80 ? 'bg-green-400' : ping < 150 ? 'bg-yellow-400' : 'bg-red-400';
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white">
+      <span className="relative flex h-2 w-2">
+        <span className={`absolute inline-flex h-full w-full rounded-full ${dotColor} opacity-75 ${ping > 150 ? 'animate-ping' : ''}`} />
+        <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`} />
+      </span>
+      {ping}ms
     </span>
   );
 };
@@ -234,18 +281,19 @@ const PlatformDetails: React.FC = () => {
       .catch(() => {});
 
     apiService.getPlatformMembers(id)
-      .then((members: any[]) => {
-        const formatted = members.map(m => ({
-          id: m.id,
-          user_email: m.user_email,
-          user_name: m.user_name,
-          role: m.role || (m.is_owner ? 'owner' : 'member'),
-          is_owner: m.is_owner || false,
-        }));
-        setPlatformMembers(formatted);
-      })
-      .catch((err) => console.error('Failed to fetch members:', err))
-      .finally(() => setMembersLoading(false));
+  .then((members: any[]) => {
+    const formatted = members.map(m => ({
+      id: m.id,
+      user_email: m.user_email,
+      user_name: m.user_name,
+      user_status: m.user_status,   // ← add this line
+      role: m.role || (m.is_owner ? 'owner' : 'member'),
+      is_owner: m.is_owner || false,
+    }));
+    setPlatformMembers(formatted);
+  })
+  .catch((err) => console.error('Failed to fetch members:', err))
+  .finally(() => setMembersLoading(false));
   };
 
   const fetchAllRangedData = () => {
@@ -558,6 +606,7 @@ const PlatformDetails: React.FC = () => {
                 </div>
               </div>
             </div>
+             
             <span className="ml-auto hidden items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white lg:inline-flex">
               <span className="h-1.5 w-1.5 rounded-full bg-white" />Updated just now
             </span>
@@ -687,125 +736,122 @@ const PlatformDetails: React.FC = () => {
             </Card>
 
             {/* ── Team Members ─────────────────────────────────────────────── */}
-            <Card className={`${cardClass} overflow-hidden`}>
-              <CardHeader className={`flex flex-row items-center justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-500/10 ring-1 ring-indigo-100 dark:ring-indigo-500/20">
-                    <Users className="h-4.5 w-4.5 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Team Members</CardTitle>
-                    <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                      {platformMembers.length > 0
-                        ? `${platformMembers.length} member${platformMembers.length !== 1 ? 's' : ''}`
-                        : 'Access & permissions'}
-                    </CardDescription>
+            {/* ── Team Members ─────────────────────────────────────────────── */}
+<Card className={`${cardClass} overflow-hidden`}>
+  <CardHeader className={`flex flex-row items-center justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
+    <div className="flex items-center gap-3">
+      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-500/10 ring-1 ring-indigo-100 dark:ring-indigo-500/20">
+        <Users className="h-4.5 w-4.5 text-indigo-600 dark:text-indigo-400" />
+      </div>
+      <div>
+        <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Team Members</CardTitle>
+        <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+          {platformMembers.length > 0
+            ? `${platformMembers.length} member${platformMembers.length !== 1 ? 's' : ''}`
+            : 'Access & permissions'}
+        </CardDescription>
+      </div>
+    </div>
+    <button
+      onClick={() => navigate('/users')}
+      className="rounded-md bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
+    >
+      view_all
+    </button>
+  </CardHeader>
+
+  <CardContent className="p-5 pt-4">
+    {membersLoading ? (
+      <div className="flex h-36 items-center justify-center">
+        <Activity className="h-5 w-5 animate-spin text-blue-500" />
+      </div>
+    ) : platformMembers.length === 0 ? (
+      <div className="flex h-36 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-blue-900/20">
+        <Users className="h-7 w-7 text-slate-300 dark:text-slate-700 mb-2" />
+        <p className="text-xs text-slate-400 dark:text-slate-500">No team members yet</p>
+        <Button variant="link" className="mt-1 text-xs text-blue-600 dark:text-blue-400 h-auto p-0" onClick={() => navigate('/users')}>
+          Invite users →
+        </Button>
+      </div>
+    ) : (
+      <div className="space-y-2">
+        {platformMembers.slice(0, 5).map((member) => {
+          // Real status from backend – try multiple possible paths
+          const isActive = member.user_status === 'active';
+          return (
+            <div
+              key={member.id}
+              className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-3 py-2.5 transition-colors hover:border-blue-200 dark:hover:border-blue-800/40"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                {/* Avatar with presence tooltip */}
+                <div className="relative group/avatar flex-shrink-0">
+                  <MemberAvatar email={member.user_email} size={28} isActive={member.user_status === 'active'} />
+                  {/* Hover tooltip */}
+                  <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 scale-95 group-hover/avatar:opacity-100 group-hover/avatar:scale-100 transition-all duration-150">
+                    <div
+                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold whitespace-nowrap shadow-lg"
+                      style={{
+                        background: isActive ? 'rgba(220,252,231,0.95)' : 'rgba(254,249,195,0.95)',
+                        color: isActive ? '#15803d' : '#a16207',
+                        border: `1px solid ${isActive ? '#86efac' : '#fde047'}`,
+                        backdropFilter: 'blur(6px)',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                          background: isActive ? '#22c55e' : '#eab308',
+                          boxShadow: isActive ? '0 0 4px #22c55e' : '0 0 4px #eab308',
+                        }}
+                      />
+                      {isActive ? 'Active' : 'Away'}
+                    </div>
+                    {/* Arrow */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-1 overflow-hidden">
+                      <div
+                        style={{
+                          width: 8, height: 8,
+                          transform: 'rotate(45deg) translateY(-4px)',
+                          background: isActive ? 'rgba(220,252,231,0.95)' : 'rgba(254,249,195,0.95)',
+                          border: `1px solid ${isActive ? '#86efac' : '#fde047'}`,
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => navigate('/users')}
-                  className="rounded-md bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
-                >
-                  view_all
-                </button>
-              </CardHeader>
 
-              <CardContent className="p-5 pt-4">
-                {membersLoading ? (
-                  <div className="flex h-36 items-center justify-center">
-                    <Activity className="h-5 w-5 animate-spin text-blue-500" />
-                  </div>
-                ) : platformMembers.length === 0 ? (
-                  <div className="flex h-36 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-blue-900/20">
-                    <Users className="h-7 w-7 text-slate-300 dark:text-slate-700 mb-2" />
-                    <p className="text-xs text-slate-400 dark:text-slate-500">No team members yet</p>
-                    <Button variant="link" className="mt-1 text-xs text-blue-600 dark:text-blue-400 h-auto p-0" onClick={() => navigate('/users')}>
-                      Invite users →
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {platformMembers.slice(0, 5).map((member) => {
-                      const presenceHash = djb2((member.user_email || "").toLowerCase().trim());
-                      const isActive = presenceHash % 10 > 2;
-                      return (
-                        <div
-                          key={member.id}
-                          className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-3 py-2.5 transition-colors hover:border-blue-200 dark:hover:border-blue-800/40"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            {/* Avatar with presence tooltip */}
-                            <div className="relative group/avatar flex-shrink-0">
-                              <MemberAvatar email={member.user_email} size={28} />
-                              {/* Hover tooltip */}
-                              <div
-                                className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 scale-95 group-hover/avatar:opacity-100 group-hover/avatar:scale-100 transition-all duration-150"
-                              >
-                                <div
-                                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold whitespace-nowrap shadow-lg"
-                                  style={{
-                                    background: isActive ? 'rgba(220,252,231,0.95)' : 'rgba(254,249,195,0.95)',
-                                    color: isActive ? '#15803d' : '#a16207',
-                                    border: `1px solid ${isActive ? '#86efac' : '#fde047'}`,
-                                    backdropFilter: 'blur(6px)',
-                                  }}
-                                >
-                                  <span
-                                    style={{
-                                      width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                                      background: isActive ? '#22c55e' : '#eab308',
-                                      boxShadow: isActive ? '0 0 4px #22c55e' : '0 0 4px #eab308',
-                                    }}
-                                  />
-                                  {isActive ? 'Active' : 'Away'}
-                                </div>
-                                {/* Arrow */}
-                                <div
-                                  className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-1 overflow-hidden"
-                                >
-                                  <div
-                                    style={{
-                                      width: 8, height: 8,
-                                      transform: 'rotate(45deg) translateY(-4px)',
-                                      background: isActive ? 'rgba(220,252,231,0.95)' : 'rgba(254,249,195,0.95)',
-                                      border: `1px solid ${isActive ? '#86efac' : '#fde047'}`,
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                    {member.user_name || member.user_email}
+                  </p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                    {member.user_email}
+                  </p>
+                </div>
+              </div>
 
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
-                                {member.user_name || member.user_email}
-                              </p>
-                              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
-                                {member.user_email}
-                              </p>
-                            </div>
-                          </div>
-
-                          <Badge
-                            className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-md flex-shrink-0 ${
-                              member.is_owner
-                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-0'
-                                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border-0'
-                            }`}
-                          >
-                            {member.is_owner ? 'Owner' : member.role || 'Member'}
-                          </Badge>
-                        </div>
-                      );
-                    })}
-                    {platformMembers.length > 5 && (
-                      <button onClick={() => navigate('/users')} className="w-full text-center text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1">
-                        +{platformMembers.length - 5} more members
-                      </button>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              <Badge
+                className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-md flex-shrink-0 ${
+                  member.is_owner
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-0'
+                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border-0'
+                }`}
+              >
+                {member.is_owner ? 'Owner' : member.role || 'Member'}
+              </Badge>
+            </div>
+          );
+        })}
+        {platformMembers.length > 5 && (
+          <button onClick={() => navigate('/users')} className="w-full text-center text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1">
+            +{platformMembers.length - 5} more members
+          </button>
+        )}
+      </div>
+    )}
+  </CardContent>
+</Card>
           </div>
         </div>
 

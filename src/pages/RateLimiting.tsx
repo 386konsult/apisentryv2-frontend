@@ -30,8 +30,18 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, Gauge, AlertCircle, Shield, Server } from "lucide-react";
+import { Plus, Pencil, Trash2, Gauge, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface RateLimitRule {
   id: string;
@@ -50,6 +60,8 @@ export default function RateLimiting() {
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RateLimitRule | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [ruleToDelete, setRuleToDelete] = useState<string | null>(null);
   const [form, setForm] = useState({
     endpoint: "*",
     method: "*",
@@ -69,7 +81,7 @@ export default function RateLimiting() {
       setRules(data.results || data);
     } catch (err: any) {
       console.error(err);
-      const msg = err?.message || "Failed to load rate limits";
+      const msg = err?.message || "Failed to load rate limit rules";
       setError(msg);
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
@@ -82,40 +94,39 @@ export default function RateLimiting() {
   }, [platformId]);
 
   const handleSave = async () => {
-  try {
-    // Normalise endpoint: empty or whitespace becomes "*"
-    const endpointValue = form.endpoint.trim() === "" ? "*" : form.endpoint;
-    const payload = { ...form, endpoint: endpointValue, platform: platformId };
-
-    if (editingRule) {
-      await apiService.request(`/rate-limits/${editingRule.id}/`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
-      toast({ title: "Rule updated", description: "Rate limit rule has been updated." });
-    } else {
-      await apiService.request("/rate-limits/", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      toast({ title: "Rule created", description: "New rate limit rule added." });
-    }
-    setDialogOpen(false);
-    setEditingRule(null);
-    loadRules();
-  } catch (error: any) {
-    toast({
-      title: "Error",
-      description: error?.message || "Failed to save rule",
-      variant: "destructive",
-    });
-  }
-};
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this rule?")) return;
     try {
-      await apiService.request(`/rate-limits/${id}/`, { method: "DELETE" });
+      const endpointValue = form.endpoint.trim() === "" ? "*" : form.endpoint;
+      const payload = { ...form, endpoint: endpointValue, platform: platformId };
+
+      if (editingRule) {
+        await apiService.request(`/rate-limits/${editingRule.id}/`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        toast({ title: "Rule updated", description: "Rate limit rule has been updated." });
+      } else {
+        await apiService.request("/rate-limits/", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        toast({ title: "Rule created", description: "New rate limit rule added." });
+      }
+      setDialogOpen(false);
+      setEditingRule(null);
+      loadRules();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to save rule",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!ruleToDelete) return;
+    try {
+      await apiService.request(`/rate-limits/${ruleToDelete}/`, { method: "DELETE" });
       toast({ title: "Rule deleted", description: "Rate limit rule removed." });
       loadRules();
     } catch (error: any) {
@@ -124,6 +135,9 @@ export default function RateLimiting() {
         description: error?.message || "Failed to delete rule",
         variant: "destructive",
       });
+    } finally {
+      setDeleteDialogOpen(false);
+      setRuleToDelete(null);
     }
   };
 
@@ -195,26 +209,24 @@ export default function RateLimiting() {
               <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Rate Limiting</h1>
               <p className="text-sm text-blue-100 mt-1">Define request limits per endpoint to protect your API from abuse</p>
             </div>
-            <Button onClick={openCreate} className="rounded-full bg-white px-5 py-2 text-blue-600 font-medium hover:bg-white/90 shadow-md">
-              <Plus className="mr-2 h-4 w-4" /> Add Rule
-            </Button>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-600 dark:text-slate-300 bg-white/20 px-3 py-1.5 rounded-full">
+                {rules.length} rule{rules.length !== 1 ? 's' : ''}
+              </span>
+              <Button onClick={openCreate} className="rounded-full bg-white px-5 py-2 text-blue-600 font-medium hover:bg-white/90 shadow-md">
+                <Plus className="mr-2 h-4 w-4" /> Add Rule
+              </Button>
+            </div>
           </div>
         </motion.div>
 
-        {/* Error State – with helpful message */}
         {error && (
           <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
             <CardContent className="p-6 flex items-start gap-3">
-              <Server className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
               <div className="flex-1">
-                <p className="font-medium text-amber-800 dark:text-amber-300">Backend API unreachable</p>
-                <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
-                  The rate‑limits endpoint returned a {error.includes("404") ? "404 Not Found" : "server error"}.
-                  Make sure the backend is running and the router is correctly registered.
-                </p>
-                <p className="text-xs text-amber-600 dark:text-amber-500 mt-2 font-mono">
-                  Expected URL: <code className="bg-amber-100 dark:bg-amber-900/30 px-1 rounded">/api/v1/rate-limits/?platform_id=...</code>
-                </p>
+                <p className="font-medium text-amber-800 dark:text-amber-300">Failed to load rules</p>
+                <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">{error}</p>
                 <Button variant="outline" onClick={loadRules} className="mt-3 border-amber-300 bg-white/50 text-amber-800 hover:bg-amber-100">
                   Retry
                 </Button>
@@ -223,7 +235,6 @@ export default function RateLimiting() {
           </Card>
         )}
 
-        {/* Main Card */}
         <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
           <CardHeader className="border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
             <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
@@ -280,7 +291,14 @@ export default function RateLimiting() {
                           <Button variant="ghost" size="sm" onClick={() => openEdit(rule)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(rule.id)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setRuleToDelete(rule.id);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         </TableCell>
@@ -343,6 +361,23 @@ export default function RateLimiting() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Rate Limit Rule</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this rule? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

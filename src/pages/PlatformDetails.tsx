@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import { motion } from 'framer-motion';
 import apiService from '@/services/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Deterministic avatar system (mirrors PlatformIndicator / AppSidebar)
+// Deterministic avatar system
 // ─────────────────────────────────────────────────────────────────────────────
 const djb2 = (s: string) => {
   let h = 5381;
@@ -51,44 +51,15 @@ const AVATAR_TOKENS = [
   { from: "#831843", to: "#fb7185", svg: (<svg viewBox="0 0 20 20" fill="none" width="14" height="14"><circle cx="10" cy="10" r="7.5" stroke="white" strokeOpacity="0.25" strokeWidth="1" fill="none"/><circle cx="10" cy="10" r="5" stroke="white" strokeOpacity="0.4" strokeWidth="1.2" fill="none"/><circle cx="10" cy="10" r="2.5" fill="white" fillOpacity="0.9"/></svg>) },
 ];
 
-/** Renders a deterministic gradient avatar based on email/name */
 const MemberAvatar = ({ email, size = 28, isActive = false }: { email: string; size?: number; isActive?: boolean }) => {
   const key = (email || "user@heimdall").toLowerCase().trim();
   const hash = djb2(key);
   const token = AVATAR_TOKENS[hash % AVATAR_TOKENS.length];
   const dotColor = isActive ? "#22c55e" : "#eab308";
-  const dotTitle = isActive ? "Active" : "Away";
-
   return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        flexShrink: 0,
-        background: `linear-gradient(135deg, ${token.from}, ${token.to})`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: `0 0 0 1.5px ${token.to}40, 0 1px 4px ${token.from}55`,
-        position: "relative" as const,
-      }}
-      title={dotTitle}
-    >
+    <div style={{ width: size, height: size, borderRadius: "50%", flexShrink: 0, background: `linear-gradient(135deg, ${token.from}, ${token.to})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 0 1.5px ${token.to}40, 0 1px 4px ${token.from}55`, position: "relative" as const }} title={isActive ? "Active" : "Away"}>
       {token.svg}
-      <span
-        style={{
-          position: "absolute",
-          bottom: -1,
-          right: -1,
-          width: 7,
-          height: 7,
-          borderRadius: "50%",
-          background: dotColor,
-          border: "1.5px solid white",
-          transition: "background 0.4s ease",
-        }}
-      />
+      <span style={{ position: "absolute", bottom: -1, right: -1, width: 7, height: 7, borderRadius: "50%", background: dotColor, border: "1.5px solid white", transition: "background 0.4s ease" }} />
     </div>
   );
 };
@@ -119,10 +90,10 @@ interface CountryData {
 }
 
 interface PlatformMember {
-   id: string;
+  id: string;
   user_email: string;
   user_name: string;
-  user_status?: string;  
+  user_status?: string;
   role: string;
   is_owner: boolean;
 }
@@ -136,7 +107,6 @@ type AnimatedNumberProps = {
 
 const AnimatedNumber = ({ value, decimals = 0, suffix = '', className = '' }: AnimatedNumberProps) => {
   const [displayValue, setDisplayValue] = useState(0);
-
   useEffect(() => {
     const target = Number.isFinite(value) ? value : 0;
     const duration = 800;
@@ -151,17 +121,14 @@ const AnimatedNumber = ({ value, decimals = 0, suffix = '', className = '' }: An
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [value]);
-
   return (
     <span className={className}>
-      {displayValue.toLocaleString(undefined, {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      })}
+      {displayValue.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}
       {suffix}
     </span>
   );
 };
+
 const PingIndicator = () => {
   const [ping, setPing] = useState<number | null>(null);
   const [measuring, setMeasuring] = useState(false);
@@ -173,13 +140,9 @@ const PingIndicator = () => {
     const start = performance.now();
     try {
       await fetch(`${backendUrl}/health/`, { method: 'HEAD', cache: 'no-cache' });
-      const duration = performance.now() - start;
-      setPing(Math.round(duration));
-    } catch (err) {
-      // ignore – ping not available
-    } finally {
-      setMeasuring(false);
-    }
+      setPing(Math.round(performance.now() - start));
+    } catch {}
+    finally { setMeasuring(false); }
   }, [measuring, backendUrl]);
 
   useEffect(() => {
@@ -231,18 +194,9 @@ const PlatformDetails: React.FC = () => {
   const [membersLoading, setMembersLoading] = useState(true);
 
   const [timeRange, setTimeRange] = useState<string>(() => {
-    try {
-      return localStorage.getItem(getStorageKey(id)) || '7d';
-    } catch {
-      return '7d';
-    }
+    try { return localStorage.getItem(getStorageKey(id)) || '7d'; } catch { return '7d'; }
   });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(getStorageKey(id), timeRange);
-    } catch {}
-  }, [timeRange, id]);
+  useEffect(() => { try { localStorage.setItem(getStorageKey(id), timeRange); } catch {} }, [timeRange, id]);
 
   const [isAlertClicked, setIsAlertClicked] = useState(false);
   const navigate = useNavigate();
@@ -250,150 +204,71 @@ const PlatformDetails: React.FC = () => {
   const fetchData = () => {
     if (!id) return;
     setLoading(true);
-
     apiService.getPlatformDetails(id)
       .then((data: any) => { setPlatform(data); setLoading(false); })
       .catch((err: any) => { setError(err?.message ?? 'Failed to load workspace'); setLoading(false); });
-
     apiService.getAnalytics(id)
       .then((data: any) => {
         if (data?.success && data.analytics) {
           let analyticsData;
-          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && '1y' in data.analytics) {
-            analyticsData = data.analytics['1y'];
-          } else {
-            analyticsData = data.analytics;
-          }
+          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && '1y' in data.analytics) analyticsData = data.analytics['1y'];
+          else analyticsData = data.analytics;
           setAnalytics(analyticsData);
         }
       })
       .catch(() => setAnalytics(null));
-
     apiService.getPlatformEndpoints(id)
-      .then((res: any) => {
-        const endpointsArr = Array.isArray(res) ? res : res?.results || [];
-        setEndpoints(endpointsArr);
-      })
+      .then((res: any) => { const endpointsArr = Array.isArray(res) ? res : res?.results || []; setEndpoints(endpointsArr); })
       .catch(() => setEndpoints([]));
-
     apiService.getPlatformWAFRules(id)
       .then((data: any) => setWafRules(Array.isArray(data) ? data : data?.results || []))
       .catch(() => {});
-
     apiService.getPlatformMembers(id)
-  .then((members: any[]) => {
-    const formatted = members.map(m => ({
-      id: m.id,
-      user_email: m.user_email,
-      user_name: m.user_name,
-      user_status: m.user_status,   // ← add this line
-      role: m.role || (m.is_owner ? 'owner' : 'member'),
-      is_owner: m.is_owner || false,
-    }));
-    setPlatformMembers(formatted);
-  })
-  .catch((err) => console.error('Failed to fetch members:', err))
-  .finally(() => setMembersLoading(false));
+      .then((members: any[]) => {
+        const formatted = members.map(m => ({
+          id: m.id, user_email: m.user_email, user_name: m.user_name,
+          user_status: m.user_status,
+          role: m.role || (m.is_owner ? 'owner' : 'member'), is_owner: m.is_owner || false,
+        }));
+        setPlatformMembers(formatted);
+      })
+      .catch((err) => console.error('Failed to fetch members:', err))
+      .finally(() => setMembersLoading(false));
   };
 
   const fetchAllRangedData = () => {
     if (!id) return;
-
     const params = { range: timeRange };
-
     apiService.getAnalytics(id, params)
       .then((data: any) => {
         if (data?.success && data.analytics) {
           let analyticsData;
-          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && timeRange in data.analytics) {
-            analyticsData = data.analytics[timeRange];
-          } else {
-            analyticsData = data.analytics;
-          }
+          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && timeRange in data.analytics) analyticsData = data.analytics[timeRange];
+          else analyticsData = data.analytics;
 
           if (analyticsData?.method_status_breakdown) {
-            const trafficArr = HTTP_METHODS.map((method) => {
-              const methodData = analyticsData.method_status_breakdown[method] || {};
-              return { method, ...methodData };
-            });
+            const trafficArr = HTTP_METHODS.map((method) => { const methodData = analyticsData.method_status_breakdown[method] || {}; return { method, ...methodData }; });
             setTrafficData(trafficArr);
-          } else {
-            setTrafficData([]);
-          }
+          } else setTrafficData([]);
 
           if (analyticsData?.status_code_breakdown) {
-            const colors: Record<string, string> = {
-              '200': '#22c55e', '201': '#16a34a', '204': '#10b981',
-              '400': '#f97316', '403': '#ef4444', '404': '#6366f1',
-              '500': '#eab308', '504': '#06b6d4', other: '#9ca3af',
-            };
-            const responseCodeArr = Object.entries(analyticsData.status_code_breakdown).map(([name, value]) => ({
-              name, value: Number(value), color: colors[name] || colors.other,
-            }));
-            setThreatTypes(responseCodeArr);
-          } else {
-            setThreatTypes([]);
-          }
+            const colors: Record<string, string> = { '200': '#22c55e', '201': '#16a34a', '204': '#10b981', '400': '#f97316', '403': '#ef4444', '404': '#6366f1', '500': '#eab308', '504': '#06b6d4', other: '#9ca3af' };
+            setThreatTypes(Object.entries(analyticsData.status_code_breakdown).map(([name, value]) => ({ name, value: Number(value), color: colors[name] || colors.other })));
+          } else setThreatTypes([]);
 
-          const threatTypeColors: Record<string, string> = {
-            'Malicious Payload': '#ef4444', 'XSS Attack Detected': '#f59e0b',
-            'Suspicious User Agent': '#8b5cf6', 'Brute Force Attempt': '#dc2626',
-            'SQL Injection Detection': '#ec4899', 'Command Injection': '#06b6d4',
-            'Path Traversal': '#10b981', 'Rate Limit Exceeded': '#3b82f6',
-            'Security Misconfiguration': '#f97316', 'Insecure Direct Object Reference': '#eab308',
-            'Broken Authentication': '#14b8a6', 'SQL Injection': '#ef4444',
-            XSS: '#f59e0b', 'Brute Force': '#dc2626', CSRF: '#06b6d4',
-            XXE: '#10b981', SSRF: '#3b82f6', LFI: '#f97316', RFI: '#eab308',
-          };
-
-          if (analyticsData?.threat_type_summary && typeof analyticsData.threat_type_summary === 'object') {
-            const threatTypeArr = Object.entries(analyticsData.threat_type_summary)
-              .map(([name, value]) => ({ name, value: Number(value), color: threatTypeColors[name] || '#9ca3af' }))
-              .filter((item) => item.value > 0)
-              .sort((a, b) => b.value - a.value);
-            setThreatTypesByCategory(threatTypeArr);
-          } else if (analyticsData?.threat_types && typeof analyticsData.threat_types === 'object') {
-            const threatTypeArr = Object.entries(analyticsData.threat_types)
-              .map(([name, value]) => ({ name, value: Number(value), color: threatTypeColors[name] || '#9ca3af' }))
-              .filter((item) => item.value > 0)
-              .sort((a, b) => b.value - a.value);
-            setThreatTypesByCategory(threatTypeArr);
-          } else {
-            setThreatTypesByCategory([]);
-          }
+          const threatTypeColors: Record<string, string> = { 'Malicious Payload': '#ef4444', 'XSS Attack Detected': '#f59e0b', 'Suspicious User Agent': '#8b5cf6', 'Brute Force Attempt': '#dc2626', 'SQL Injection Detection': '#ec4899', 'Command Injection': '#06b6d4', 'Path Traversal': '#10b981', 'Rate Limit Exceeded': '#3b82f6', 'Security Misconfiguration': '#f97316', 'Insecure Direct Object Reference': '#eab308', 'Broken Authentication': '#14b8a6', 'SQL Injection': '#ef4444', XSS: '#f59e0b', 'Brute Force': '#dc2626', CSRF: '#06b6d4', XXE: '#10b981', SSRF: '#3b82f6', LFI: '#f97316', RFI: '#eab308' };
+          const threatSource = analyticsData?.threat_type_summary || analyticsData?.threat_types;
+          if (threatSource && typeof threatSource === 'object') {
+            setThreatTypesByCategory(Object.entries(threatSource).map(([name, value]) => ({ name, value: Number(value), color: threatTypeColors[name] || '#9ca3af' })).filter(i => i.value > 0).sort((a, b) => b.value - a.value));
+          } else setThreatTypesByCategory([]);
 
           if (analyticsData?.country_summary && Array.isArray(analyticsData.country_summary)) {
-            const countryArr = analyticsData.country_summary
-              .map((item: any) => ({
-                code: (item.country_code || '').toUpperCase(),
-                name: item.country_name || item.country_code || '',
-                count: Number(item.total_requests || 0),
-              }))
-              .filter((item: CountryData) => item.count > 0 && item.code)
-              .sort((a, b) => b.count - a.count);
-            setCountryData(countryArr);
+            setCountryData(analyticsData.country_summary.map((item: any) => ({ code: (item.country_code || '').toUpperCase(), name: item.country_name || item.country_code || '', count: Number(item.total_requests || 0) })).filter((item: CountryData) => item.count > 0 && item.code).sort((a, b) => b.count - a.count));
           } else if (analyticsData?.country_breakdown || analyticsData?.geographic_breakdown) {
             const countryBreakdown = analyticsData.country_breakdown || analyticsData.geographic_breakdown;
-            const countryCodeToName: Record<string, string> = {
-              US: 'United States', CN: 'China', RU: 'Russia', GB: 'United Kingdom',
-              DE: 'Germany', FR: 'France', IN: 'India', BR: 'Brazil', JP: 'Japan',
-              CA: 'Canada', AU: 'Australia', KR: 'South Korea', IT: 'Italy',
-              ES: 'Spain', NL: 'Netherlands', MX: 'Mexico', ID: 'Indonesia',
-              TR: 'Turkey', SA: 'Saudi Arabia', PL: 'Poland', EG: 'Egypt',
-              CH: 'Switzerland', NG: 'Nigeria',
-            };
-            const countryArr = Object.entries(countryBreakdown)
-              .map(([code, count]) => ({
-                code: code.toUpperCase(),
-                name: countryCodeToName[code.toUpperCase()] || code,
-                count: Number(count),
-              }))
-              .filter((item) => item.count > 0)
-              .sort((a, b) => b.count - a.count);
-            setCountryData(countryArr);
-          } else {
-            setCountryData([]);
-          }
+            const countryCodeToName: Record<string, string> = { US: 'United States', CN: 'China', RU: 'Russia', GB: 'United Kingdom', DE: 'Germany', FR: 'France', IN: 'India', BR: 'Brazil', JP: 'Japan', CA: 'Canada', AU: 'Australia', KR: 'South Korea', IT: 'Italy', ES: 'Spain', NL: 'Netherlands', MX: 'Mexico', ID: 'Indonesia', TR: 'Turkey', SA: 'Saudi Arabia', PL: 'Poland', EG: 'Egypt', CH: 'Switzerland', NG: 'Nigeria' };
+            setCountryData(Object.entries(countryBreakdown).map(([code, count]) => ({ code: code.toUpperCase(), name: countryCodeToName[code.toUpperCase()] || code, count: Number(count) })).filter(i => i.count > 0).sort((a, b) => b.count - a.count));
+          } else setCountryData([]);
 
           if (analyticsData?.owasp_top10_summary && Array.isArray(analyticsData.owasp_top10_summary)) {
             const owaspCategoryMap: Record<string, { name: string; category: string; severity: 'critical' | 'high' | 'medium' | 'low' }> = {
@@ -408,56 +283,26 @@ const PlatformDetails: React.FC = () => {
               'A09:2021 – Security Logging and Monitoring Failures': { name: 'Security Logging Failures', category: 'Logging', severity: 'medium' },
               'A10:2021 – Server-Side Request Forgery': { name: 'Server-Side Request Forgery', category: 'SSRF', severity: 'high' },
             };
-            const owaspArr = analyticsData.owasp_top10_summary
-              .map((item: any) => {
-                const categoryInfo = owaspCategoryMap[item.category] || {
-                  name: item.category,
-                  category: item.category.split(':')[0] || item.category,
-                  severity: 'medium' as const,
-                };
-                return { name: categoryInfo.name, category: categoryInfo.category, count: Number(item.threat_count || 0), severity: categoryInfo.severity } as OWASPThreat;
-              })
-              .filter((item: OWASPThreat) => item.count > 0)
-              .sort((a, b) => b.count - a.count);
-
+            const owaspArr = analyticsData.owasp_top10_summary.map((item: any) => { const ci = owaspCategoryMap[item.category] || { name: item.category, category: item.category.split(':')[0] || item.category, severity: 'medium' as const }; return { name: ci.name, category: ci.category, count: Number(item.threat_count || 0), severity: ci.severity } as OWASPThreat; }).filter((i: OWASPThreat) => i.count > 0).sort((a, b) => b.count - a.count);
             const allOwaspItems: OWASPThreat[] = [
-              { name: 'Broken Access Control', category: 'Access Control', count: 0, severity: 'critical' },
-              { name: 'Cryptographic Failures', category: 'Cryptography', count: 0, severity: 'high' },
-              { name: 'Injection', category: 'Injection', count: 0, severity: 'critical' },
-              { name: 'Insecure Design', category: 'Design', count: 0, severity: 'high' },
-              { name: 'Security Misconfiguration', category: 'Configuration', count: 0, severity: 'medium' },
-              { name: 'Vulnerable Components', category: 'Components', count: 0, severity: 'high' },
-              { name: 'Authentication Failures', category: 'Authentication', count: 0, severity: 'critical' },
-              { name: 'Software & Data Integrity', category: 'Integrity', count: 0, severity: 'high' },
-              { name: 'Security Logging Failures', category: 'Logging', count: 0, severity: 'medium' },
-              { name: 'Server-Side Request Forgery', category: 'SSRF', count: 0, severity: 'high' },
+              { name: 'Broken Access Control', category: 'Access Control', count: 0, severity: 'critical' }, { name: 'Cryptographic Failures', category: 'Cryptography', count: 0, severity: 'high' },
+              { name: 'Injection', category: 'Injection', count: 0, severity: 'critical' }, { name: 'Insecure Design', category: 'Design', count: 0, severity: 'high' },
+              { name: 'Security Misconfiguration', category: 'Configuration', count: 0, severity: 'medium' }, { name: 'Vulnerable Components', category: 'Components', count: 0, severity: 'high' },
+              { name: 'Authentication Failures', category: 'Authentication', count: 0, severity: 'critical' }, { name: 'Software & Data Integrity', category: 'Integrity', count: 0, severity: 'high' },
+              { name: 'Security Logging Failures', category: 'Logging', count: 0, severity: 'medium' }, { name: 'Server-Side Request Forgery', category: 'SSRF', count: 0, severity: 'high' },
             ];
-            setOwaspThreats(allOwaspItems.map((defaultItem) => {
-              const apiItem = owaspArr.find((item) => item.name === defaultItem.name);
-              return apiItem || defaultItem;
-            }));
+            setOwaspThreats(allOwaspItems.map(d => owaspArr.find((a) => a.name === d.name) || d));
           }
         }
       })
-      .catch(() => {
-        setTrafficData([]);
-        setThreatTypes([]);
-        setThreatTypesByCategory([]);
-        setCountryData([]);
-      });
+      .catch(() => { setTrafficData([]); setThreatTypes([]); setThreatTypesByCategory([]); setCountryData([]); });
 
     apiService.getPlatformRequestLogs(id, { num: '10' })
       .then((logs: any) => {
         let logsArray = [];
-        if (logs && logs.results && Array.isArray(logs.results)) {
-          logsArray = logs.results;
-        } else if (Array.isArray(logs)) {
-          logsArray = logs;
-        } else if (logs?.logs && Array.isArray(logs.logs)) {
-          logsArray = logs.logs;
-        } else {
-          logsArray = [];
-        }
+        if (logs?.results && Array.isArray(logs.results)) logsArray = logs.results;
+        else if (Array.isArray(logs)) logsArray = logs;
+        else if (logs?.logs && Array.isArray(logs.logs)) logsArray = logs.logs;
         setThreatLogs(logsArray);
       })
       .catch(() => setThreatLogs([]));
@@ -470,36 +315,32 @@ const PlatformDetails: React.FC = () => {
   const blockedRequests = analytics ? Number(analytics.blocked_requests ?? 0) : 0;
   const successRate = analytics && typeof analytics.success_rate === 'number' ? Number(analytics.success_rate) : 0;
   const blockedRate = totalRequests > 0 ? (blockedRequests / totalRequests) * 100 : 0;
-  const activeEndpointCount = Array.isArray(endpoints)
-    ? endpoints.filter((e: any) => e.status === 'active' || e.is_active).length
-    : 0;
+  const activeEndpointCount = Array.isArray(endpoints) ? endpoints.filter((e: any) => e.status === 'active' || e.is_active).length : 0;
 
   const trafficOverviewData = HTTP_METHODS.map((method) => {
     const row = trafficData.find((item: any) => item.method === method) || { method };
-    const total = Object.entries(row).reduce((sum: number, [key, value]) => {
-      if (key === 'method') return sum;
-      return sum + Number(value || 0);
-    }, 0);
+    const total = Object.entries(row).reduce((sum: number, [key, value]) => key === 'method' ? sum : sum + Number(value || 0), 0);
     return { method, total };
   });
 
   const topThreats = threatTypesByCategory.slice(0, 4);
-  const maxThreat = Math.max(...topThreats.map((item: any) => Number(item.value || 0)), 1);
   const activeOwaspThreats = owaspThreats.filter((item) => item.count > 0);
-
   const recentRows = threatLogs.slice(0, 4).map((log: any) => ({
     id: log.id ?? `${log.path}-${Math.random()}`,
     path: log.path || '-',
-    attack: log.waf_rule_triggered || (log.threat_level && log.threat_level !== 'none'
-      ? `${String(log.threat_level).toUpperCase()} Threat`
-      : log.waf_blocked ? 'Suspicious Request' : 'Clean'),
+    attack: log.waf_rule_triggered || (log.threat_level && log.threat_level !== 'none' ? `${String(log.threat_level).toUpperCase()} Threat` : log.waf_blocked ? 'Suspicious Request' : 'Clean'),
     source: log.client_ip || '-',
     status: log.waf_blocked ? 'blocked' : Number(log.status_code) >= 400 ? 'warning' : 'allowed',
   }));
 
-  const cardClass = 'bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-2xl';
-  const headerClass = 'border-b border-slate-100 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]';
-  const controlClass = 'rounded-lg border border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0a1220] px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:focus:border-blue-400 cursor-pointer';
+  // ── ROUNDED TO MATCH HEADER (rounded-[28px]) ──────────────────────────────
+  // Cards use rounded-[22px]; metric / action tiles use rounded-[22px] too.
+  // Inner sub-cards (threat rows, table, live feed rows) use rounded-[16px].
+  const R = 'rounded-[22px]';             // main cards
+  const Rsub = 'rounded-[14px]';          // inner rows / sub-cards
+  const cardClass = `bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 ${R}`;
+  const headerClass = `border-b border-slate-100 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]`;
+  const controlClass = 'rounded-xl border border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0a1220] px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:focus:border-blue-400 cursor-pointer';
   const metricNumberClass = 'font-mono tabular-nums text-[2.25rem] font-bold leading-none tracking-[-0.04em] text-slate-900 dark:text-white';
 
   const getStatusClass = (status: string) => {
@@ -507,18 +348,17 @@ const PlatformDetails: React.FC = () => {
     if (status === 'allowed') return 'border border-emerald-200/60 bg-emerald-50 text-emerald-600 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400';
     return 'border border-amber-200/60 bg-amber-50 text-amber-600 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400';
   };
-
   const getAttackTextClass = (attack: string) => {
-    const value = (attack || '').toLowerCase();
-    if (value.includes('clean')) return 'text-emerald-600 dark:text-emerald-400';
-    if (value.includes('brute') || value.includes('warning')) return 'text-amber-600 dark:text-amber-400';
+    const v = (attack || '').toLowerCase();
+    if (v.includes('clean')) return 'text-emerald-600 dark:text-emerald-400';
+    if (v.includes('brute') || v.includes('warning')) return 'text-amber-600 dark:text-amber-400';
     return 'text-red-500 dark:text-red-400';
   };
 
   if (loading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-[#F2F6FE] dark:bg-[#0F1724]">
-        <div className="flex h-64 w-full max-w-sm flex-col items-center justify-center gap-4 rounded-2xl border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]">
+        <div className={`flex h-64 w-full max-w-sm flex-col items-center justify-center gap-4 border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829] ${R}`}>
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500">
             <Activity className="h-7 w-7 animate-spin text-white" />
           </div>
@@ -535,37 +375,27 @@ const PlatformDetails: React.FC = () => {
   if (!platform) return <div className="p-8 text-center text-slate-900 dark:text-white">Workspace not found.</div>;
 
   return (
-    <div className="w-full min-h-screen bg-[#F2F6FE] dark:bg-[#0F1724] px-5 pb-12 pt-0.1">
+    <div className="w-full min-h-screen bg-[#F2F6FE] dark:bg-[#0F1724] px-5 pb-12 pt-0.5">
       <div className="w-full space-y-5">
 
         {/* HEADER */}
         <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="relative rounded-[20px] bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#06b6d4] px-7 py-7 text-white"
+          className="relative rounded-[28px] bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#06b6d4] px-7 py-7 text-white"
         >
-          <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[20px]">
-            <div
-              className="absolute inset-0 opacity-[0.06]"
-              style={{
-                backgroundImage: 'linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px)',
-                backgroundSize: '32px 32px',
-              }}
-            />
+          <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[28px]">
             <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-cyan-400/20 blur-3xl" />
           </div>
 
           <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0 flex-1">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-white backdrop-blur-sm">
-                <Shield className="h-3 w-3" />
-                {platform?.name || 'Workspace'}
+                <Shield className="h-3 w-3" />{platform?.name || 'Workspace'}
               </div>
               <h1 className="text-2xl font-bold leading-tight tracking-tight lg:text-3xl">Security Dashboard</h1>
               <p className="mt-1.5 text-sm text-blue-100/70">Real-time WAF telemetry and threat intelligence</p>
             </div>
-
             <div className="flex flex-wrap items-center gap-2.5">
               <Button variant="outline" onClick={() => navigate('/platforms')} className="rounded-full border-white/30 bg-white/10 px-4 py-2 text-sm text-white font-medium hover:!bg-white/20 hover:!text-white backdrop-blur-sm">
                 <Eye className="mr-1.5 h-3.5 w-3.5" />Workspaces
@@ -587,26 +417,23 @@ const PlatformDetails: React.FC = () => {
               <span className="inline-flex cursor-default items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition-all group-hover:bg-white/20 backdrop-blur-sm">
                 <Activity className="h-3.5 w-3.5" />AI analysing
               </span>
-              <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-3 w-64 -translate-x-1/2 scale-95 opacity-0 transition-all duration-200 group-hover:scale-100 group-hover:opacity-100">
-                <div className="relative rounded-2xl border border-white/10 bg-[#0f172a]/95 p-4 text-left shadow-2xl backdrop-blur-md">
-                  <div className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-sm border-b border-r border-white/10 bg-[#0f172a]/95" />
-                  <div className="mb-2 flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400">
-                      <Activity className="h-3.5 w-3.5 text-white" />
+              <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-3 w-72 -translate-x-1/2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                <motion.div initial={{ opacity: 0, y: 10, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 450, damping: 28, mass: 0.6 }}
+                  className="relative rounded-[20px] border border-white/20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl shadow-2xl overflow-hidden">
+                  <div className="pointer-events-none absolute inset-0 rounded-[20px]" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.04) 50%, rgba(99,179,237,0.10) 100%)' }} />
+                  <div className="pointer-events-none absolute top-0 left-4 right-4 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)' }} />
+                  <div className="relative p-4">
+                    <div className="mb-2.5 flex items-center gap-2">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 shadow-md"><Activity className="h-3.5 w-3.5 text-white" /></div>
+                      <span className="text-xs font-semibold text-slate-900 dark:text-white">AI Analysing — Coming Soon</span>
                     </div>
-                    <span className="text-xs font-semibold text-white">AI Analysing — Coming Soon</span>
+                    <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">A new AI-powered feature that gives you <span className="font-semibold text-blue-500 dark:text-cyan-400">real-time threat analysis</span>, live traffic insights, and intelligent security recommendations — all automatically.</p>
+                    <div className="mt-2.5 flex items-center gap-1.5"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-500" /><span className="text-[10px] font-medium text-cyan-600 dark:text-blue-400">Actively being developed</span></div>
                   </div>
-                  <p className="text-[11px] leading-relaxed text-slate-300">
-                    A new AI-powered feature that gives you <span className="font-semibold text-cyan-400">real-time threat analysis</span>, live traffic insights, and intelligent security recommendations — all automatically.
-                  </p>
-                  <div className="mt-2.5 flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
-                    <span className="text-[10px] font-medium text-cyan-400">Actively being developed</span>
-                  </div>
-                </div>
+                  <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 h-3 w-3 rotate-45 rounded-sm border-b border-r border-white/20 bg-white/80 dark:bg-gray-900/80" />
+                </motion.div>
               </div>
             </div>
-             
             <span className="ml-auto hidden items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white lg:inline-flex">
               <span className="h-1.5 w-1.5 rounded-full bg-white" />Updated just now
             </span>
@@ -617,8 +444,8 @@ const PlatformDetails: React.FC = () => {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
 
           {/* Traffic Overview */}
-          <Card className={`${cardClass} overflow-hidden`}>
-            <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-6 pb-4 ${headerClass}`}>
+          <Card className={`${cardClass} overflow-hidden flex flex-col h-full`}>
+            <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-6 pb-4 flex-shrink-0 ${headerClass}`}>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10 ring-1 ring-blue-100 dark:ring-blue-500/20">
                   <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -632,16 +459,12 @@ const PlatformDetails: React.FC = () => {
                 {TIME_RANGES.map((range) => (<option key={range.value} value={range.value}>{range.label}</option>))}
               </select>
             </CardHeader>
-            <CardContent className="p-6 pt-5">
-              <div className="mb-6 grid grid-cols-3 gap-4 rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 p-4">
+            <CardContent className="flex flex-col flex-1 p-6 pt-5">
+              <div className={`mb-6 flex-shrink-0 grid grid-cols-3 gap-4 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 p-4 ${Rsub}`}>
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Total</div>
                   <div className="text-2xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-white">{totalRequests.toLocaleString()}</div>
-                  {totalRequests > 0 && (
-                    <div className="mt-2 inline-flex items-center gap-1 rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400">
-                      <Activity className="h-2.5 w-2.5" />Active
-                    </div>
-                  )}
+                  {totalRequests > 0 && <div className="mt-2 inline-flex items-center gap-1 rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400"><Activity className="h-2.5 w-2.5" />Active</div>}
                 </div>
                 <div className="border-l border-slate-200/80 dark:border-blue-900/20 pl-4">
                   <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Blocked</div>
@@ -652,29 +475,21 @@ const PlatformDetails: React.FC = () => {
                   <div className="text-2xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-white">{totalRequests > 0 ? `${blockedRate.toFixed(1)}%` : '0.0%'}</div>
                 </div>
               </div>
-              <div className="h-56 w-full">
+              <div className="flex-1 min-h-[150px] w-full">
                 {trafficOverviewData.length > 0 && trafficOverviewData.some((item) => item.total > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={trafficOverviewData}>
-                      <defs>
-                        <linearGradient id="trafficGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#2563EB" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
+                      <defs><linearGradient id="trafficGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563EB" stopOpacity={0.35} /><stop offset="95%" stopColor="#06b6d4" stopOpacity={0.02} /></linearGradient></defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" vertical={false} />
                       <XAxis dataKey="method" tick={{ fontSize: 11, fill: '#94a3b8', fontFamily: 'monospace' }} axisLine={false} tickLine={false} />
                       <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={32} />
-                      <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '10px', fontSize: '12px', color: '#e2e8f0' }} cursor={{ stroke: 'rgba(37,99,235,0.3)', strokeWidth: 1 }} />
+                      <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '12px', color: '#e2e8f0' }} cursor={{ stroke: 'rgba(37,99,235,0.3)', strokeWidth: 1 }} />
                       <Area type="monotone" dataKey="total" stroke="#2563EB" fill="url(#trafficGradient)" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={1000} />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-blue-900/20">
-                    <div className="text-center">
-                      <Activity className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" />
-                      <p className="text-sm text-slate-400 dark:text-slate-500">No traffic data for this period</p>
-                    </div>
+                  <div className={`flex h-full items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
+                    <div className="text-center"><Activity className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" /><p className="text-sm text-slate-400 dark:text-slate-500">No traffic data for this period</p></div>
                   </div>
                 )}
               </div>
@@ -691,231 +506,130 @@ const PlatformDetails: React.FC = () => {
                   <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Top Threats</CardTitle>
                   <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Highest-volume attack patterns</CardDescription>
                 </div>
-                <button onClick={() => navigate('/threat-logs')} className="rounded-md bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">view_all</button>
+                <button onClick={() => navigate('/threat-logs')} className="rounded-xl bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">view_all</button>
               </CardHeader>
               <CardContent className="p-5 pt-4">
                 {topThreats.length > 0 ? (
-                  (() => {
-                    const threat = topThreats[0];
-                    const getThreatCode = (name: string) => {
-                      const words = (name || '').split(' ');
-                      if (words.length === 1) return (words[0] || '').slice(0, 3).toUpperCase();
-                      return words.map((word) => word[0]).join('').slice(0, 3).toUpperCase();
-                    };
-                    const getThreatBadgeClass = (name: string) => {
-                      const value = (name || '').toLowerCase();
-                      if (value.includes('sql')) return 'border border-red-200/60 bg-red-50 text-red-500 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400';
-                      if (value.includes('xss') || value.includes('script')) return 'border border-amber-200/60 bg-amber-50 text-amber-500 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400';
-                      if (value.includes('brute') || value.includes('auth') || value.includes('rate')) return 'border border-blue-200/60 bg-blue-50 text-blue-600 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400';
-                      return 'border border-cyan-200/60 bg-cyan-50 text-cyan-600 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-400';
-                    };
-                    const threatCode = getThreatCode(threat.name);
-                    const threatBadgeClass = getThreatBadgeClass(threat.name);
-                    const threatValue = Number(threat.value || 0);
-                    const progressWidth = threatValue > 0 ? 100 : 0;
-                    return (
-                      <div className="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/50 dark:bg-[#0F1724]/50 p-3">
-                        <span className={`flex-shrink-0 rounded-lg px-2 py-1 font-mono text-[10px] font-bold ${threatBadgeClass}`}>{threatCode}</span>
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200">{threat.name}</span>
-                        <div className="h-1.5 w-14 flex-shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(progressWidth, 100)}%`, backgroundColor: threat.color || '#9ca3af' }} />
+                  <div className="space-y-2">
+                    {topThreats.slice(0, 3).map((threat, idx) => {
+                      const getThreatCode = (name: string) => { const words = (name || '').split(' '); if (words.length === 1) return (words[0] || '').slice(0, 3).toUpperCase(); return words.map(w => w[0]).join('').slice(0, 3).toUpperCase(); };
+                      const getThreatBadgeClass = (name: string) => { const v = (name || '').toLowerCase(); if (v.includes('sql')) return 'border border-red-200/60 bg-red-50 text-red-500 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400'; if (v.includes('xss') || v.includes('script')) return 'border border-amber-200/60 bg-amber-50 text-amber-500 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400'; if (v.includes('brute') || v.includes('auth') || v.includes('rate')) return 'border border-blue-200/60 bg-blue-50 text-blue-600 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400'; return 'border border-cyan-200/60 bg-cyan-50 text-cyan-600 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-400'; };
+                      const threatValue = Number(threat.value || 0);
+                      return (
+                        <div key={idx} className={`flex items-center gap-3 border border-slate-100 dark:border-blue-900/20 bg-slate-50/50 dark:bg-[#0F1724]/50 p-3 ${Rsub}`}>
+                          <span className={`flex-shrink-0 rounded-lg px-2 py-1 font-mono text-[10px] font-bold ${getThreatBadgeClass(threat.name)}`}>{getThreatCode(threat.name)}</span>
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200">{threat.name}</span>
+                          <div className="h-1.5 w-14 flex-shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                            <div className="h-full rounded-full transition-all duration-700" style={{ width: threatValue > 0 ? '100%' : '0%', backgroundColor: threat.color || '#9ca3af' }} />
+                          </div>
+                          <span className="w-8 flex-shrink-0 text-right font-mono tabular-nums text-xs font-bold text-slate-500 dark:text-slate-400">{threatValue}</span>
                         </div>
-                        <span className="w-8 flex-shrink-0 text-right font-mono tabular-nums text-xs font-bold text-slate-500 dark:text-slate-400">{threatValue}</span>
-                      </div>
-                    );
-                  })()
+                      );
+                    })}
+                  </div>
                 ) : (
-                  <div className="flex h-20 items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-blue-900/20">
-                    <div className="text-center">
-                      <Shield className="mx-auto mb-1 h-6 w-6 text-slate-300 dark:text-slate-700" />
-                      <p className="text-xs text-slate-400 dark:text-slate-500">No threat data available</p>
-                    </div>
+                  <div className={`flex h-20 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
+                    <div className="text-center"><Shield className="mx-auto mb-1 h-6 w-6 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No threat data available</p></div>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* ── Team Members ─────────────────────────────────────────────── */}
-            {/* ── Team Members ─────────────────────────────────────────────── */}
-<Card className={`${cardClass} overflow-hidden`}>
-  <CardHeader className={`flex flex-row items-center justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
-    <div className="flex items-center gap-3">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-500/10 ring-1 ring-indigo-100 dark:ring-indigo-500/20">
-        <Users className="h-4.5 w-4.5 text-indigo-600 dark:text-indigo-400" />
-      </div>
-      <div>
-        <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Team Members</CardTitle>
-        <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-          {platformMembers.length > 0
-            ? `${platformMembers.length} member${platformMembers.length !== 1 ? 's' : ''}`
-            : 'Access & permissions'}
-        </CardDescription>
-      </div>
-    </div>
-    <button
-      onClick={() => navigate('/users')}
-      className="rounded-md bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
-    >
-      view_all
-    </button>
-  </CardHeader>
-
-  <CardContent className="p-5 pt-4">
-    {membersLoading ? (
-      <div className="flex h-36 items-center justify-center">
-        <Activity className="h-5 w-5 animate-spin text-blue-500" />
-      </div>
-    ) : platformMembers.length === 0 ? (
-      <div className="flex h-36 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-blue-900/20">
-        <Users className="h-7 w-7 text-slate-300 dark:text-slate-700 mb-2" />
-        <p className="text-xs text-slate-400 dark:text-slate-500">No team members yet</p>
-        <Button variant="link" className="mt-1 text-xs text-blue-600 dark:text-blue-400 h-auto p-0" onClick={() => navigate('/users')}>
-          Invite users →
-        </Button>
-      </div>
-    ) : (
-      <div className="space-y-2">
-        {platformMembers.slice(0, 5).map((member) => {
-          // Real status from backend – try multiple possible paths
-          const isActive = member.user_status === 'active';
-          return (
-            <div
-              key={member.id}
-              className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-3 py-2.5 transition-colors hover:border-blue-200 dark:hover:border-blue-800/40"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                {/* Avatar with presence tooltip */}
-                <div className="relative group/avatar flex-shrink-0">
-                  <MemberAvatar email={member.user_email} size={28} isActive={member.user_status === 'active'} />
-                  {/* Hover tooltip */}
-                  <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 scale-95 group-hover/avatar:opacity-100 group-hover/avatar:scale-100 transition-all duration-150">
-                    <div
-                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold whitespace-nowrap shadow-lg"
-                      style={{
-                        background: isActive ? 'rgba(220,252,231,0.95)' : 'rgba(254,249,195,0.95)',
-                        color: isActive ? '#15803d' : '#a16207',
-                        border: `1px solid ${isActive ? '#86efac' : '#fde047'}`,
-                        backdropFilter: 'blur(6px)',
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                          background: isActive ? '#22c55e' : '#eab308',
-                          boxShadow: isActive ? '0 0 4px #22c55e' : '0 0 4px #eab308',
-                        }}
-                      />
-                      {isActive ? 'Active' : 'Away'}
-                    </div>
-                    {/* Arrow */}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-1 overflow-hidden">
-                      <div
-                        style={{
-                          width: 8, height: 8,
-                          transform: 'rotate(45deg) translateY(-4px)',
-                          background: isActive ? 'rgba(220,252,231,0.95)' : 'rgba(254,249,195,0.95)',
-                          border: `1px solid ${isActive ? '#86efac' : '#fde047'}`,
-                        }}
-                      />
-                    </div>
+            {/* Team Members */}
+            <Card className={`${cardClass} overflow-hidden`}>
+              <CardHeader className={`flex flex-row items-center justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-500/10 ring-1 ring-indigo-100 dark:ring-indigo-500/20">
+                    <Users className="h-4.5 w-4.5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Team Members</CardTitle>
+                    <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                      {platformMembers.length > 0 ? `${platformMembers.length} member${platformMembers.length !== 1 ? 's' : ''}` : 'Access & permissions'}
+                    </CardDescription>
                   </div>
                 </div>
-
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
-                    {member.user_name || member.user_email}
-                  </p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
-                    {member.user_email}
-                  </p>
-                </div>
-              </div>
-
-              <Badge
-                className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-md flex-shrink-0 ${
-                  member.is_owner
-                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-0'
-                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border-0'
-                }`}
-              >
-                {member.is_owner ? 'Owner' : member.role || 'Member'}
-              </Badge>
-            </div>
-          );
-        })}
-        {platformMembers.length > 5 && (
-          <button onClick={() => navigate('/users')} className="w-full text-center text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1">
-            +{platformMembers.length - 5} more members
-          </button>
-        )}
-      </div>
-    )}
-  </CardContent>
-</Card>
+                <button onClick={() => navigate('/users')} className="rounded-xl bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">view_all</button>
+              </CardHeader>
+              <CardContent className="p-5 pt-4">
+                {membersLoading ? (
+                  <div className="flex h-36 items-center justify-center"><Activity className="h-5 w-5 animate-spin text-blue-500" /></div>
+                ) : platformMembers.length === 0 ? (
+                  <div className={`flex h-36 flex-col items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
+                    <Users className="h-7 w-7 text-slate-300 dark:text-slate-700 mb-2" />
+                    <p className="text-xs text-slate-400 dark:text-slate-500">No team members yet</p>
+                    <Button variant="link" className="mt-1 text-xs text-blue-600 dark:text-blue-400 h-auto p-0" onClick={() => navigate('/users')}>Invite users →</Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {[...platformMembers]
+                      .sort((a: any, b: any) => {
+                        const getTs = (m: any) => { if (m.created_at) { const ts = new Date(m.created_at).getTime(); return isNaN(ts) ? 0 : ts; } return m.joined_at ? new Date(m.joined_at).getTime() : 0; };
+                        return getTs(b) - getTs(a);
+                      })
+                      .slice(0, 4)
+                      .map((member) => {
+                        const isActive = member.user_status === 'active';
+                        return (
+                          <div key={member.id} className={`flex items-center justify-between border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-3 py-2.5 transition-colors hover:border-blue-200 dark:hover:border-blue-800/40 ${Rsub}`}>
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="relative group/avatar flex-shrink-0">
+                                <MemberAvatar email={member.user_email} size={28} isActive={isActive} />
+                                <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 scale-95 group-hover/avatar:opacity-100 group-hover/avatar:scale-100 transition-all duration-150">
+                                  <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold whitespace-nowrap shadow-lg" style={{ background: isActive ? 'rgba(220,252,231,0.95)' : 'rgba(254,249,195,0.95)', color: isActive ? '#15803d' : '#a16207', border: `1px solid ${isActive ? '#86efac' : '#fde047'}`, backdropFilter: 'blur(6px)' }}>
+                                    <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: isActive ? '#22c55e' : '#eab308', boxShadow: isActive ? '0 0 4px #22c55e' : '0 0 4px #eab308' }} />
+                                    {isActive ? 'Active' : 'Away'}
+                                  </div>
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-1 overflow-hidden">
+                                    <div style={{ width: 8, height: 8, transform: 'rotate(45deg) translateY(-4px)', background: isActive ? 'rgba(220,252,231,0.95)' : 'rgba(254,249,195,0.95)', border: `1px solid ${isActive ? '#86efac' : '#fde047'}` }} />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{member.user_name || member.user_email}</p>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{member.user_email}</p>
+                              </div>
+                            </div>
+                            <Badge className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-lg flex-shrink-0 ${member.is_owner ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-0' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border-0'}`}>
+                              {member.is_owner ? 'Owner' : member.role || 'Member'}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
 
         {/* METRIC CARDS */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="relative overflow-hidden rounded-2xl border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]">
-            <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl bg-gradient-to-b from-blue-600 to-cyan-500" />
-            <CardContent className="p-6 pl-7">
-              <div className="flex items-start justify-between mb-4">
-                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">total_requests</span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10"><Activity className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /></div>
-              </div>
-              <AnimatedNumber value={totalRequests} className={metricNumberClass} />
-              <p className="mt-2 text-xs font-medium text-slate-400 dark:text-slate-500">{totalRequests > 0 ? 'Requests received' : 'No traffic yet'}</p>
-              <div className="mt-4 h-1 rounded-full bg-blue-50 dark:bg-slate-800/80">
-                <div className="h-1 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-700" style={{ width: totalRequests > 0 ? '100%' : '0%' }} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="relative overflow-hidden rounded-2xl border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]">
-            <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl bg-gradient-to-b from-red-500 to-rose-600" />
-            <CardContent className="p-6 pl-7">
-              <div className="flex items-start justify-between mb-4">
-                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">threats_blocked</span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 dark:bg-red-500/10"><Shield className="h-3.5 w-3.5 text-red-500 dark:text-red-400" /></div>
-              </div>
-              <AnimatedNumber value={blockedRequests} className={metricNumberClass} />
-              <p className="mt-2 text-xs font-medium text-slate-400 dark:text-slate-500">{blockedRequests > 0 ? 'Threats mitigated' : 'No threats blocked'}</p>
-              <div className="mt-4 h-1 rounded-full bg-red-50 dark:bg-slate-800/80">
-                <div className="h-1 rounded-full bg-gradient-to-r from-red-500 to-rose-600 transition-all duration-700" style={{ width: `${totalRequests > 0 ? Math.min(100, (blockedRequests / totalRequests) * 100) : 0}%` }} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="relative overflow-hidden rounded-2xl border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]">
-            <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl bg-gradient-to-b from-cyan-500 to-teal-500" />
-            <CardContent className="p-6 pl-7">
-              <div className="flex items-start justify-between mb-4">
-                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">blocked_rate</span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50 dark:bg-cyan-500/10"><AlertTriangle className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" /></div>
-              </div>
-              <AnimatedNumber value={blockedRate} decimals={2} suffix="%" className={metricNumberClass} />
-              <p className="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-300"><AnimatedNumber value={successRate} decimals={2} suffix="% success rate" /></p>
-              <div className="mt-4 h-1 rounded-full bg-cyan-50 dark:bg-slate-800/80">
-                <div className="h-1 rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 transition-all duration-700" style={{ width: `${Math.min(100, Math.max(0, blockedRate ?? 0))}%` }} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="relative overflow-hidden rounded-2xl border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]">
-            <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl bg-gradient-to-b from-emerald-500 to-green-600" />
-            <CardContent className="p-6 pl-7">
-              <div className="flex items-start justify-between mb-4">
-                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">active_endpoints</span>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-500/10"><Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /></div>
-              </div>
-              <AnimatedNumber value={activeEndpointCount} className={metricNumberClass} />
-              <p className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">{activeEndpointCount > 0 ? 'Monitoring active' : 'No endpoints yet'}</p>
-              <div className="mt-4 h-1 rounded-full bg-emerald-50 dark:bg-slate-800/80">
-                <div className="h-1 rounded-full bg-gradient-to-r from-emerald-500 to-green-600 transition-all duration-700" style={{ width: activeEndpointCount > 0 ? '100%' : '0%' }} />
-              </div>
-            </CardContent>
-          </Card>
+          {[
+            { label: 'total_requests', icon: <Activity className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />, iconBg: 'bg-blue-50 dark:bg-blue-500/10', accent: 'from-blue-600 to-cyan-500', accentBg: 'bg-blue-50 dark:bg-slate-800/80', value: <AnimatedNumber value={totalRequests} className={metricNumberClass} />, sub: totalRequests > 0 ? 'Requests received' : 'No traffic yet', subClass: 'text-slate-400 dark:text-slate-500', barWidth: totalRequests > 0 ? '100%' : '0%' },
+            { label: 'threats_blocked', icon: <Shield className="h-3.5 w-3.5 text-red-500 dark:text-red-400" />, iconBg: 'bg-red-50 dark:bg-red-500/10', accent: 'from-red-500 to-rose-600', accentBg: 'bg-red-50 dark:bg-slate-800/80', value: <AnimatedNumber value={blockedRequests} className={metricNumberClass} />, sub: blockedRequests > 0 ? 'Threats mitigated' : 'No threats blocked', subClass: 'text-slate-400 dark:text-slate-500', barWidth: `${totalRequests > 0 ? Math.min(100, (blockedRequests / totalRequests) * 100) : 0}%` },
+            { label: 'blocked_rate', icon: <AlertTriangle className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />, iconBg: 'bg-cyan-50 dark:bg-cyan-500/10', accent: 'from-cyan-500 to-teal-500', accentBg: 'bg-cyan-50 dark:bg-slate-800/80', value: <AnimatedNumber value={blockedRate} decimals={2} suffix="%" className={metricNumberClass} />, sub: null, subClass: '', barWidth: `${Math.min(100, Math.max(0, blockedRate ?? 0))}%` },
+            { label: 'active_endpoints', icon: <Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />, iconBg: 'bg-emerald-50 dark:bg-emerald-500/10', accent: 'from-emerald-500 to-green-600', accentBg: 'bg-emerald-50 dark:bg-slate-800/80', value: <AnimatedNumber value={activeEndpointCount} className={metricNumberClass} />, sub: activeEndpointCount > 0 ? 'Monitoring active' : 'No endpoints yet', subClass: 'text-emerald-600 dark:text-emerald-400 font-semibold', barWidth: activeEndpointCount > 0 ? '100%' : '0%' },
+          ].map(({ label, icon, iconBg, accent, accentBg, value, sub, subClass, barWidth }) => (
+            <Card key={label} className={`relative overflow-hidden border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829] ${R}`}>
+              <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l-[22px] bg-gradient-to-b ${accent}`} />
+              <CardContent className="p-6 pl-7">
+                <div className="flex items-start justify-between mb-4">
+                  <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{label}</span>
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconBg}`}>{icon}</div>
+                </div>
+                {value}
+                {label === 'blocked_rate' ? (
+                  <p className="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-300"><AnimatedNumber value={successRate} decimals={2} suffix="% success rate" /></p>
+                ) : (
+                  <p className={`mt-2 text-xs ${subClass}`}>{sub}</p>
+                )}
+                <div className={`mt-4 h-1 rounded-full ${accentBg}`}>
+                  <div className={`h-1 rounded-full bg-gradient-to-r ${accent} transition-all duration-700`} style={{ width: barWidth }} />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         {/* THREAT EVENTS TABLE */}
@@ -925,15 +639,13 @@ const PlatformDetails: React.FC = () => {
               <CardTitle className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Recent Threat Events</CardTitle>
               <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Real-time security events log</CardDescription>
             </div>
-            <button onClick={() => navigate('/threat-logs')} className="rounded-md bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">view_logs()</button>
+            <button onClick={() => navigate('/threat-logs')} className="rounded-xl bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">view_logs()</button>
           </CardHeader>
           <CardContent className="p-6 pt-0">
             {recentRows.length > 0 ? (
-              <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-blue-900/20">
+              <div className={`overflow-hidden border border-slate-100 dark:border-blue-900/20 ${Rsub}`}>
                 <div className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] gap-3 border-b border-slate-100 dark:border-blue-900/20 bg-slate-50/80 dark:bg-[#0F1724]/60 px-5 py-3">
-                  {['Endpoint', 'Attack Type', 'Source IP', 'Status'].map((h) => (
-                    <span key={h} className="font-mono text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">{h}</span>
-                  ))}
+                  {['Endpoint', 'Attack Type', 'Source IP', 'Status'].map((h) => (<span key={h} className="font-mono text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">{h}</span>))}
                 </div>
                 <div className="divide-y divide-slate-50 dark:divide-blue-900/10">
                   {recentRows.map((row) => (
@@ -949,11 +661,8 @@ const PlatformDetails: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="flex h-28 items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-blue-900/20">
-                <div className="text-center">
-                  <Shield className="mx-auto mb-2 h-7 w-7 text-slate-300 dark:text-slate-700" />
-                  <p className="text-xs text-slate-400 dark:text-slate-500">No threat events recorded yet</p>
-                </div>
+              <div className={`flex h-28 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
+                <div className="text-center"><Shield className="mx-auto mb-2 h-7 w-7 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No threat events recorded yet</p></div>
               </div>
             )}
           </CardContent>
@@ -980,7 +689,7 @@ const PlatformDetails: React.FC = () => {
                   const threatLevel = log.threat_level || 'none';
                   const statusColor = isBlocked ? 'text-red-600 dark:text-red-400' : threatLevel !== 'none' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
                   return (
-                    <div key={log.id || idx} className={`flex items-center justify-between rounded-xl border px-4 py-3 transition-colors ${isBlocked ? 'border-red-100 dark:border-red-500/15 bg-red-50/60 dark:bg-red-500/5' : threatLevel !== 'none' ? 'border-amber-100 dark:border-amber-500/15 bg-amber-50/60 dark:bg-amber-500/5' : 'border-emerald-100 dark:border-emerald-500/15 bg-emerald-50/60 dark:bg-emerald-500/5'}`}>
+                    <div key={log.id || idx} className={`flex items-center justify-between border px-4 py-3 transition-colors ${Rsub} ${isBlocked ? 'border-red-100 dark:border-red-500/15 bg-red-50/60 dark:bg-red-500/5' : threatLevel !== 'none' ? 'border-amber-100 dark:border-amber-500/15 bg-amber-50/60 dark:bg-amber-500/5' : 'border-emerald-100 dark:border-emerald-500/15 bg-emerald-50/60 dark:bg-emerald-500/5'}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="font-mono text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded px-1.5 py-0.5">{log.method || 'GET'}</span>
@@ -1001,11 +710,8 @@ const PlatformDetails: React.FC = () => {
                 })}
               </div>
             ) : (
-              <div className="flex h-28 items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-blue-900/20">
-                <div className="text-center">
-                  <AlertTriangle className="mx-auto mb-2 h-7 w-7 text-slate-300 dark:text-slate-700" />
-                  <p className="text-xs text-slate-400 dark:text-slate-500">No live activity yet</p>
-                </div>
+              <div className={`flex h-28 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
+                <div className="text-center"><AlertTriangle className="mx-auto mb-2 h-7 w-7 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No live activity yet</p></div>
               </div>
             )}
           </CardContent>
@@ -1015,10 +721,7 @@ const PlatformDetails: React.FC = () => {
         <div className="grid gap-5 xl:grid-cols-3">
           <Card className={`${cardClass} overflow-hidden`}>
             <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
-              <div>
-                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Response Codes</CardTitle>
-                <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Distribution of HTTP response codes</CardDescription>
-              </div>
+              <div><CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Response Codes</CardTitle><CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Distribution of HTTP response codes</CardDescription></div>
               <select className={controlClass} value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
                 {TIME_RANGES.map((range) => (<option key={range.value} value={range.value}>{range.label}</option>))}
               </select>
@@ -1031,23 +734,20 @@ const PlatformDetails: React.FC = () => {
                       <Pie data={threatTypes} dataKey="value" innerRadius={45} outerRadius={72} paddingAngle={3} isAnimationActive={true} animationDuration={800}>
                         {threatTypes.map((entry: any, index: number) => (<Cell key={`resp-${index}`} fill={entry.color} />))}
                       </Pie>
-                      <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '10px', fontSize: '11px', color: '#e2e8f0' }} />
+                      <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '11px', color: '#e2e8f0' }} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-1.5">
                     {threatTypes.slice(0, 4).map((item: any) => (
-                      <div key={item.name} className="flex items-center justify-between rounded-lg px-3 py-2 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50">
-                        <div className="flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-                          <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{item.name}</span>
-                        </div>
+                      <div key={item.name} className={`flex items-center justify-between px-3 py-2 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 ${Rsub}`}>
+                        <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} /><span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{item.name}</span></div>
                         <span className="font-mono tabular-nums text-[11px] font-bold text-slate-500 dark:text-slate-400">{item.value}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               ) : (
-                <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-blue-900/20">
+                <div className={`flex h-56 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
                   <div className="text-center"><Activity className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No data available</p></div>
                 </div>
               )}
@@ -1062,21 +762,18 @@ const PlatformDetails: React.FC = () => {
             <CardContent className="space-y-2 p-5 pt-4">
               {countryData.length > 0 ? (
                 countryData.slice(0, 5).map((country) => (
-                  <div key={country.code} className={`rounded-xl border px-3 py-3 transition-all cursor-default ${hoveredCountry === country.code ? 'border-blue-300 dark:border-blue-500/40 bg-blue-50/60 dark:bg-blue-500/5' : 'border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50'}`} onMouseEnter={() => setHoveredCountry(country.code)} onMouseLeave={() => setHoveredCountry(null)}>
+                  <div key={country.code} className={`border px-3 py-3 transition-all cursor-default ${Rsub} ${hoveredCountry === country.code ? 'border-blue-300 dark:border-blue-500/40 bg-blue-50/60 dark:bg-blue-500/5' : 'border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50'}`} onMouseEnter={() => setHoveredCountry(country.code)} onMouseLeave={() => setHoveredCountry(null)}>
                     <div className="mb-2 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded px-1.5 py-0.5">{country.code}</span>
-                        <span className="text-xs font-medium text-slate-700 dark:text-slate-200">{country.name}</span>
-                      </div>
+                      <div className="flex items-center gap-2"><span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded px-1.5 py-0.5">{country.code}</span><span className="text-xs font-medium text-slate-700 dark:text-slate-200">{country.name}</span></div>
                       <span className="font-mono tabular-nums text-[11px] font-bold text-slate-500 dark:text-slate-400">{country.count.toLocaleString()}</span>
                     </div>
                     <div className="h-1 rounded-full bg-slate-100 dark:bg-slate-800/80">
-                      <div className="h-1 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500" style={{ width: `${(country.count / Math.max(...countryData.map((item) => item.count), 1)) * 100}%` }} />
+                      <div className="h-1 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500" style={{ width: `${(country.count / Math.max(...countryData.map((i) => i.count), 1)) * 100}%` }} />
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-blue-900/20">
+                <div className={`flex h-56 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
                   <div className="text-center"><Globe className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No data available</p></div>
                 </div>
               )}
@@ -1092,21 +789,15 @@ const PlatformDetails: React.FC = () => {
               {activeOwaspThreats.length > 0 ? (
                 <ResponsiveContainer width="100%" height={220}>
                   <AreaChart data={activeOwaspThreats}>
-                    <defs>
-                      <linearGradient id="owaspFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#2563EB" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#06B6D4" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
+                    <defs><linearGradient id="owaspFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563EB" stopOpacity={0.35} /><stop offset="95%" stopColor="#06B6D4" stopOpacity={0.02} /></linearGradient></defs>
                     <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" />
-                    <XAxis dataKey="name" hide />
-                    <YAxis hide />
-                    <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '10px', fontSize: '11px', color: '#e2e8f0' }} />
+                    <XAxis dataKey="name" hide /><YAxis hide />
+                    <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '11px', color: '#e2e8f0' }} />
                     <Area type="monotone" dataKey="count" stroke="#2563EB" fill="url(#owaspFill)" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={800} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-blue-900/20">
+                <div className={`flex h-56 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
                   <div className="text-center"><Shield className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No OWASP threats detected</p></div>
                 </div>
               )}
@@ -1127,13 +818,13 @@ const PlatformDetails: React.FC = () => {
             { title: 'Security Alerts', description: 'Configure and manage security alerts', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11c0-3.07-1.63-5.64-5-6.32V4a1 1 0 1 0-2 0v.68C7.63 5.36 6 7.92 6 11v5l-1.29 1.29A1 1 0 0 0 6 19h12a1 1 0 0 0 .71-1.71L18 16Z" fill="#6366f1" /></svg>, url: '/security-alerts' },
           ].map((action) => (
             <div key={action.title}>
-              <Card className="group cursor-pointer rounded-2xl border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:hover:border-blue-800/40" onClick={() => navigate(action.url)}>
+              <Card className={`group cursor-pointer border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:hover:border-blue-800/40 ${R}`} onClick={() => navigate(action.url)}>
                 <CardContent className="p-5">
-                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50 dark:bg-[#0F1724]/60 transition-colors group-hover:border-blue-100 dark:group-hover:border-blue-800/30">{action.icon}</div>
+                  <div className={`mb-4 flex h-11 w-11 items-center justify-center border border-slate-100 dark:border-blue-900/20 bg-slate-50 dark:bg-[#0F1724]/60 transition-colors group-hover:border-blue-100 dark:group-hover:border-blue-800/30 ${Rsub}`}>{action.icon}</div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">{action.title}</h3>
                   <p className="mt-1 text-xs text-slate-400 dark:text-slate-500 leading-relaxed">{action.description}</p>
                   <div className="mt-4">
-                    <Button variant="outline" size="sm" className="w-full rounded-lg border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0d1829] text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-blue-900/10 hover:border-blue-200 dark:hover:border-blue-700/40 transition-all" onClick={(e) => { e.stopPropagation(); navigate(action.url); }}>Open →</Button>
+                    <Button variant="outline" size="sm" className={`w-full border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0d1829] text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-blue-900/10 hover:border-blue-200 dark:hover:border-blue-700/40 transition-all ${Rsub}`} onClick={(e) => { e.stopPropagation(); navigate(action.url); }}>Open →</Button>
                   </div>
                 </CardContent>
               </Card>

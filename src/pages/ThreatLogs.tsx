@@ -353,7 +353,6 @@ const ThreatLogs = () => {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium">Threat Logs</span>
                 {platformName && <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium">{platformName}</span>}
               </div>
               <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Threat Logs</h1>

@@ -375,9 +375,6 @@ const SecurityHub = () => {
     URL.revokeObjectURL(url);
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // JSX – redesigned to match PlatformDetails
-  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
       <div className="w-full space-y-6">
@@ -391,9 +388,6 @@ const SecurityHub = () => {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 flex-1">
               <div className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">
-                  Security Hub
-                </span>
                 {platformName && (
                   <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">
                     {platformName}

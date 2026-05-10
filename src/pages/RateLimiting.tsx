@@ -55,6 +55,7 @@ interface RateLimitRule {
 
 export default function RateLimiting() {
   const { id: platformId } = useParams();
+  const [platformName, setPlatformName] = useState<string>("");
   const [rules, setRules] = useState<RateLimitRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +72,14 @@ export default function RateLimiting() {
     is_active: true,
   });
   const { toast } = useToast();
+
+  // Fetch platform name
+  useEffect(() => {
+    if (!platformId) return;
+    apiService.getPlatformDetails(platformId)
+      .then((data) => setPlatformName(data.name || "Workspace"))
+      .catch(() => setPlatformName("Workspace"));
+  }, [platformId]);
 
   const loadRules = async () => {
     if (!platformId) return;
@@ -203,8 +212,11 @@ export default function RateLimiting() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Badge className="border-white/20 bg-white/15 text-white">Rate Limiting</Badge>
-                <Badge className="border-white/20 bg-white/15 text-white">Traffic Controls</Badge>
+                {platformName && (
+                  <Badge className="border-white/20 bg-white/15 text-white">
+                    {platformName}
+                  </Badge>
+                )}
               </div>
               <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Rate Limiting</h1>
               <p className="text-sm text-blue-100 mt-1">Define request limits per endpoint to protect your API from abuse</p>
@@ -219,6 +231,7 @@ export default function RateLimiting() {
             </div>
           </div>
         </motion.div>
+
 
         {error && (
           <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">

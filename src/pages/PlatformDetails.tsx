@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,13 +10,197 @@ import {
 } from 'recharts';
 import {
   Shield, AlertTriangle, Activity, TrendingUp,
-  Globe, Eye, Plus, Search, Users,
+  Globe, Eye, Plus, Search, Users, ArrowLeft,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import apiService from '@/services/api';
+import { geoMercator, geoPath, geoCentroid } from 'd3-geo';
+import { feature } from 'topojson-client';
+
+// ── Numeric ID map (module-level, shared by WorldMap) ─────────────────────
+const ALPHA2_TO_NUMERIC: Record<string, number> = {
+  US: 840, CN: 156, RU: 643, GB: 826, DE: 276, FR: 250,
+  IN: 356, BR: 76,  JP: 392, CA: 124, AU: 36,  KR: 410,
+  IT: 380, ES: 724, NL: 528, MX: 484, ID: 360, TR: 792,
+  SA: 682, PL: 616, EG: 818, CH: 756, NG: 566, ZA: 710,
+  AR: 32,  SE: 752, NO: 578, DK: 208, FI: 246, AT: 40,
+  BE: 56,  PT: 620, IE: 372, NZ: 554, SG: 702, MY: 458,
+  PH: 608, VN: 704, TH: 764, PK: 586, BD: 50,  UA: 804,
+};
+
+// ── WorldMap Component ─────────────────────────────────────────────────────
+const SVG_W = 600;
+const SVG_H = 300;
+
+const WorldMap = ({
+  countryData,
+  selectedCountryCode,
+  onCountryClick,
+}: {
+  countryData: CountryData[];
+  selectedCountryCode: string | null;
+  onCountryClick: (code: string) => void;
+}) => {
+  const [geoJson, setGeoJson]   = useState<any>(null);
+  const [tooltip, setTooltip]   = useState<{ name: string; count: number; percent: number; x: number; y: number } | null>(null);
+  const [zoomState, setZoomState] = useState<{ tx: number; ty: number; s: number }>({ tx: 0, ty: 0, s: 1 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Fixed base projection — never re-created
+  const projection = geoMercator()
+    .scale(120)
+    .translate([SVG_W / 2, SVG_H / 2])
+    .center([0, 20]);
+  const pathGen = geoPath().projection(projection);
+
+  useEffect(() => {
+    fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+      .then(r => r.json())
+      .then(topo => setGeoJson(feature(topo, topo.objects.countries)))
+      .catch(() => setGeoJson(null));
+  }, []);
+
+  // Compute smooth zoom whenever selection changes
+  useEffect(() => {
+    if (!geoJson || !selectedCountryCode) {
+      setZoomState({ tx: 0, ty: 0, s: 1 });
+      return;
+    }
+    const numericId = ALPHA2_TO_NUMERIC[selectedCountryCode];
+    if (!numericId) { setZoomState({ tx: 0, ty: 0, s: 1 }); return; }
+
+    const feat = geoJson.features.find((f: any) => Number(f.id) === numericId);
+    if (!feat) { setZoomState({ tx: 0, ty: 0, s: 1 }); return; }
+
+    try {
+      const [[x0, y0], [x1, y1]] = pathGen.bounds(feat);
+      const bW = x1 - x0, bH = y1 - y0;
+      if (!bW || !bH) return;
+
+      const cx = (x0 + x1) / 2;
+      const cy = (y0 + y1) / 2;
+
+      // Fit country to ~70% of viewport
+      const s = Math.min(
+        Math.min((SVG_W * 0.7) / bW, (SVG_H * 0.7) / bH),
+        9          // never zoom more than 9×
+      );
+      const clampedS = Math.max(s, 1.8);   // always zoom at least 1.8×
+
+      // Translate so centroid lands at SVG centre
+      setZoomState({
+        tx: SVG_W / 2 - cx * clampedS,
+        ty: SVG_H / 2 - cy * clampedS,
+        s:  clampedS,
+      });
+    } catch {
+      setZoomState({ tx: 0, ty: 0, s: 1 });
+    }
+  }, [selectedCountryCode, geoJson]); // pathGen is stable
+
+  if (!geoJson) {
+    return (
+      <div className="flex items-center justify-center h-64 text-slate-400 text-xs">
+        Loading map…
+      </div>
+    );
+  }
+
+  const total    = countryData.reduce((s, c) => s + c.count, 0);
+  const maxCount = Math.max(...countryData.map(c => c.count), 1);
+
+  const handleMouseEnter = (evt: React.MouseEvent, country: CountryData) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setTooltip({
+        name: country.name, count: country.count,
+        percent: total ? (country.count / total) * 100 : 0,
+        x: evt.clientX - rect.left,
+        y: evt.clientY - rect.top,
+      });
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-full min-h-[300px] overflow-hidden rounded-xl bg-slate-50 dark:bg-[#0a1020]">
+      <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full h-auto">
+        {/* Single <g> that we animate via CSS transform */}
+        <g
+          style={{
+            transform: `translate(${zoomState.tx}px, ${zoomState.ty}px) scale(${zoomState.s})`,
+            transformOrigin: '0 0',
+            transition: 'transform 0.75s cubic-bezier(0.4, 0, 0.2, 1)',
+            willChange: 'transform',
+          }}
+        >
+          {geoJson.features.map((feat: any) => {
+            const numericId = Number(feat.id);
+            const entry = countryData.find(c => ALPHA2_TO_NUMERIC[c.code] === numericId);
+            const isSelected = entry?.code === selectedCountryCode;
+
+            const fill = isSelected
+              ? '#1d4ed8'
+              : entry
+                ? `rgba(37, 99, 235, ${0.35 + (entry.count / maxCount) * 0.55})`
+                : '#cbd5e1';
+
+            return (
+              <path
+                key={feat.id ?? Math.random()}
+                d={pathGen(feat) || ''}
+                fill={fill}
+                stroke={isSelected ? '#60a5fa' : '#ffffff'}
+                strokeWidth={isSelected ? 0.8 / zoomState.s : 0.5 / zoomState.s}
+                vectorEffect="non-scaling-stroke"
+                style={{
+                  cursor: entry ? 'pointer' : 'default',
+                  transition: 'fill 0.25s ease',
+                  filter: isSelected ? 'drop-shadow(0 0 4px rgba(96,165,250,0.6))' : undefined,
+                }}
+                onMouseEnter={e => entry && handleMouseEnter(e, entry)}
+                onMouseLeave={() => setTooltip(null)}
+                onClick={() => entry && onCountryClick(entry.code)}
+              />
+            );
+          })}
+        </g>
+      </svg>
+
+      {/* Tooltip */}
+      {tooltip && (
+        <div
+          className="pointer-events-none absolute z-50 rounded-lg border border-slate-200 dark:border-blue-900/30 bg-white dark:bg-gray-800 shadow-lg px-3 py-2 text-xs"
+          style={{ left: tooltip.x + 12, top: tooltip.y - 36 }}
+        >
+          <p className="font-bold text-slate-800 dark:text-slate-100">{tooltip.name}</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-0.5">
+            {tooltip.count.toLocaleString()} requests · {tooltip.percent.toFixed(1)}%
+          </p>
+        </div>
+      )}
+
+      {/* Reset zoom */}
+      {selectedCountryCode && (
+        <button
+          className="absolute top-2 right-2 rounded-lg border border-slate-200 dark:border-blue-900/30 bg-white dark:bg-gray-800 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 shadow hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          onClick={e => { e.stopPropagation(); onCountryClick(''); }}
+        >
+          Reset zoom
+        </button>
+      )}
+
+      {/* Zoom level indicator */}
+      {selectedCountryCode && (
+        <div className="absolute bottom-2 left-2 rounded-full bg-white/80 dark:bg-gray-800/80 border border-slate-200 dark:border-blue-900/30 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 backdrop-blur-sm">
+          {zoomState.s.toFixed(1)}×
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Deterministic avatar system
+// Deterministic avatar system (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 const djb2 = (s: string) => {
   let h = 5381;
@@ -164,6 +348,176 @@ const PingIndicator = () => {
   );
 };
 
+// ── Country Detail Panel ───────────────────────────────────────────────────
+const THREAT_SEVERITY_COLOR: Record<string, string> = {
+  critical: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20',
+  high:     'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20',
+  medium:   'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20',
+  low:      'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20',
+};
+
+const CountryDetailPanel = ({
+  detail, loading, countryName, countryCode, total, onBack,
+}: {
+  detail: any; loading: boolean; countryName: string; countryCode: string;
+  total: number; onBack: () => void;
+}) => {
+  const Rsub = 'rounded-[12px]';
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3">
+        <button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline mb-1">
+          <ArrowLeft className="h-3 w-3" /> Back to list
+        </button>
+        <div className="flex justify-center py-8">
+          <Activity className="h-5 w-5 animate-spin text-blue-500" />
+        </div>
+      </div>
+    );
+  }
+
+  const requestCount = detail?.request_count ?? detail?.total_requests ?? 0;
+  const blockedCount = detail?.blocked_count ?? detail?.blocked_requests ?? 0;
+  const blockRate    = requestCount > 0 ? ((blockedCount / requestCount) * 100).toFixed(1) : '0';
+  const shareOfTotal = total > 0 ? ((requestCount / total) * 100).toFixed(1) : '0';
+  const topThreats   = detail?.top_threats ?? detail?.threats ?? [];
+  const ipList       = detail?.ip_list ?? detail?.top_ips ?? [];
+  const methods      = detail?.method_breakdown ?? detail?.methods ?? null;
+  const statusCodes  = detail?.status_code_breakdown ?? detail?.status_codes ?? null;
+
+  const maxThreat = Math.max(...topThreats.map((t: any) => Number(t.count || t.total || 0)), 1);
+  const maxIP     = Math.max(...ipList.map((ip: any) => Number(ip.count || ip.requests || 0)), 1);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.25 }}
+      className="flex flex-col gap-3"
+    >
+      {/* Back */}
+      <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline mb-1 w-fit">
+        <ArrowLeft className="h-3 w-3" /> All countries
+      </button>
+
+      {/* Header */}
+      <div className={`px-3 py-2.5 border border-blue-200 dark:border-blue-500/30 bg-blue-50/60 dark:bg-blue-500/5 ${Rsub}`}>
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-sm font-bold text-slate-900 dark:text-white">{countryName}</p>
+          <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/15 px-1.5 py-0.5 rounded">{countryCode}</span>
+        </div>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          {requestCount.toLocaleString()} requests · <span className="font-semibold">{shareOfTotal}%</span> of total traffic
+        </p>
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-1.5">
+        {[
+          { label: 'Requests', value: requestCount.toLocaleString(), color: 'text-blue-600 dark:text-blue-400' },
+          { label: 'Blocked',  value: blockedCount.toLocaleString(), color: 'text-red-500 dark:text-red-400' },
+          { label: 'Block %',  value: `${blockRate}%`,              color: 'text-amber-600 dark:text-amber-400' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className={`text-center px-2 py-2 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 ${Rsub}`}>
+            <p className={`font-mono text-sm font-bold ${color}`}>{value}</p>
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Top Threats */}
+      {topThreats.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">Top Threats</p>
+          <div className="space-y-1.5">
+            {topThreats.slice(0, 5).map((threat: any, i: number) => {
+              const name  = threat.name || threat.threat_type || threat.type || `Threat ${i + 1}`;
+              const count = Number(threat.count || threat.total || 0);
+              const sev   = (threat.severity || '').toLowerCase();
+              const sevClass = THREAT_SEVERITY_COLOR[sev] || 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700';
+              return (
+                <div key={i} className={`flex items-center gap-2 px-2.5 py-1.5 border ${Rsub} ${sevClass}`}>
+                  <span className="flex-1 text-xs font-semibold truncate">{name}</span>
+                  <div className="h-1 w-10 rounded-full bg-current opacity-20 overflow-hidden flex-shrink-0">
+                    <div className="h-full rounded-full bg-current opacity-80" style={{ width: `${(count / maxThreat) * 100}%` }} />
+                  </div>
+                  <span className="font-mono text-[11px] font-bold flex-shrink-0">{count.toLocaleString()}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Top Source IPs */}
+      {ipList.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">Top Source IPs</p>
+          <div className="space-y-1.5">
+            {ipList.slice(0, 5).map((ip: any, i: number) => {
+              const addr  = ip.ip || ip.address || ip.client_ip || '—';
+              const count = Number(ip.count || ip.requests || 0);
+              const isBlocked = ip.is_blocked || ip.blocked || false;
+              return (
+                <div key={i} className={`flex items-center gap-2 px-2.5 py-1.5 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 ${Rsub}`}>
+                  <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 flex-1 truncate">{addr}</span>
+                  {isBlocked && (
+                    <span className="text-[9px] font-bold text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-1 rounded">BLOCKED</span>
+                  )}
+                  <div className="h-1 w-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0">
+                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${(count / maxIP) * 100}%` }} />
+                  </div>
+                  <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400 flex-shrink-0">{count.toLocaleString()}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* HTTP Methods breakdown */}
+      {methods && Object.keys(methods).length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">Methods</p>
+          <div className="flex flex-wrap gap-1">
+            {Object.entries(methods).map(([method, count]) => (
+              <div key={method} className={`flex items-center gap-1 px-2 py-1 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 ${Rsub}`}>
+                <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400">{method}</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400">{Number(count).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Status codes */}
+      {statusCodes && Object.keys(statusCodes).length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">Status Codes</p>
+          <div className="flex flex-wrap gap-1">
+            {Object.entries(statusCodes).map(([code, count]) => {
+              const n = Number(code);
+              const col = n < 300 ? 'text-emerald-600 dark:text-emerald-400' : n < 400 ? 'text-blue-600 dark:text-blue-400' : n < 500 ? 'text-amber-600 dark:text-amber-400' : 'text-red-500 dark:text-red-400';
+              return (
+                <div key={code} className={`flex items-center gap-1 px-2 py-1 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 ${Rsub}`}>
+                  <span className={`font-mono text-[10px] font-bold ${col}`}>{code}</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">{Number(count).toLocaleString()}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!topThreats.length && !ipList.length && !loading && (
+        <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-3">No detailed data available for this country.</p>
+      )}
+    </motion.div>
+  );
+};
+
 const PlatformDetails: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   const [platform, setPlatform] = useState<any>(null);
@@ -200,6 +554,35 @@ const PlatformDetails: React.FC = () => {
 
   const [isAlertClicked, setIsAlertClicked] = useState(false);
   const navigate = useNavigate();
+
+  // Country detail
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
+  const [countryDetail, setCountryDetail] = useState<any>(null);
+  const [countryDetailLoading, setCountryDetailLoading] = useState(false);
+
+  const fetchCountryDetail = useCallback(async (code: string) => {
+    if (!id || !code) return;
+    setCountryDetailLoading(true);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || 'https://staging.breachnet.io'}/api/v1/platforms/${id}/country/${code}/analytics?range=${timeRange}`,
+        { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } }
+      );
+      if (!response.ok) throw new Error('Failed to fetch country details');
+      const data = await response.json();
+      setCountryDetail(data);
+    } catch (err) {
+      console.error('Failed to fetch country detail:', err);
+      setCountryDetail(null);
+    } finally {
+      setCountryDetailLoading(false);
+    }
+  }, [id, timeRange]);
+
+  useEffect(() => {
+    if (selectedCountryCode) fetchCountryDetail(selectedCountryCode);
+    else setCountryDetail(null);
+  }, [selectedCountryCode, fetchCountryDetail]);
 
   const fetchData = () => {
     if (!id) return;
@@ -333,14 +716,11 @@ const PlatformDetails: React.FC = () => {
     status: log.waf_blocked ? 'blocked' : Number(log.status_code) >= 400 ? 'warning' : 'allowed',
   }));
 
-  // ── ROUNDED TO MATCH HEADER (rounded-[28px]) ──────────────────────────────
-  // Cards use rounded-[22px]; metric / action tiles use rounded-[22px] too.
-  // Inner sub-cards (threat rows, table, live feed rows) use rounded-[16px].
-  const R = 'rounded-[22px]';             // main cards
-  const Rsub = 'rounded-[14px]';          // inner rows / sub-cards
+  const R = 'rounded-[22px]';
+  const Rsub = 'rounded-[14px]';
   const cardClass = `bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 ${R}`;
   const headerClass = `border-b border-slate-100 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]`;
-  const controlClass = 'rounded-xl border border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0a1220] px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:focus:border-blue-400 cursor-pointer';
+  const controlClass = 'rounded-full border border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0a1220] px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 outline-none transition-all hover:border-blue-300 dark:hover:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 cursor-pointer';
   const metricNumberClass = 'font-mono tabular-nums text-[2.25rem] font-bold leading-none tracking-[-0.04em] text-slate-900 dark:text-white';
 
   const getStatusClass = (status: string) => {
@@ -373,6 +753,9 @@ const PlatformDetails: React.FC = () => {
 
   if (error) return <div className="p-8 text-center text-red-600 dark:text-red-400">Error: {error}</div>;
   if (!platform) return <div className="p-8 text-center text-slate-900 dark:text-white">Workspace not found.</div>;
+
+  const totalCountryRequests = countryData.reduce((s, c) => s + c.count, 0);
+  const selectedCountryEntry = countryData.find(c => c.code === selectedCountryCode);
 
   return (
     <div className="w-full min-h-screen bg-[#F2F6FE] dark:bg-[#0F1724] px-5 pb-12 pt-0.5">
@@ -632,6 +1015,151 @@ const PlatformDetails: React.FC = () => {
           ))}
         </div>
 
+        {/* CHARTS : Response Codes + OWASP Top 10 (2 wide) */}
+        <div className="grid gap-5 xl:grid-cols-2">
+          <Card className={`${cardClass} overflow-hidden`}>
+            <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
+              <div>
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Response Codes</CardTitle>
+                <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Distribution of HTTP response codes</CardDescription>
+              </div>
+              <select className={controlClass} value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
+                {TIME_RANGES.map((range) => (<option key={range.value} value={range.value}>{range.label}</option>))}
+              </select>
+            </CardHeader>
+            <CardContent className="p-5 pt-4">
+              {threatTypes.length > 0 ? (
+                <div className="space-y-4">
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie data={threatTypes} dataKey="value" innerRadius={45} outerRadius={72} paddingAngle={3} isAnimationActive={true} animationDuration={800}>
+                        {threatTypes.map((entry: any, index: number) => (<Cell key={`resp-${index}`} fill={entry.color} />))}
+                      </Pie>
+                      <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '11px', color: '#e2e8f0' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="space-y-1.5">
+                    {threatTypes.slice(0, 4).map((item: any) => (
+                      <div key={item.name} className={`flex items-center justify-between px-3 py-2 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 ${Rsub}`}>
+                        <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} /><span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{item.name}</span></div>
+                        <span className="font-mono tabular-nums text-[11px] font-bold text-slate-500 dark:text-slate-400">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className={`flex h-56 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
+                  <div className="text-center"><Activity className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No data available</p></div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className={`${cardClass} overflow-hidden`}>
+            <CardHeader className={`p-5 pb-4 ${headerClass}`}>
+              <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">OWASP Top 10</CardTitle>
+              <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Detected risks by category</CardDescription>
+            </CardHeader>
+            <CardContent className="p-5 pt-4">
+              {activeOwaspThreats.length > 0 ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={activeOwaspThreats}>
+                    <defs><linearGradient id="owaspFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563EB" stopOpacity={0.35} /><stop offset="95%" stopColor="#06B6D4" stopOpacity={0.02} /></linearGradient></defs>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" />
+                    <XAxis dataKey="name" hide /><YAxis hide />
+                    <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '11px', color: '#e2e8f0' }} />
+                    <Area type="monotone" dataKey="count" stroke="#2563EB" fill="url(#owaspFill)" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={800} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className={`flex h-56 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
+                  <div className="text-center"><Shield className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No OWASP threats detected</p></div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* WORLD MAP — smooth zoom + detailed side panel */}
+        <Card className={`${cardClass} overflow-hidden`}>
+          <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Geographic Distribution</CardTitle>
+              <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                {countryData.length > 0
+                  ? `${countryData.length} countries · ${totalCountryRequests.toLocaleString()} requests`
+                  : 'Traffic origin map — click a country to inspect'}
+              </CardDescription>
+            </div>
+            <select className={controlClass} value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
+              {TIME_RANGES.map((range) => (<option key={range.value} value={range.value}>{range.label}</option>))}
+            </select>
+          </CardHeader>
+          <CardContent className="p-5 pt-2">
+            <div className="flex flex-col lg:flex-row gap-5">
+
+              {/* Map — takes most space */}
+              <div className="flex-1 min-h-[300px]">
+                <WorldMap
+                  countryData={countryData}
+                  selectedCountryCode={selectedCountryCode}
+                  onCountryClick={(code) => {
+                    if (!code || code === selectedCountryCode) {
+                      setSelectedCountryCode(null);
+                    } else {
+                      setSelectedCountryCode(code);
+                    }
+                  }}
+                />
+                {countryData.length === 0 && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 text-center mt-2">No geographic data available for this period</p>
+                )}
+              </div>
+
+              {/* Side panel — country list or detail */}
+              <div className="w-full lg:w-72 max-h-[360px] overflow-y-auto pr-1">
+                {selectedCountryCode ? (
+                  <CountryDetailPanel
+                    detail={countryDetail}
+                    loading={countryDetailLoading}
+                    countryName={selectedCountryEntry?.name || selectedCountryCode}
+                    countryCode={selectedCountryCode}
+                    total={totalCountryRequests}
+                    onBack={() => setSelectedCountryCode(null)}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {countryData.length > 0 ? (
+                      countryData.slice(0, 8).map((country) => {
+                        const max = Math.max(...countryData.map(c => c.count), 1);
+                        const pct = (country.count / max) * 100;
+                        return (
+                          <div
+                            key={country.code}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 cursor-pointer hover:bg-blue-50/60 dark:hover:bg-blue-500/5 hover:border-blue-200 dark:hover:border-blue-500/30 transition-colors`}
+                            onClick={() => setSelectedCountryCode(country.code)}
+                          >
+                            <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded px-1.5 py-0.5 flex-shrink-0">{country.code}</span>
+                            <span className="flex-1 text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{country.name}</span>
+                            <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400 flex-shrink-0">{country.count.toLocaleString()}</span>
+                            <div className="h-1.5 w-14 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0">
+                              <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-400 dark:text-slate-500">
+                        No country data available
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* THREAT EVENTS TABLE */}
         <Card className={`${cardClass} overflow-hidden`}>
           <CardHeader className={`flex flex-row items-center justify-between space-y-0 p-6 pb-4 ${headerClass}`}>
@@ -717,94 +1245,6 @@ const PlatformDetails: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* CHARTS 3-col */}
-        <div className="grid gap-5 xl:grid-cols-3">
-          <Card className={`${cardClass} overflow-hidden`}>
-            <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
-              <div><CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Response Codes</CardTitle><CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Distribution of HTTP response codes</CardDescription></div>
-              <select className={controlClass} value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
-                {TIME_RANGES.map((range) => (<option key={range.value} value={range.value}>{range.label}</option>))}
-              </select>
-            </CardHeader>
-            <CardContent className="p-5 pt-4">
-              {threatTypes.length > 0 ? (
-                <div className="space-y-4">
-                  <ResponsiveContainer width="100%" height={180}>
-                    <PieChart>
-                      <Pie data={threatTypes} dataKey="value" innerRadius={45} outerRadius={72} paddingAngle={3} isAnimationActive={true} animationDuration={800}>
-                        {threatTypes.map((entry: any, index: number) => (<Cell key={`resp-${index}`} fill={entry.color} />))}
-                      </Pie>
-                      <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '11px', color: '#e2e8f0' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="space-y-1.5">
-                    {threatTypes.slice(0, 4).map((item: any) => (
-                      <div key={item.name} className={`flex items-center justify-between px-3 py-2 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 ${Rsub}`}>
-                        <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} /><span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{item.name}</span></div>
-                        <span className="font-mono tabular-nums text-[11px] font-bold text-slate-500 dark:text-slate-400">{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className={`flex h-56 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
-                  <div className="text-center"><Activity className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No data available</p></div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className={`${cardClass} overflow-hidden`}>
-            <CardHeader className={`p-5 pb-4 ${headerClass}`}>
-              <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Requests by Country</CardTitle>
-              <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Geographic distribution of traffic</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 p-5 pt-4">
-              {countryData.length > 0 ? (
-                countryData.slice(0, 5).map((country) => (
-                  <div key={country.code} className={`border px-3 py-3 transition-all cursor-default ${Rsub} ${hoveredCountry === country.code ? 'border-blue-300 dark:border-blue-500/40 bg-blue-50/60 dark:bg-blue-500/5' : 'border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50'}`} onMouseEnter={() => setHoveredCountry(country.code)} onMouseLeave={() => setHoveredCountry(null)}>
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="flex items-center gap-2"><span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded px-1.5 py-0.5">{country.code}</span><span className="text-xs font-medium text-slate-700 dark:text-slate-200">{country.name}</span></div>
-                      <span className="font-mono tabular-nums text-[11px] font-bold text-slate-500 dark:text-slate-400">{country.count.toLocaleString()}</span>
-                    </div>
-                    <div className="h-1 rounded-full bg-slate-100 dark:bg-slate-800/80">
-                      <div className="h-1 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500" style={{ width: `${(country.count / Math.max(...countryData.map((i) => i.count), 1)) * 100}%` }} />
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className={`flex h-56 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
-                  <div className="text-center"><Globe className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No data available</p></div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className={`${cardClass} overflow-hidden`}>
-            <CardHeader className={`p-5 pb-4 ${headerClass}`}>
-              <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">OWASP Top 10</CardTitle>
-              <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Detected risks by category</CardDescription>
-            </CardHeader>
-            <CardContent className="p-5 pt-4">
-              {activeOwaspThreats.length > 0 ? (
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={activeOwaspThreats}>
-                    <defs><linearGradient id="owaspFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563EB" stopOpacity={0.35} /><stop offset="95%" stopColor="#06B6D4" stopOpacity={0.02} /></linearGradient></defs>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" />
-                    <XAxis dataKey="name" hide /><YAxis hide />
-                    <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '11px', color: '#e2e8f0' }} />
-                    <Area type="monotone" dataKey="count" stroke="#2563EB" fill="url(#owaspFill)" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={800} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className={`flex h-56 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
-                  <div className="text-center"><Shield className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No OWASP threats detected</p></div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
         {/* ACTION TILES */}
         <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-4">
           {[
@@ -824,7 +1264,7 @@ const PlatformDetails: React.FC = () => {
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">{action.title}</h3>
                   <p className="mt-1 text-xs text-slate-400 dark:text-slate-500 leading-relaxed">{action.description}</p>
                   <div className="mt-4">
-                    <Button variant="outline" size="sm" className={`w-full border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0d1829] text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-blue-900/10 hover:border-blue-200 dark:hover:border-blue-700/40 transition-all ${Rsub}`} onClick={(e) => { e.stopPropagation(); navigate(action.url); }}>Open →</Button>
+                    <Button variant="outline" size="sm" className={`w-full border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0d1829] text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-blue-900/10 hover:text-slate-900 dark:hover:text-white hover:border-blue-200 dark:hover:border-blue-700/40 transition-all ${Rsub}`} onClick={(e) => { e.stopPropagation(); navigate(action.url); }}>Open →</Button>
                   </div>
                 </CardContent>
               </Card>

@@ -14,21 +14,25 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import apiService from '@/services/api';
-import { geoMercator, geoPath, geoCentroid } from 'd3-geo';
+import { geoMercator, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 
-// ── Numeric ID map (module-level, shared by WorldMap) ─────────────────────
 const ALPHA2_TO_NUMERIC: Record<string, number> = {
-  US: 840, CN: 156, RU: 643, GB: 826, DE: 276, FR: 250,
-  IN: 356, BR: 76,  JP: 392, CA: 124, AU: 36,  KR: 410,
-  IT: 380, ES: 724, NL: 528, MX: 484, ID: 360, TR: 792,
-  SA: 682, PL: 616, EG: 818, CH: 756, NG: 566, ZA: 710,
-  AR: 32,  SE: 752, NO: 578, DK: 208, FI: 246, AT: 40,
-  BE: 56,  PT: 620, IE: 372, NZ: 554, SG: 702, MY: 458,
-  PH: 608, VN: 704, TH: 764, PK: 586, BD: 50,  UA: 804,
+  US:840,CN:156,RU:643,GB:826,DE:276,FR:250,IN:356,BR:76,JP:392,CA:124,
+  AU:36,KR:410,IT:380,ES:724,NL:528,MX:484,ID:360,TR:792,SA:682,PL:616,
+  EG:818,CH:756,NG:566,ZA:710,AR:32,SE:752,NO:578,DK:208,FI:246,AT:40,
+  BE:56,PT:620,IE:372,NZ:554,SG:702,MY:458,PH:608,VN:704,TH:764,PK:586,
+  BD:50,UA:804,GR:300,CZ:203,RO:642,HU:348,SK:703,HR:191,RS:688,BG:100,
+  LT:440,LV:428,EE:233,SI:705,IL:376,AE:784,IQ:368,IR:364,QA:634,KW:414,
+  JO:400,LB:422,KE:404,GH:288,ET:231,TZ:834,DZ:12,MA:504,TN:788,LY:434,
+  SD:729,CM:120,SN:686,MZ:508,ZM:894,ZW:716,CO:170,VE:862,CL:152,PE:604,
+  EC:218,BO:68,PY:600,UY:858,CR:188,PA:591,DO:214,CU:192,GT:320,HN:340,
+  SV:222,NI:558,KZ:398,UZ:860,BY:112,MD:498,GE:268,AZ:31,AM:51,TM:795,
+  KG:417,TJ:762,MM:104,KH:116,LA:418,NP:524,LK:144,AF:4,MN:496,TW:158,
+  CY:196,MT:470,LU:442,IS:352,AL:8,MK:807,BA:70,ME:499,XK:0,LI:438,
+  MC:492,SM:674,VA:336,AD:20,
 };
 
-// ── WorldMap Component ─────────────────────────────────────────────────────
 const SVG_W = 600;
 const SVG_H = 300;
 
@@ -46,7 +50,6 @@ const WorldMap = ({
   const [zoomState, setZoomState] = useState<{ tx: number; ty: number; s: number }>({ tx: 0, ty: 0, s: 1 });
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fixed base projection — never re-created
   const projection = geoMercator()
     .scale(120)
     .translate([SVG_W / 2, SVG_H / 2])
@@ -60,7 +63,6 @@ const WorldMap = ({
       .catch(() => setGeoJson(null));
   }, []);
 
-  // Compute smooth zoom whenever selection changes
   useEffect(() => {
     if (!geoJson || !selectedCountryCode) {
       setZoomState({ tx: 0, ty: 0, s: 1 });
@@ -68,35 +70,27 @@ const WorldMap = ({
     }
     const numericId = ALPHA2_TO_NUMERIC[selectedCountryCode];
     if (!numericId) { setZoomState({ tx: 0, ty: 0, s: 1 }); return; }
-
     const feat = geoJson.features.find((f: any) => Number(f.id) === numericId);
     if (!feat) { setZoomState({ tx: 0, ty: 0, s: 1 }); return; }
-
     try {
       const [[x0, y0], [x1, y1]] = pathGen.bounds(feat);
       const bW = x1 - x0, bH = y1 - y0;
       if (!bW || !bH) return;
-
-      const cx = (x0 + x1) / 2;
-      const cy = (y0 + y1) / 2;
-
-      // Fit country to ~70% of viewport
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
       const s = Math.min(
         Math.min((SVG_W * 0.7) / bW, (SVG_H * 0.7) / bH),
-        9          // never zoom more than 9×
+        9
       );
-      const clampedS = Math.max(s, 1.8);   // always zoom at least 1.8×
-
-      // Translate so centroid lands at SVG centre
+      const clampedS = Math.max(s, 1.8);
       setZoomState({
         tx: SVG_W / 2 - cx * clampedS,
         ty: SVG_H / 2 - cy * clampedS,
-        s:  clampedS,
+        s: clampedS,
       });
     } catch {
       setZoomState({ tx: 0, ty: 0, s: 1 });
     }
-  }, [selectedCountryCode, geoJson]); // pathGen is stable
+  }, [selectedCountryCode, geoJson, pathGen]);
 
   if (!geoJson) {
     return (
@@ -122,14 +116,20 @@ const WorldMap = ({
   };
 
   return (
-    <div ref={containerRef} className="relative w-full min-h-[300px] overflow-hidden rounded-xl bg-slate-50 dark:bg-[#0a1020]">
+    <div ref={containerRef} className="relative w-full min-h-[300px] overflow-hidden rounded-xl border border-slate-200 dark:border-blue-900/20 bg-gradient-to-b from-slate-50 to-blue-50/50 dark:from-[#0a1020] dark:to-blue-900/10">
       <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full h-auto">
-        {/* Single <g> that we animate via CSS transform */}
+        <rect width={SVG_W} height={SVG_H} fill="url(#ocean)" />
+        <defs>
+          <radialGradient id="ocean" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#cbd5e1" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.15" />
+          </radialGradient>
+        </defs>
         <g
           style={{
             transform: `translate(${zoomState.tx}px, ${zoomState.ty}px) scale(${zoomState.s})`,
             transformOrigin: '0 0',
-            transition: 'transform 0.75s cubic-bezier(0.4, 0, 0.2, 1)',
+            transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
             willChange: 'transform',
           }}
         >
@@ -137,25 +137,23 @@ const WorldMap = ({
             const numericId = Number(feat.id);
             const entry = countryData.find(c => ALPHA2_TO_NUMERIC[c.code] === numericId);
             const isSelected = entry?.code === selectedCountryCode;
-
             const fill = isSelected
-              ? '#1d4ed8'
+              ? '#1e40af'
               : entry
-                ? `rgba(37, 99, 235, ${0.35 + (entry.count / maxCount) * 0.55})`
-                : '#cbd5e1';
-
+                ? `rgba(37, 99, 235, ${0.3 + (entry.count / maxCount) * 0.6})`
+                : '#e2e8f0';
             return (
               <path
                 key={feat.id ?? Math.random()}
                 d={pathGen(feat) || ''}
                 fill={fill}
-                stroke={isSelected ? '#60a5fa' : '#ffffff'}
-                strokeWidth={isSelected ? 0.8 / zoomState.s : 0.5 / zoomState.s}
+                stroke={isSelected ? '#3b82f6' : '#ffffff'}
+                strokeWidth={isSelected ? 0.8 / zoomState.s : 0.4 / zoomState.s}
                 vectorEffect="non-scaling-stroke"
                 style={{
                   cursor: entry ? 'pointer' : 'default',
-                  transition: 'fill 0.25s ease',
-                  filter: isSelected ? 'drop-shadow(0 0 4px rgba(96,165,250,0.6))' : undefined,
+                  transition: 'fill 0.2s ease',
+                  filter: isSelected ? 'drop-shadow(0 0 5px rgba(59,130,246,0.5))' : undefined,
                 }}
                 onMouseEnter={e => entry && handleMouseEnter(e, entry)}
                 onMouseLeave={() => setTooltip(null)}
@@ -165,11 +163,9 @@ const WorldMap = ({
           })}
         </g>
       </svg>
-
-      {/* Tooltip */}
       {tooltip && (
         <div
-          className="pointer-events-none absolute z-50 rounded-lg border border-slate-200 dark:border-blue-900/30 bg-white dark:bg-gray-800 shadow-lg px-3 py-2 text-xs"
+          className="pointer-events-none absolute z-50 rounded-lg border border-slate-200 dark:border-blue-900/30 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm shadow-lg px-3 py-2 text-xs"
           style={{ left: tooltip.x + 12, top: tooltip.y - 36 }}
         >
           <p className="font-bold text-slate-800 dark:text-slate-100">{tooltip.name}</p>
@@ -178,30 +174,23 @@ const WorldMap = ({
           </p>
         </div>
       )}
-
-      {/* Reset zoom */}
       {selectedCountryCode && (
-        <button
-          className="absolute top-2 right-2 rounded-lg border border-slate-200 dark:border-blue-900/30 bg-white dark:bg-gray-800 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 shadow hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-          onClick={e => { e.stopPropagation(); onCountryClick(''); }}
-        >
-          Reset zoom
-        </button>
-      )}
-
-      {/* Zoom level indicator */}
-      {selectedCountryCode && (
-        <div className="absolute bottom-2 left-2 rounded-full bg-white/80 dark:bg-gray-800/80 border border-slate-200 dark:border-blue-900/30 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 backdrop-blur-sm">
-          {zoomState.s.toFixed(1)}×
-        </div>
+        <>
+          <button
+            className="absolute top-2 right-2 rounded-lg border border-slate-200 dark:border-blue-900/30 bg-white/90 dark:bg-gray-800/90 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 shadow hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            onClick={e => { e.stopPropagation(); onCountryClick(''); }}
+          >
+            Reset zoom
+          </button>
+          <div className="absolute bottom-2 left-2 rounded-full bg-white/80 dark:bg-gray-800/80 border border-slate-200 dark:border-blue-900/30 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 backdrop-blur-sm">
+            {zoomState.s.toFixed(1)}×
+          </div>
+        </>
       )}
     </div>
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Deterministic avatar system (unchanged)
-// ─────────────────────────────────────────────────────────────────────────────
 const djb2 = (s: string) => {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
@@ -247,8 +236,6 @@ const MemberAvatar = ({ email, size = 28, isActive = false }: { email: string; s
     </div>
   );
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
 
@@ -348,99 +335,75 @@ const PingIndicator = () => {
   );
 };
 
-// ── Country Detail Panel ───────────────────────────────────────────────────
-const THREAT_SEVERITY_COLOR: Record<string, string> = {
-  critical: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20',
-  high:     'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20',
-  medium:   'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20',
-  low:      'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20',
+const THREAT_SEVERITY_COLORS: Record<string, string> = {
+  critical: 'text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-500/10 border-red-200 dark:border-red-500/20',
+  high:     'text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20',
+  medium:   'text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20',
+  low:      'text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20',
 };
 
 const CountryDetailPanel = ({
-  detail, loading, countryName, countryCode, total, onBack,
+  detail, loading, countryName, countryCode, totalRequests, totalCountryRequests, onBack,
 }: {
   detail: any; loading: boolean; countryName: string; countryCode: string;
-  total: number; onBack: () => void;
+  totalRequests: number; totalCountryRequests: number; onBack: () => void;
 }) => {
   const Rsub = 'rounded-[12px]';
-
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-3">
-        <button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline mb-1">
-          <ArrowLeft className="h-3 w-3" /> Back to list
-        </button>
-        <div className="flex justify-center py-8">
-          <Activity className="h-5 w-5 animate-spin text-blue-500" />
-        </div>
-      </div>
-    );
-  }
-
-  const requestCount = detail?.request_count ?? detail?.total_requests ?? 0;
+  const requestCount = detail?.request_count ?? detail?.total_requests ?? totalRequests ?? 0;
   const blockedCount = detail?.blocked_count ?? detail?.blocked_requests ?? 0;
-  const blockRate    = requestCount > 0 ? ((blockedCount / requestCount) * 100).toFixed(1) : '0';
-  const shareOfTotal = total > 0 ? ((requestCount / total) * 100).toFixed(1) : '0';
-  const topThreats   = detail?.top_threats ?? detail?.threats ?? [];
-  const ipList       = detail?.ip_list ?? detail?.top_ips ?? [];
-  const methods      = detail?.method_breakdown ?? detail?.methods ?? null;
-  const statusCodes  = detail?.status_code_breakdown ?? detail?.status_codes ?? null;
-
-  const maxThreat = Math.max(...topThreats.map((t: any) => Number(t.count || t.total || 0)), 1);
-  const maxIP     = Math.max(...ipList.map((ip: any) => Number(ip.count || ip.requests || 0)), 1);
+  const blockRate = requestCount > 0 ? ((blockedCount / requestCount) * 100).toFixed(1) : '0';
+  const shareOfTotal = totalCountryRequests > 0 ? ((requestCount / totalCountryRequests) * 100).toFixed(1) : '0';
+  const topThreats = detail?.top_threats ?? detail?.threats ?? [];
+  const ipList = detail?.ip_list ?? detail?.top_ips ?? [];
+  const methods = detail?.method_breakdown ?? detail?.methods ?? null;
+  const statusCodes = detail?.status_code_breakdown ?? detail?.status_codes ?? null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 8 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.25 }}
-      className="flex flex-col gap-3"
-    >
-      {/* Back */}
-      <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline mb-1 w-fit">
+    <motion.div initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="flex flex-col gap-3">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline w-fit">
         <ArrowLeft className="h-3 w-3" /> All countries
       </button>
 
-      {/* Header */}
       <div className={`px-3 py-2.5 border border-blue-200 dark:border-blue-500/30 bg-blue-50/60 dark:bg-blue-500/5 ${Rsub}`}>
         <div className="flex items-center justify-between mb-1">
           <p className="text-sm font-bold text-slate-900 dark:text-white">{countryName}</p>
           <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/15 px-1.5 py-0.5 rounded">{countryCode}</span>
         </div>
         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-          {requestCount.toLocaleString()} requests · <span className="font-semibold">{shareOfTotal}%</span> of total traffic
+          <span className="font-mono font-semibold">{requestCount.toLocaleString()}</span> requests · <span className="font-semibold">{shareOfTotal}%</span> of all traffic
         </p>
       </div>
 
-      {/* Stats row */}
       <div className="grid grid-cols-3 gap-1.5">
         {[
-          { label: 'Requests', value: requestCount.toLocaleString(), color: 'text-blue-600 dark:text-blue-400' },
-          { label: 'Blocked',  value: blockedCount.toLocaleString(), color: 'text-red-500 dark:text-red-400' },
-          { label: 'Block %',  value: `${blockRate}%`,              color: 'text-amber-600 dark:text-amber-400' },
-        ].map(({ label, value, color }) => (
+          { label: 'Requests', value: requestCount.toLocaleString(), col: 'text-blue-600 dark:text-blue-400' },
+          { label: 'Blocked',  value: blockedCount.toLocaleString(), col: 'text-red-500 dark:text-red-400' },
+          { label: 'Block %',  value: `${blockRate}%`, col: 'text-amber-600 dark:text-amber-400' },
+        ].map(({ label, value, col }) => (
           <div key={label} className={`text-center px-2 py-2 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 ${Rsub}`}>
-            <p className={`font-mono text-sm font-bold ${color}`}>{value}</p>
+            <p className={`font-mono text-sm font-bold ${col}`}>{value}</p>
             <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
-      {/* Top Threats */}
+      {loading && (
+        <div className="flex justify-center py-4"><Activity className="h-5 w-5 animate-spin text-blue-500" /></div>
+      )}
+
       {topThreats.length > 0 && (
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">Top Threats</p>
           <div className="space-y-1.5">
             {topThreats.slice(0, 5).map((threat: any, i: number) => {
-              const name  = threat.name || threat.threat_type || threat.type || `Threat ${i + 1}`;
+              const name = threat.name || threat.threat_type || threat.type || `Threat ${i+1}`;
               const count = Number(threat.count || threat.total || 0);
-              const sev   = (threat.severity || '').toLowerCase();
-              const sevClass = THREAT_SEVERITY_COLOR[sev] || 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700';
+              const sevClass = THREAT_SEVERITY_COLORS[(threat.severity || '').toLowerCase()] || 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700';
               return (
                 <div key={i} className={`flex items-center gap-2 px-2.5 py-1.5 border ${Rsub} ${sevClass}`}>
                   <span className="flex-1 text-xs font-semibold truncate">{name}</span>
                   <div className="h-1 w-10 rounded-full bg-current opacity-20 overflow-hidden flex-shrink-0">
-                    <div className="h-full rounded-full bg-current opacity-80" style={{ width: `${(count / maxThreat) * 100}%` }} />
+                    <div className="h-full rounded-full bg-current opacity-80" style={{ width: `${(count / Math.max(...topThreats.map((t:any)=>Number(t.count||0)),1))*100}%` }} />
                   </div>
                   <span className="font-mono text-[11px] font-bold flex-shrink-0">{count.toLocaleString()}</span>
                 </div>
@@ -450,23 +413,20 @@ const CountryDetailPanel = ({
         </div>
       )}
 
-      {/* Top Source IPs */}
       {ipList.length > 0 && (
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">Top Source IPs</p>
           <div className="space-y-1.5">
             {ipList.slice(0, 5).map((ip: any, i: number) => {
-              const addr  = ip.ip || ip.address || ip.client_ip || '—';
+              const addr = ip.ip || ip.address || ip.client_ip || '—';
               const count = Number(ip.count || ip.requests || 0);
-              const isBlocked = ip.is_blocked || ip.blocked || false;
+              const blocked = ip.is_blocked || ip.blocked || false;
               return (
                 <div key={i} className={`flex items-center gap-2 px-2.5 py-1.5 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 ${Rsub}`}>
                   <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 flex-1 truncate">{addr}</span>
-                  {isBlocked && (
-                    <span className="text-[9px] font-bold text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-1 rounded">BLOCKED</span>
-                  )}
+                  {blocked && <span className="text-[9px] font-bold text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-1 rounded">BLOCKED</span>}
                   <div className="h-1 w-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0">
-                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${(count / maxIP) * 100}%` }} />
+                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${(count / Math.max(...ipList.map((i:any)=>Number(i.count||0)),1))*100}%` }} />
                   </div>
                   <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400 flex-shrink-0">{count.toLocaleString()}</span>
                 </div>
@@ -476,10 +436,9 @@ const CountryDetailPanel = ({
         </div>
       )}
 
-      {/* HTTP Methods breakdown */}
       {methods && Object.keys(methods).length > 0 && (
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">Methods</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">HTTP Methods</p>
           <div className="flex flex-wrap gap-1">
             {Object.entries(methods).map(([method, count]) => (
               <div key={method} className={`flex items-center gap-1 px-2 py-1 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 ${Rsub}`}>
@@ -490,8 +449,6 @@ const CountryDetailPanel = ({
           </div>
         </div>
       )}
-
-      {/* Status codes */}
       {statusCodes && Object.keys(statusCodes).length > 0 && (
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">Status Codes</p>
@@ -510,9 +467,10 @@ const CountryDetailPanel = ({
         </div>
       )}
 
-      {/* Empty state */}
-      {!topThreats.length && !ipList.length && !loading && (
-        <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-3">No detailed data available for this country.</p>
+      {!loading && !topThreats.length && !ipList.length && (
+        <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-3">
+          {detail ? 'No detailed analytics available for this country.' : 'Connect your backend to see threats and IPs for each country.'}
+        </p>
       )}
     </motion.div>
   );
@@ -555,7 +513,6 @@ const PlatformDetails: React.FC = () => {
   const [isAlertClicked, setIsAlertClicked] = useState(false);
   const navigate = useNavigate();
 
-  // Country detail
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [countryDetail, setCountryDetail] = useState<any>(null);
   const [countryDetailLoading, setCountryDetailLoading] = useState(false);
@@ -761,7 +718,6 @@ const PlatformDetails: React.FC = () => {
     <div className="w-full min-h-screen bg-[#F2F6FE] dark:bg-[#0F1724] px-5 pb-12 pt-0.5">
       <div className="w-full space-y-5">
 
-        {/* HEADER */}
         <motion.div
           initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
@@ -823,10 +779,8 @@ const PlatformDetails: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* MAIN GRID */}
         <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
 
-          {/* Traffic Overview */}
           <Card className={`${cardClass} overflow-hidden flex flex-col h-full`}>
             <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-6 pb-4 flex-shrink-0 ${headerClass}`}>
               <div className="flex items-center gap-3">
@@ -879,10 +833,8 @@ const PlatformDetails: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Right column */}
           <div className="space-y-5">
 
-            {/* Top Threats */}
             <Card className={`${cardClass} overflow-hidden`}>
               <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
                 <div>
@@ -918,7 +870,6 @@ const PlatformDetails: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* Team Members */}
             <Card className={`${cardClass} overflow-hidden`}>
               <CardHeader className={`flex flex-row items-center justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
                 <div className="flex items-center gap-3">
@@ -986,7 +937,6 @@ const PlatformDetails: React.FC = () => {
           </div>
         </div>
 
-        {/* METRIC CARDS */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
             { label: 'total_requests', icon: <Activity className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />, iconBg: 'bg-blue-50 dark:bg-blue-500/10', accent: 'from-blue-600 to-cyan-500', accentBg: 'bg-blue-50 dark:bg-slate-800/80', value: <AnimatedNumber value={totalRequests} className={metricNumberClass} />, sub: totalRequests > 0 ? 'Requests received' : 'No traffic yet', subClass: 'text-slate-400 dark:text-slate-500', barWidth: totalRequests > 0 ? '100%' : '0%' },
@@ -1015,7 +965,6 @@ const PlatformDetails: React.FC = () => {
           ))}
         </div>
 
-        {/* CHARTS : Response Codes + OWASP Top 10 (2 wide) */}
         <div className="grid gap-5 xl:grid-cols-2">
           <Card className={`${cardClass} overflow-hidden`}>
             <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
@@ -1080,7 +1029,6 @@ const PlatformDetails: React.FC = () => {
           </Card>
         </div>
 
-        {/* WORLD MAP — smooth zoom + detailed side panel */}
         <Card className={`${cardClass} overflow-hidden`}>
           <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
             <div>
@@ -1098,7 +1046,6 @@ const PlatformDetails: React.FC = () => {
           <CardContent className="p-5 pt-2">
             <div className="flex flex-col lg:flex-row gap-5">
 
-              {/* Map — takes most space */}
               <div className="flex-1 min-h-[300px]">
                 <WorldMap
                   countryData={countryData}
@@ -1116,15 +1063,15 @@ const PlatformDetails: React.FC = () => {
                 )}
               </div>
 
-              {/* Side panel — country list or detail */}
-              <div className="w-full lg:w-72 max-h-[360px] overflow-y-auto pr-1">
+              <div className="w-full lg:w-72 max-h-[400px] overflow-y-auto pr-1">
                 {selectedCountryCode ? (
                   <CountryDetailPanel
                     detail={countryDetail}
                     loading={countryDetailLoading}
                     countryName={selectedCountryEntry?.name || selectedCountryCode}
                     countryCode={selectedCountryCode}
-                    total={totalCountryRequests}
+                    totalRequests={selectedCountryEntry?.count ?? 0}
+                    totalCountryRequests={totalCountryRequests}
                     onBack={() => setSelectedCountryCode(null)}
                   />
                 ) : (
@@ -1160,7 +1107,6 @@ const PlatformDetails: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* THREAT EVENTS TABLE */}
         <Card className={`${cardClass} overflow-hidden`}>
           <CardHeader className={`flex flex-row items-center justify-between space-y-0 p-6 pb-4 ${headerClass}`}>
             <div>
@@ -1196,7 +1142,6 @@ const PlatformDetails: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* LIVE THREAT ACTIVITY */}
         <Card className={`${cardClass} overflow-hidden`}>
           <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-6 pb-4 ${headerClass}`}>
             <div className="flex items-center gap-3">
@@ -1245,7 +1190,6 @@ const PlatformDetails: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* ACTION TILES */}
         <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-4">
           {[
             { title: 'Security Hub', description: 'Triage security logs and alerts', icon: <Eye className="h-5 w-5 text-blue-600 dark:text-blue-400" />, url: '/security-hub' },

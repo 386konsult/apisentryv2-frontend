@@ -157,7 +157,7 @@ const IconBtn = ({
 
 // ─────────────────────────────────────────────────────────────────────────────
 const PlatformIndicator: React.FC = () => {
-  const { hasSelectedPlatform } = usePlatform();
+  const { hasSelectedPlatform, selectedPlatformId: platformId } = usePlatform();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -211,9 +211,10 @@ const PlatformIndicator: React.FC = () => {
   // Fetch both sent + received — dot shows green if any are pending
   useEffect(() => {
     const check = async () => {
-      try {
+  if (!platformId) return;  // add this line
+  try {
         const [received, sent] = await Promise.allSettled([
-          apiService.getInvitations(),
+          platformId ? apiService.getInvitations(platformId) : Promise.resolve([]),
           apiService.getSentInvitations(),
         ]);
         const toArr = (r: PromiseSettledResult<any>) =>

@@ -663,20 +663,19 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
   }
 
   async removeFromBlacklist(id: string): Promise<void> {
-    const csrfToken = this.getCSRFToken();
-    const res = await fetch(`${this.baseURL}/blacklist/${id}/`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-            ...this.getHeaders(),
-            'X-CSRFToken': csrfToken || '',
-        },
-    });
-    if (!res.ok) {
-        const errorText = await res.text();
-        console.error("Delete failed:", res.status, errorText);
-        throw new Error(`Failed to remove IP: ${res.status}`);
-    }
+  const token = localStorage.getItem('auth_token');
+  const res = await fetch(`${this.baseURL}/blacklist/${id}/`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Token ${token}` } : {}),
+    },
+  });
+  if (!res.ok && res.status !== 204) {
+    const errorText = await res.text().catch(() => '');
+    throw new Error(`Failed to remove IP: ${res.status} ${errorText}`);
+  }
 }
 
   // Update platform details

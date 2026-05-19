@@ -62,11 +62,28 @@ const Platforms = () => {
         });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed');
         const data = await res.json();
-        const list = Array.isArray(data) ? data : data.results || [];
-        setPlatforms(list);
-        localStorage.setItem('user_platforms', JSON.stringify(list));
+        const apiList: Platform[] = Array.isArray(data) ? data : data.results || [];
+
+        // Merge: API is source of truth, but keep any locally-cached platforms that
+        // the API hasn't returned yet (e.g. just created and not yet reflected server-side).
+        const cached = localStorage.getItem('user_platforms');
+        const cachedList: Platform[] = cached ? JSON.parse(cached) : [];
+        const apiIds = new Set(apiList.map((p) => p.id));
+        const localOnly = cachedList.filter((p) => !apiIds.has(p.id));
+        const merged = [...apiList, ...localOnly];
+
+        setPlatforms(merged);
+        if (merged.length > 0) {
+          localStorage.setItem('user_platforms', JSON.stringify(merged));
+        }
       } catch (e: any) {
-        toast({ title: 'Error loading workspaces', description: e.message, variant: 'destructive' });
+        // API failed (e.g. network error or 401) — fall back to whatever is cached locally.
+        const cached = localStorage.getItem('user_platforms');
+        const fallback: Platform[] = cached ? JSON.parse(cached) : [];
+        setPlatforms(fallback);
+        if (fallback.length === 0) {
+          toast({ title: 'Error loading workspaces', description: e.message, variant: 'destructive' });
+        }
       } finally { setLoading(false); }
     };
     fetch_();
@@ -175,7 +192,7 @@ const Platforms = () => {
   return (
     <>
     <div className="min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-5 py-6 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-full space-y-6">
 
         {/* ── Header card ── */}
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}

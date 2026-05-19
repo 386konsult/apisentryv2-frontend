@@ -132,16 +132,42 @@ const Onboarding = () => {
             return res.json();
           })
           .then((data) => {
-            const platformObj = data.platform || data;
+            // Safely extract the platform object — API may return { platform: {...}, install_command_linux: "..." }
+            // or the platform directly at the top level. Prefer data.platform only if it has a real id.
+            const platformObj = (data.platform && data.platform.id) ? data.platform : data;
             const platformId = platformObj.id;
+
+            if (!platformId) {
+              console.error('Platform creation response missing id:', data);
+              alert('Platform was created but the server response was unexpected. Please check the Workspaces page.');
+              return;
+            }
+
+            // Build a normalized entry with the exact shape Platforms.tsx + Dashboard.tsx expect.
+            const platformEntry = {
+              id: platformObj.id,
+              name: platformObj.name,
+              environment: platformObj.environment,
+              deployment_type: platformObj.deployment_type,
+              status: platformObj.status || 'active',
+              created_at: platformObj.created_at,
+              total_requests: platformObj.total_requests || 0,
+              blocked_threats: platformObj.blocked_threats || 0,
+              active_endpoints: platformObj.active_endpoints || 0,
+            };
+
             const existingPlatforms = localStorage.getItem('user_platforms');
-            const platforms = existingPlatforms ? JSON.parse(existingPlatforms) : [];
-            platforms.push(platformObj);
-            localStorage.setItem('user_platforms', JSON.stringify(platforms));
+            const storedList: typeof platformEntry[] = existingPlatforms ? JSON.parse(existingPlatforms) : [];
+            // Remove any stale entry for the same id before pushing the fresh one.
+            const deduped = storedList.filter((p) => p.id !== platformEntry.id);
+            deduped.push(platformEntry);
+            localStorage.setItem('user_platforms', JSON.stringify(deduped));
+
             setSelectedPlatformId(platformId);
-            setInstallCommandLinux(data.install_command_linux || null);
-            setInstallCommandWindows(data.install_command_windows || null);
-            setInstallScriptUrl(data.install_script_url || null);
+            // Install commands may sit at top level or inside platformObj — check both.
+            setInstallCommandLinux(data.install_command_linux || platformObj.install_command_linux || null);
+            setInstallCommandWindows(data.install_command_windows || platformObj.install_command_windows || null);
+            setInstallScriptUrl(data.install_script_url || platformObj.install_script_url || null);
             setCurrentStep(currentStep + 1);
           })
           .catch((err) => {

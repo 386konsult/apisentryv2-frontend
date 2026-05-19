@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { motion } from 'framer-motion';
 import apiService from '@/services/api';
 import { geoMercator, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
+
 
 const ALPHA2_TO_NUMERIC: Record<string, number> = {
   US:840,CN:156,RU:643,GB:826,DE:276,FR:250,IN:356,BR:76,JP:392,CA:124,
@@ -50,11 +51,10 @@ const WorldMap = ({
   const [zoomState, setZoomState] = useState<{ tx: number; ty: number; s: number }>({ tx: 0, ty: 0, s: 1 });
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const projection = geoMercator()
-    .scale(120)
-    .translate([SVG_W / 2, SVG_H / 2])
-    .center([0, 20]);
-  const pathGen = geoPath().projection(projection);
+  const projection = useMemo(() => 
+  geoMercator().scale(120).translate([SVG_W / 2, SVG_H / 2]).center([0, 20])
+, []);
+const pathGen = useMemo(() => geoPath().projection(projection), [projection]);
 
   useEffect(() => {
     fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
@@ -512,40 +512,52 @@ const PlatformDetails: React.FC = () => {
 
   const [isAlertClicked, setIsAlertClicked] = useState(false);
   const navigate = useNavigate();
+  const navigateTo = (path: string) => { window.scrollTo({ top: 0, behavior: "instant" }); navigate(path); };
 
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [countryDetail, setCountryDetail] = useState<any>(null);
   const [countryDetailLoading, setCountryDetailLoading] = useState(false);
 
-  const fetchCountryDetail = useCallback(async (code: string) => {
-    if (!id || !code) return;
-    setCountryDetailLoading(true);
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'https://staging.breachnet.io'}/api/v1/platforms/${id}/country/${code}/analytics?range=${timeRange}`,
-        { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } }
-      );
-      if (!response.ok) throw new Error('Failed to fetch country details');
-      const data = await response.json();
-      setCountryDetail(data);
-    } catch (err) {
-      console.error('Failed to fetch country detail:', err);
-      setCountryDetail(null);
-    } finally {
-      setCountryDetailLoading(false);
-    }
-  }, [id, timeRange]);
-
   useEffect(() => {
-    if (selectedCountryCode) fetchCountryDetail(selectedCountryCode);
-    else setCountryDetail(null);
-  }, [selectedCountryCode, fetchCountryDetail]);
+    if (!selectedCountryCode || !id) {
+      setCountryDetail(null);
+      return;
+    }
+    const controller = new AbortController();
+    setCountryDetailLoading(true);
+    fetch(
+      `${import.meta.env.VITE_API_URL || 'https://staging.breachnet.io/api/v1'}/platforms/${id}/country/${selectedCountryCode}/analytics?range=${timeRange}`,
+      {
+        headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
+        signal: controller.signal,
+      }
+    )
+      .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
+      .then(data => setCountryDetail(data))
+      .catch(err => { if (err?.name !== 'AbortError') setCountryDetail(null); })
+      .finally(() => setCountryDetailLoading(false));
+    return () => controller.abort();
+  }, [selectedCountryCode, id, timeRange]);
 
   const fetchData = () => {
     if (!id) return;
     setLoading(true);
     apiService.getPlatformDetails(id)
-      .then((data: any) => { setPlatform(data); setLoading(false); })
+  .then((data: any) => {
+    // If API returns name, use it. Otherwise fall back to localStorage cache.
+    if (!data.name) {
+      try {
+        const cached = localStorage.getItem('user_platforms');
+        if (cached) {
+          const arr = JSON.parse(cached);
+          const found = arr.find((p: any) => p.id === id);
+          if (found?.name) data.name = found.name;
+        }
+      } catch {}
+    }
+    setPlatform(data);
+    setLoading(false);
+  })
       .catch((err: any) => { setError(err?.message ?? 'Failed to load workspace'); setLoading(false); });
     apiService.getAnalytics(id)
       .then((data: any) => {
@@ -695,7 +707,7 @@ const PlatformDetails: React.FC = () => {
   if (loading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-[#F2F6FE] dark:bg-[#0F1724]">
-        <div className={`flex h-64 w-full max-w-sm flex-col items-center justify-center gap-4 border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829] ${R}`}>
+        <div className="flex flex-col items-center justify-center gap-3">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500">
             <Activity className="h-7 w-7 animate-spin text-white" />
           </div>
@@ -841,7 +853,7 @@ const PlatformDetails: React.FC = () => {
                   <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Top Threats</CardTitle>
                   <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Highest-volume attack patterns</CardDescription>
                 </div>
-                <button onClick={() => navigate('/threat-logs')} className="rounded-xl bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">view_all</button>
+                <button onClick={() => navigateTo('/threat-logs')} className="rounded-xl bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">view_all</button>
               </CardHeader>
               <CardContent className="p-5 pt-4">
                 {topThreats.length > 0 ? (
@@ -1113,7 +1125,7 @@ const PlatformDetails: React.FC = () => {
               <CardTitle className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Recent Threat Events</CardTitle>
               <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Real-time security events log</CardDescription>
             </div>
-            <button onClick={() => navigate('/threat-logs')} className="rounded-xl bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">view_logs()</button>
+            <button onClick={() => navigateTo('/threat-logs')} className="rounded-xl bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">view_logs()</button>
           </CardHeader>
           <CardContent className="p-6 pt-0">
             {recentRows.length > 0 ? (

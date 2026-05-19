@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { apiService } from "@/services/api";          // ✅ use apiService
+import { apiService } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,48 +8,22 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  ArrowLeft,
-  Activity,
-  Shield,
-  AlertTriangle,
-  Clock,
-  Globe,
-  TrendingUp,
-  TrendingDown,
-  CheckCircle,
-  XCircle,
-  Search,
-  Filter,
-  Calendar,
-  Eye,
-  Plus,
+  ArrowLeft, Activity, Shield, AlertTriangle, Clock,
+  Globe, TrendingUp, TrendingDown, CheckCircle, XCircle,
+  Search, Filter, Calendar, Eye, Plus,
 } from "lucide-react";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  Area,
-  AreaChart,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell,
+  Area, AreaChart,
 } from "recharts";
+import { motion } from "framer-motion";
 
 // ============================================================================
-// Types (unchanged)
+// Types — UNCHANGED
 // ============================================================================
 interface AnalyticsData {
   endpoint_id: string;
@@ -70,43 +44,29 @@ interface AnalyticsData {
     "1y": Array<{ date: string; requests: number }>;
   };
   security_issues: Array<{
-    id: number;
-    type: string;
-    severity: string;
-    description: string;
-    file: string;
-    status: string;
-    discovered: string;
+    id: number; type: string; severity: string; description: string;
+    file: string; status: string; discovered: string;
   }>;
   performance_issues: Array<{
-    id: number;
-    type: string;
-    severity: string;
-    description: string;
-    file: string;
-    status: string;
-    discovered: string;
+    id: number; type: string; severity: string; description: string;
+    file: string; status: string; discovered: string;
   }>;
   request_logs: Array<{
-    id: number;
-    timestamp: string;
-    ip: string;
-    country: string;
-    status: number;
-    method: string;
-    response_time: number;
-    user_agent: string;
+    id: number; timestamp: string; ip: string; country: string;
+    status: number; method: string; response_time: number; user_agent: string;
   }>;
   top_ip_addresses: Array<{
-    ip: string;
-    country: string;
-    country_code?: string;
-    requests: number;
-    flag?: string;
+    ip: string; country: string; country_code?: string; requests: number; flag?: string;
   }>;
 }
 
-// Helper: animated number (same as PlatformDetails)
+// ── Design tokens (mirrors PlatformDetails exactly) ──────────────────────────
+const R    = 'rounded-[22px]';
+const Rsub = 'rounded-[14px]';
+const cardClass  = `bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 ${R}`;
+const headerLine = `border-b border-slate-100 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]`;
+
+// ── AnimatedNumber — UNCHANGED logic ─────────────────────────────────────────
 const AnimatedNumber = ({ value, decimals = 0, suffix = "", className = "" }: any) => {
   const [displayValue, setDisplayValue] = useState(0);
   useEffect(() => {
@@ -131,66 +91,83 @@ const AnimatedNumber = ({ value, decimals = 0, suffix = "", className = "" }: an
   );
 };
 
-// Helper components for consistent cards (fixed to accept suffix)
+// ── KpiCard — same props, PlatformDetails metric-card visual ─────────────────
+const ACCENT_MAP: Record<string, { accent: string; iconBg: string; bar: string }> = {
+  blue:    { accent: 'from-blue-600 to-cyan-500',     iconBg: 'bg-blue-50 dark:bg-blue-500/10',     bar: 'bg-blue-50 dark:bg-slate-800/80'    },
+  red:     { accent: 'from-red-500 to-rose-600',      iconBg: 'bg-red-50 dark:bg-red-500/10',       bar: 'bg-red-50 dark:bg-slate-800/80'     },
+  green:   { accent: 'from-emerald-500 to-green-600', iconBg: 'bg-emerald-50 dark:bg-emerald-500/10',bar: 'bg-emerald-50 dark:bg-slate-800/80' },
+  purple:  { accent: 'from-violet-500 to-purple-600', iconBg: 'bg-violet-50 dark:bg-violet-500/10', bar: 'bg-violet-50 dark:bg-slate-800/80'  },
+  orange:  { accent: 'from-amber-500 to-orange-500',  iconBg: 'bg-amber-50 dark:bg-amber-500/10',   bar: 'bg-amber-50 dark:bg-slate-800/80'   },
+  emerald: { accent: 'from-emerald-500 to-teal-500',  iconBg: 'bg-emerald-50 dark:bg-emerald-500/10',bar: 'bg-emerald-50 dark:bg-slate-800/80'},
+};
+
 const KpiCard = ({ title, value, suffix = "", subtitle, icon, color }: any) => {
-  const colorClasses: Record<string, string> = {
-    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
-    red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",
-    emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    purple: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
-    orange: "bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400",
-    green: "bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400",
-  };
+  const tokens = ACCENT_MAP[color] ?? ACCENT_MAP.blue;
   const numericValue = typeof value === "string" ? parseFloat(value) : value;
+  const barWidth = Math.min(100, Math.max(0, isNaN(numericValue) ? 0 : numericValue > 100 ? 100 : numericValue));
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm p-5">
-      <div className={`p-2 rounded-xl w-fit ${colorClasses[color]}`}>{icon}</div>
-      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-4">{title}</p>
-      <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-        {isNaN(numericValue) ? value : <AnimatedNumber value={numericValue} suffix={suffix} />}
-      </p>
-      {subtitle && <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{subtitle}</div>}
+    <div className={`relative overflow-hidden ${cardClass}`}>
+      <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l-[22px] bg-gradient-to-b ${tokens.accent}`} />
+      <div className="p-6 pl-7">
+        <div className="flex items-start justify-between mb-4">
+          <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{title}</span>
+          <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${tokens.iconBg} [&>svg]:h-3.5 [&>svg]:w-3.5`}>{icon}</div>
+        </div>
+        <p className="font-mono tabular-nums text-[2.25rem] font-bold leading-none tracking-[-0.04em] text-slate-900 dark:text-white">
+          {isNaN(numericValue) ? value : <AnimatedNumber value={numericValue} suffix={suffix} />}
+        </p>
+        {subtitle && <div className="mt-2 text-xs">{subtitle}</div>}
+        <div className={`mt-4 h-1 rounded-full ${tokens.bar}`}>
+          <div className={`h-1 rounded-full bg-gradient-to-r ${tokens.accent} transition-all duration-700`} style={{ width: `${barWidth}%` }} />
+        </div>
+      </div>
     </div>
   );
 };
 
-const ChartCard = ({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) => (
-  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm overflow-hidden">
-    <div className="p-4 border-b border-slate-200/70 dark:border-slate-800/70 flex items-center gap-2">
-      {icon && <span className="text-slate-500">{icon}</span>}
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h3>
+// ── ChartCard — same children API, PlatformDetails card shell ────────────────
+const ChartCard = ({ title, icon, children, action }: {
+  title: string; icon?: React.ReactNode; children: React.ReactNode; action?: React.ReactNode;
+}) => (
+  <div className={`${cardClass} overflow-hidden`}>
+    <div className={`flex items-center justify-between p-5 pb-4 ${headerLine}`}>
+      <div className="flex items-center gap-3">
+        {icon && (
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 dark:bg-blue-500/10 ring-1 ring-slate-100 dark:ring-blue-900/20 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:text-slate-500 dark:[&>svg]:text-slate-400">
+            {icon}
+          </div>
+        )}
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">{title}</h3>
+      </div>
+      {action}
     </div>
-    <div className="p-4">{children}</div>
+    <div className="p-5">{children}</div>
   </div>
 );
 
+// ============================================================================
+// Main — ALL state, fetching, filtering, derived data UNCHANGED
+// ============================================================================
 const EndpointAnalytics = () => {
   const { endpointId } = useParams<{ endpointId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [timeRange, setTimeRange] = useState<"30d" | "1y">("30d");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [timeRange, setTimeRange]     = useState<"30d" | "1y">("30d");
+  const [searchTerm, setSearchTerm]   = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [ipFilter, setIpFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [ipFilter, setIpFilter]       = useState("");
+  const [dateFilter, setDateFilter]   = useState("");
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState("");
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
 
-  // Fetch analytics using apiService (fix)
+  // Fetch — UNCHANGED
   useEffect(() => {
     const fetchAnalytics = async () => {
-      if (!endpointId) {
-        setError("Endpoint ID is required");
-        setLoading(false);
-        return;
-      }
+      if (!endpointId) { setError("Endpoint ID is required"); setLoading(false); return; }
       try {
         setLoading(true);
-        // Use apiService.request – it automatically adds auth token and uses the correct base URL
-        const data = await apiService.request(`/api-endpoints/${endpointId}/analytics/`, {
-          method: "GET",
-        });
+        const data = await apiService.request(`/api-endpoints/${endpointId}/analytics/`, { method: "GET" });
         setAnalyticsData(data);
         setError("");
       } catch (err: any) {
@@ -205,222 +182,237 @@ const EndpointAnalytics = () => {
     fetchAnalytics();
   }, [endpointId, toast]);
 
-  // Derived data (unchanged)
-  const trafficData30d = analyticsData?.traffic_data?.["30d"] || [];
-  const trafficData1y = analyticsData?.traffic_data?.["1y"] || [];
-  const securityIssues = analyticsData?.security_issues || [];
+  // Derived — UNCHANGED
+  const trafficData30d    = analyticsData?.traffic_data?.["30d"] || [];
+  const trafficData1y     = analyticsData?.traffic_data?.["1y"]  || [];
+  const securityIssues    = analyticsData?.security_issues    || [];
   const performanceIssues = analyticsData?.performance_issues || [];
-  const requestLogs = (analyticsData?.request_logs || []).map(log => ({ ...log, responseTime: log.response_time ?? 0 }));
-  const topIPs = analyticsData?.top_ip_addresses || [];
-
-  const metrics = analyticsData?.metrics || {
+  const requestLogs       = (analyticsData?.request_logs || []).map(log => ({ ...log, responseTime: log.response_time ?? 0 }));
+  const topIPs            = analyticsData?.top_ip_addresses   || [];
+  const metrics           = analyticsData?.metrics || {
     security_score: 0, health_score: 0, error_rate: 0, error_rate_change: 0,
     avg_response_time: 0, avg_response_time_change: 0, performance_score: 0,
   };
 
-  // Filter logs (unchanged)
+  // Filter — UNCHANGED
   const filteredLogs = requestLogs.filter(log => {
     const matchesSearch = searchTerm === "" || log.ip.includes(searchTerm) || log.country.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || String(log.status).startsWith(statusFilter);
-    const matchesIP = ipFilter === "" || log.ip.includes(ipFilter);
-    const matchesDate = dateFilter === "" || log.timestamp.includes(dateFilter);
+    const matchesIP     = ipFilter   === "" || log.ip.includes(ipFilter);
+    const matchesDate   = dateFilter === "" || log.timestamp.includes(dateFilter);
     return matchesSearch && matchesStatus && matchesIP && matchesDate;
   });
 
+  // Helpers — UNCHANGED logic
   const getStatusColor = (status: number) => {
-    if (status >= 200 && status < 300) return "text-green-600 dark:text-green-400";
-    if (status >= 300 && status < 400) return "text-yellow-600 dark:text-yellow-400";
-    if (status >= 400 && status < 500) return "text-orange-600 dark:text-orange-400";
+    if (status >= 200 && status < 300) return "text-emerald-600 dark:text-emerald-400";
+    if (status >= 300 && status < 400) return "text-blue-600 dark:text-blue-400";
+    if (status >= 400 && status < 500) return "text-amber-600 dark:text-amber-400";
     return "text-red-600 dark:text-red-400";
   };
 
   const getSeverityColor = (severity: string) => {
     switch (severity.toLowerCase()) {
-      case "critical": return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-      case "high": return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400";
-      case "medium": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
-      default: return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+      case "critical": return "border border-red-200/60 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400";
+      case "high":     return "border border-orange-200/60 bg-orange-50 text-orange-700 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-400";
+      case "medium":   return "border border-amber-200/60 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400";
+      default:         return "border border-blue-200/60 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400";
     }
   };
 
   const getStatusBadge = (status: string) => (
-    <Badge variant={status === "Resolved" ? "outline" : "secondary"} className={status === "Resolved" ? "border-green-500 text-green-600" : ""}>
-      {status}
-    </Badge>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+      status === "Resolved"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400"
+        : "border-slate-200 bg-slate-50 text-slate-600 dark:border-blue-900/20 dark:bg-slate-800 dark:text-slate-400"
+    }`}>{status}</span>
   );
 
-  const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+  const COLORS = ["#2563eb", "#06b6d4", "#10b981", "#f59e0b", "#ef4444"];
 
+  // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex min-h-screen w-full items-center justify-center bg-[#F2F6FE] dark:bg-[#0F1724]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500">
+            <Activity className="h-7 w-7 animate-spin text-white" />
+          </div>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">Loading Analytics</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Fetching endpoint telemetry…</p>
+        </div>
       </div>
     );
   }
 
+  // ── Error ────────────────────────────────────────────────────────────────
   if (error && !analyticsData) {
     return (
-      <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] p-6">
-        <div className="max-w-7xl mx-auto">
-          <Button variant="ghost" onClick={() => navigate("/api-endpoints")} className="mb-6">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Button>
-          <Card className="bg-white dark:bg-slate-900 border-red-200">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
-              <p className="text-red-600">{error}</p>
-            </CardContent>
-          </Card>
+      <div className="w-full min-h-screen bg-[#F2F6FE] dark:bg-[#0F1724] p-6">
+        <Button variant="ghost" onClick={() => navigate("/api-endpoints")} className="mb-6 rounded-full">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back
+        </Button>
+        <div className={`${cardClass} flex flex-col items-center justify-center py-12`}>
+          <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
+          <p className="text-red-600 dark:text-red-400">{error}</p>
         </div>
       </div>
     );
   }
 
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
-      <div className="w-full space-y-6">
-        {/* Gradient Header */}
-        <div className="rounded-[24px] bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 text-white shadow-lg">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate("/api-endpoints")}
-                  className="border-white/50 bg-white/15 text-white hover:!bg-white/25 rounded-full"
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" /> Back to Endpoints
-                </Button>
-                <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium">
-                  {analyticsData?.endpoint_method || "GET"} {analyticsData?.endpoint_path || ""}
-                </span>
-                <span className="inline-flex items-center rounded-full bg-emerald-500/30 px-3 py-1 text-xs font-medium border border-emerald-400/50">
-                  <span className="relative flex h-2 w-2 mr-1">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-                  </span>
-                  Live
-                </span>
-              </div>
-              <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Endpoint Analytics</h1>
-              <p className="text-sm text-blue-100 mt-1">Detailed performance and security metrics</p>
-            </div>
+    <div className="w-full min-h-screen bg-[#F2F6FE] dark:bg-[#0F1724] px-5 pb-12 pt-0.5">
+      <div className="w-full space-y-5">
+
+        {/* ── Hero header ──────────────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          className="relative rounded-[28px] bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#06b6d4] px-7 py-7 text-white overflow-hidden"
+        >
+          <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[28px]">
+            <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-cyan-400/20 blur-3xl" />
           </div>
-        </div>
-
-        {/* KPI Cards (5) – fixed suffix handling */}
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
-          <KpiCard title="Security Score" value={metrics.security_score} suffix="/100" icon={<Shield />} color="blue" />
-          <KpiCard title="Health Score" value={metrics.health_score} suffix="/100" icon={<Activity />} color="green" />
-          <KpiCard
-            title="Error Rate"
-            value={metrics.error_rate}
-            suffix="%"
-            subtitle={
-              metrics.error_rate_change !== undefined && metrics.error_rate_change !== 0 ? (
-                <span className={metrics.error_rate_change < 0 ? "text-green-500" : "text-red-500"}>
-                  {metrics.error_rate_change < 0 ? "▼" : "▲"} {Math.abs(metrics.error_rate_change)}% from last week
+          <div className="relative">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline" size="sm"
+                onClick={() => navigate("/api-endpoints")}
+                className="rounded-full border-white/30 bg-white/10 text-white font-medium hover:!bg-white/20 hover:!text-white backdrop-blur-sm"
+              >
+                <ArrowLeft className="h-3.5 w-3.5 mr-1.5" /> Back to Endpoints
+              </Button>
+              <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
+                {analyticsData?.endpoint_method || "GET"} {analyticsData?.endpoint_path || ""}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/20 px-3 py-1 text-xs font-semibold">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
                 </span>
-              ) : undefined
-            }
-            icon={<AlertTriangle />}
-            color="red"
+                Live
+              </span>
+            </div>
+            <h1 className="text-2xl font-bold leading-tight tracking-tight lg:text-3xl">Endpoint Analytics</h1>
+            <p className="mt-1.5 text-sm text-blue-100/70">Detailed performance and security metrics</p>
+          </div>
+        </motion.div>
+
+        {/* ── KPI Cards — same data, PlatformDetails visual ────────────────── */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <KpiCard title="Security Score"  value={metrics.security_score}    suffix="/100" icon={<Shield />}     color="blue"   />
+          <KpiCard title="Health Score"    value={metrics.health_score}      suffix="/100" icon={<Activity />}   color="green"  />
+          <KpiCard
+            title="Error Rate" value={metrics.error_rate} suffix="%"
+            subtitle={metrics.error_rate_change !== undefined && metrics.error_rate_change !== 0 ? (
+              <span className={metrics.error_rate_change < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}>
+                {metrics.error_rate_change < 0 ? "▼" : "▲"} {Math.abs(metrics.error_rate_change)}% from last week
+              </span>
+            ) : undefined}
+            icon={<AlertTriangle />} color="red"
           />
           <KpiCard
-            title="Avg Response Time"
-            value={metrics.avg_response_time}
-            suffix="ms"
-            subtitle={
-              metrics.avg_response_time_change !== undefined && metrics.avg_response_time_change !== 0 ? (
-                <span className={metrics.avg_response_time_change < 0 ? "text-green-500" : "text-red-500"}>
-                  {metrics.avg_response_time_change < 0 ? "▼" : "▲"} {Math.abs(metrics.avg_response_time_change)}ms
-                </span>
-              ) : undefined
-            }
-            icon={<Clock />}
-            color="purple"
+            title="Avg Response" value={metrics.avg_response_time} suffix="ms"
+            subtitle={metrics.avg_response_time_change !== undefined && metrics.avg_response_time_change !== 0 ? (
+              <span className={metrics.avg_response_time_change < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}>
+                {metrics.avg_response_time_change < 0 ? "▼" : "▲"} {Math.abs(metrics.avg_response_time_change)}ms
+              </span>
+            ) : undefined}
+            icon={<Clock />} color="purple"
           />
-          <KpiCard title="Performance Score" value={metrics.performance_score} suffix="%" icon={<TrendingUp />} color="orange" />
+          <KpiCard title="Performance"     value={metrics.performance_score} suffix="%"    icon={<TrendingUp />} color="orange" />
         </div>
 
-        {/* Traffic Chart (unchanged) */}
-        <ChartCard title="Traffic Overview" icon={<Globe />}>
-          <div className="flex justify-end mb-4">
+        {/* ── Traffic chart — UNCHANGED logic ─────────────────────────────── */}
+        <ChartCard
+          title="Traffic Overview"
+          icon={<Globe />}
+          action={
             <Select value={timeRange} onValueChange={(v: any) => setTimeRange(v)}>
-              <SelectTrigger className="w-[140px]">
-                <Calendar className="h-4 w-4 mr-2" />
-                <SelectValue />
+              <SelectTrigger className="rounded-full border border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0a1220] px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 w-[140px]">
+                <Calendar className="h-3.5 w-3.5 mr-1.5" /><SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="30d">Last 30 Days</SelectItem>
                 <SelectItem value="1y">Last Year</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
+          }
+        >
+          <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={timeRange === "30d" ? trafficData30d : trafficData1y}>
               <defs>
                 <linearGradient id="trafficGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#93C5FD" stopOpacity={0.05} />
+                  <stop offset="5%"  stopColor="#2563EB" stopOpacity={0.35} />
+                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
-              <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#64748B" }} />
-              <YAxis tick={{ fontSize: 12, fill: "#64748B" }} />
-              <Tooltip />
-              <Area type="monotone" dataKey="requests" stroke="#2563EB" fill="url(#trafficGradient)" strokeWidth={2} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={32} />
+              <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '12px', color: '#e2e8f0' }} cursor={{ stroke: 'rgba(37,99,235,0.3)', strokeWidth: 1 }} />
+              <Area type="monotone" dataKey="requests" stroke="#2563EB" fill="url(#trafficGradient)" strokeWidth={2.5} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Security & Performance Issues (unchanged) */}
-        <div className="grid gap-6 lg:grid-cols-2">
+        {/* ── Security & Performance Issues — UNCHANGED logic ──────────────── */}
+        <div className="grid gap-5 lg:grid-cols-2">
           <ChartCard title="Security Issues" icon={<Shield />}>
             {securityIssues.length === 0 ? (
-              <div className="flex h-40 items-center justify-center text-slate-400">No security issues found</div>
+              <div className={`flex h-40 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
+                <div className="text-center">
+                  <Shield className="mx-auto mb-2 h-7 w-7 text-slate-300 dark:text-slate-700" />
+                  <p className="text-xs text-slate-400 dark:text-slate-500">No security issues found</p>
+                </div>
+              </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {securityIssues.map(issue => (
-                  <div key={issue.id} className="rounded-lg border border-slate-200/70 dark:border-slate-800/70 p-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                  <div key={issue.id} className={`border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 p-3 ${Rsub}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <Badge className={getSeverityColor(issue.severity)}>{issue.severity}</Badge>
-                          <span className="font-medium text-sm">{issue.type}</span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold ${getSeverityColor(issue.severity)}`}>{issue.severity}</span>
+                          <span className="font-medium text-xs text-slate-900 dark:text-white truncate">{issue.type}</span>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">{issue.description}</p>
-                        <p className="text-xs text-slate-400 mt-1 font-mono">{issue.file}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{issue.description}</p>
+                        <p className="text-[10px] text-slate-400 mt-1 font-mono truncate">{issue.file}</p>
                       </div>
                       {getStatusBadge(issue.status)}
                     </div>
-                    <p className="text-xs text-slate-400 mt-2">Discovered: {issue.discovered}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">Discovered: {issue.discovered}</p>
                   </div>
                 ))}
               </div>
             )}
           </ChartCard>
+
           <ChartCard title="Performance Issues" icon={<Activity />}>
             {performanceIssues.length === 0 ? (
-              <div className="flex h-40 items-center justify-center text-slate-400">No performance issues found</div>
+              <div className={`flex h-40 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
+                <div className="text-center">
+                  <Activity className="mx-auto mb-2 h-7 w-7 text-slate-300 dark:text-slate-700" />
+                  <p className="text-xs text-slate-400 dark:text-slate-500">No performance issues found</p>
+                </div>
+              </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {performanceIssues.map(issue => (
-                  <div key={issue.id} className="rounded-lg border border-slate-200/70 dark:border-slate-800/70 p-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                  <div key={issue.id} className={`border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 p-3 ${Rsub}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <Badge className={getSeverityColor(issue.severity)}>{issue.severity}</Badge>
-                          <span className="font-medium text-sm">{issue.type}</span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold ${getSeverityColor(issue.severity)}`}>{issue.severity}</span>
+                          <span className="font-medium text-xs text-slate-900 dark:text-white truncate">{issue.type}</span>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">{issue.description}</p>
-                        <p className="text-xs text-slate-400 mt-1 font-mono">{issue.file}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{issue.description}</p>
+                        <p className="text-[10px] text-slate-400 mt-1 font-mono truncate">{issue.file}</p>
                       </div>
                       {getStatusBadge(issue.status)}
                     </div>
-                    <p className="text-xs text-slate-400 mt-2">Discovered: {issue.discovered}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">Discovered: {issue.discovered}</p>
                   </div>
                 ))}
               </div>
@@ -428,50 +420,50 @@ const EndpointAnalytics = () => {
           </ChartCard>
         </div>
 
-        {/* Top IP Addresses (unchanged) */}
+        {/* ── Top IPs — UNCHANGED logic ────────────────────────────────────── */}
         {topIPs.length > 0 && (
           <ChartCard title="Top IP Addresses by Request Volume" icon={<Globe />}>
             <div className="grid gap-6 lg:grid-cols-2">
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {topIPs.map((item, idx) => (
-                  <div key={item.ip} className="flex items-center justify-between p-3 border rounded-lg border-slate-200/70 dark:border-slate-800/70">
+                  <div key={item.ip} className={`flex items-center justify-between border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-3 py-2.5 ${Rsub}`}>
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">{item.flag || "🌍"}</span>
+                      <span className="text-xl">{item.flag || "🌍"}</span>
                       <div>
-                        <p className="font-medium">{item.country}</p>
-                        <p className="text-sm text-slate-400 font-mono">{item.ip}</p>
+                        <p className="text-xs font-semibold text-slate-900 dark:text-white">{item.country}</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{item.ip}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">{item.requests.toLocaleString()}</p>
-                      <p className="text-xs text-slate-400">requests</p>
+                      <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">{item.requests.toLocaleString()}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">requests</p>
                     </div>
                   </div>
                 ))}
               </div>
-              <div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie data={topIPs} cx="50%" cy="50%" labelLine={false} label={({ country, percent }) => `${country} ${(percent * 100).toFixed(0)}%`} outerRadius={80} dataKey="requests">
-                      {topIPs.map((_, idx) => <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={topIPs} cx="50%" cy="50%" labelLine={false} label={({ country, percent }: any) => `${country} ${(percent * 100).toFixed(0)}%`} outerRadius={80} dataKey="requests">
+                    {topIPs.map((_, idx) => <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '11px', color: '#e2e8f0' }} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </ChartCard>
         )}
 
-        {/* Request Logs (unchanged) */}
+        {/* ── Request Logs — UNCHANGED logic ──────────────────────────────── */}
         <ChartCard title="Request Logs" icon={<Activity />}>
           <div className="flex flex-wrap items-center gap-3 mb-5">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
-              <Input placeholder="Search IP or country..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-8" />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Input placeholder="Search IP or country..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9 rounded-xl border-slate-200/70 bg-slate-50 dark:border-blue-900/30 dark:bg-[#0a1220]" />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]"><Filter className="h-4 w-4 mr-2" /><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger className="w-[150px] rounded-xl border-slate-200/70 bg-slate-50 dark:border-blue-900/30 dark:bg-[#0a1220]">
+                <Filter className="h-3.5 w-3.5 mr-2 text-slate-400" /><SelectValue placeholder="Status" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="2">2xx Success</SelectItem>
@@ -480,34 +472,37 @@ const EndpointAnalytics = () => {
                 <SelectItem value="5">5xx Server Error</SelectItem>
               </SelectContent>
             </Select>
-            <Input placeholder="Filter by IP..." value={ipFilter} onChange={e => setIpFilter(e.target.value)} className="w-[150px]" />
-            <Input type="date" placeholder="Filter by date..." value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-[150px]" />
+            <Input placeholder="Filter by IP..." value={ipFilter} onChange={e => setIpFilter(e.target.value)} className="w-[150px] rounded-xl border-slate-200/70 bg-slate-50 dark:border-blue-900/30 dark:bg-[#0a1220]" />
+            <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-[150px] rounded-xl border-slate-200/70 bg-slate-50 dark:border-blue-900/30 dark:bg-[#0a1220]" />
           </div>
 
           {filteredLogs.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">No logs found matching the filters</div>
+            <div className={`flex h-28 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
+              <p className="text-xs text-slate-400 dark:text-slate-500">No logs found matching the filters</p>
+            </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {filteredLogs.map(log => (
-                <div key={log.id} className="rounded-lg border border-slate-200/70 dark:border-slate-800/70 p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                <div key={log.id} className={`border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-4 py-3 hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-colors ${Rsub}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className={`font-mono text-xs font-bold ${getStatusColor(log.status)}`}>{log.status}</span>
+                      <span className="font-mono text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded px-1.5 py-0.5">{log.method}</span>
+                      <span className="font-mono text-xs text-blue-600 dark:text-blue-400">{log.ip}</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{log.country}</span>
+                    </div>
                     <div className="flex items-center gap-3">
-                      <Badge className={`${getStatusColor(log.status)} bg-transparent border`}>{log.status}</Badge>
-                      <Badge variant="outline">{log.method}</Badge>
-                      <span className="font-mono text-sm">{log.ip}</span>
-                      <span className="text-sm text-slate-500">{log.country}</span>
+                      <span className="font-mono text-[11px] font-semibold text-slate-400 dark:text-slate-500">{log.response_time}ms</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">{new Date(log.timestamp).toLocaleString()}</span>
                     </div>
-                    <div className="text-sm text-slate-500">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </div>
-                    <div className="text-sm font-mono">{log.response_time}ms</div>
                   </div>
-                  <div className="mt-1 text-xs text-slate-400 truncate">{log.user_agent}</div>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate font-mono mt-1">{log.user_agent}</p>
                 </div>
               ))}
             </div>
           )}
         </ChartCard>
+
       </div>
     </div>
   );

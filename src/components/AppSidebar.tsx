@@ -306,9 +306,6 @@ const DigitalClock = ({ p, collapsed, userName }: { p: any; collapsed: boolean; 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECURITY TIP CARD — spacious, readable, feels like a real tip
 // ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// SECURITY TIP CARD — spacious, readable, feels like a real tip
-// ─────────────────────────────────────────────────────────────────────────────
 const SecurityTipCard = ({ p, collapsed }: { p: any; collapsed: boolean }) => {
   const [index, setIndex] = useState(0);
   const [fading, setFading] = useState(false);
@@ -447,13 +444,28 @@ const SecurityTipCard = ({ p, collapsed }: { p: any; collapsed: boolean }) => {
 };
 
 // ─── Main sidebar (all logic + structure unchanged) ───────────────────────────
+const SIDEBAR_STATE_KEY = "heimdall_sidebar_open";
+
 const AppSidebar = () => {
-  const { state } = useSidebar();
+  const { state, open, setOpen } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const { hasSelectedPlatform, selectedPlatformId } = usePlatform();
   const collapsed = state === "collapsed";
+
+  // ── Persist sidebar open/closed state across refreshes ───────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem(SIDEBAR_STATE_KEY);
+    if (saved !== null) {
+      setOpen(saved === "true");
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_STATE_KEY, String(open));
+  }, [open]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const [animating, setAnimating] = useState<Record<string, boolean>>({});
 

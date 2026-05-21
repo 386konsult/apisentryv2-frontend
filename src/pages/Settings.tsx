@@ -55,7 +55,7 @@ const Settings = () => {
         setPlatformDetails(details);
         setPlatformFormData({
           name: details.name || "",
-          application_url: details.base_url || "",
+          application_url: details.application_url || details.base_url || "",
           listening_port: details.listening_port || "",
           forwarded_port: details.forwarded_port || "",
         });

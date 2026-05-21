@@ -3,62 +3,31 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent,
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Search,
-  Download,
-  Shield,
-  Ban,
-  Globe,
-  Eye,
-  MoreVertical,
-  MapPin,
-  Bot,
-  Activity,
-  AlertTriangle,
-  Clock,
-  TrendingUp,
-  Lock,
-  RefreshCw,
+  Search, Download, Shield, Ban, Globe, Eye, MoreVertical, MapPin,
+  Bot, Activity, AlertTriangle, Clock, TrendingUp, Lock, RefreshCw,
+  Building2, Server, Network, X, CheckCircle2, AlertOctagon,
+  Wifi, WifiOff, ExternalLink,
 } from "lucide-react";
 import { apiService } from "@/services/api";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import countriesData from "@/data/countries.json";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 interface RequestLog {
   id: string;
   endpoint_name: string;
@@ -85,65 +54,57 @@ interface RequestLog {
 type TimeRangeKey = "today" | "week" | "month" | "3months" | "6months" | "1year";
 
 const TIME_RANGE_OPTIONS: { label: string; value: TimeRangeKey }[] = [
-  { label: "Today",     value: "today"   },
-  { label: "This Week", value: "week"    },
-  { label: "This Month",value: "month"   },
-  { label: "3 Months",  value: "3months" },
-  { label: "6 Months",  value: "6months" },
-  { label: "1 Year",    value: "1year"   },
+  { label: "Today",      value: "today"   },
+  { label: "This Week",  value: "week"    },
+  { label: "This Month", value: "month"   },
+  { label: "3 Months",   value: "3months" },
+  { label: "6 Months",   value: "6months" },
+  { label: "1 Year",     value: "1year"   },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+interface IPInfo {
+  ip: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  country_name?: string;
+  org?: string;
+  hostname?: string;
+  bogon?: boolean;
+  timezone?: string;
+  error?: boolean;
+}
+
+interface AbuseData {
+  abuseConfidenceScore: number;
+  countryCode: string;
+  usageType: string;
+  isp: string;
+  domain: string;
+  isTor: boolean;
+  totalReports: number;
+  numDistinctUsers: number;
+  lastReportedAt: string | null;
+  isWhitelisted: boolean;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const getRangeStart = (range: TimeRangeKey): Date => {
   const now = new Date();
   switch (range) {
-    case "today": {
-      const d = new Date(now);
-      d.setHours(0, 0, 0, 0);
-      return d;
-    }
-    case "week": {
-      const d = new Date(now);
-      d.setDate(d.getDate() - 6);
-      d.setHours(0, 0, 0, 0);
-      return d;
-    }
-    case "month": {
-      const d = new Date(now);
-      d.setDate(1);
-      d.setHours(0, 0, 0, 0);
-      return d;
-    }
-    case "3months": {
-      const d = new Date(now);
-      d.setMonth(d.getMonth() - 3);
-      d.setHours(0, 0, 0, 0);
-      return d;
-    }
-    case "6months": {
-      const d = new Date(now);
-      d.setMonth(d.getMonth() - 6);
-      d.setHours(0, 0, 0, 0);
-      return d;
-    }
-    case "1year": {
-      const d = new Date(now);
-      d.setFullYear(d.getFullYear() - 1);
-      d.setHours(0, 0, 0, 0);
-      return d;
-    }
+    case "today":   { const d = new Date(now); d.setHours(0,0,0,0); return d; }
+    case "week":    { const d = new Date(now); d.setDate(d.getDate()-6); d.setHours(0,0,0,0); return d; }
+    case "month":   { const d = new Date(now); d.setDate(1); d.setHours(0,0,0,0); return d; }
+    case "3months": { const d = new Date(now); d.setMonth(d.getMonth()-3); d.setHours(0,0,0,0); return d; }
+    case "6months": { const d = new Date(now); d.setMonth(d.getMonth()-6); d.setHours(0,0,0,0); return d; }
+    case "1year":   { const d = new Date(now); d.setFullYear(d.getFullYear()-1); d.setHours(0,0,0,0); return d; }
   }
 };
 
-/** Parse backend timestamp — handles "DD-MM-YYYY HH:MM", ISO, and space-separated ISO */
 const parseTimestamp = (ts: string): Date => {
   if (!ts) return new Date(NaN);
-  const ddmmyyyy = ts.match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}:\d{2})/);
-  if (ddmmyyyy) {
-    return new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}T${ddmmyyyy[4]}`);
-  }
+  const m = ts.match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}:\d{2})/);
+  if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}`);
   return new Date(ts.replace(" ", "T"));
 };
 
@@ -151,21 +112,12 @@ const isEmpty = (v: any) =>
   v === null || v === undefined || v === "" ||
   (typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────────────────────────────────────
-type AnimatedNumberProps = {
-  value: number;
-  decimals?: number;
-  suffix?: string;
-  className?: string;
-};
-
-const AnimatedNumber = ({ value, decimals = 0, suffix = "", className = "" }: AnimatedNumberProps) => {
+// ── AnimatedNumber ────────────────────────────────────────────────────────────
+const AnimatedNumber = ({ value, className = "" }: { value: number; className?: string }) => {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
     const target = Number.isFinite(value) ? value : 0;
-    const start = performance.now();
+    const start  = performance.now();
     let raf: number;
     const tick = (now: number) => {
       const p = Math.min((now - start) / 800, 1);
@@ -175,93 +127,406 @@ const AnimatedNumber = ({ value, decimals = 0, suffix = "", className = "" }: An
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [value]);
+  return <span className={className}>{Math.round(display).toLocaleString()}</span>;
+};
+
+// ── DataDisclaimer ────────────────────────────────────────────────────────────
+const DataDisclaimer = () => (
+  <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/5 px-4 py-3 text-xs text-amber-700 dark:text-amber-400 mt-1">
+    <Lock className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+    <span>Not saved — Heimdall does not persist raw request or response payloads to protect sensitive data (credentials, PII, tokens).</span>
+  </div>
+);
+
+// ── Abuse score badge ─────────────────────────────────────────────────────────
+const AbuseBadge = ({ score }: { score: number }) => {
+  if (score === 0) return (
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400">
+      <CheckCircle2 className="h-3 w-3" /> Clean (0%)
+    </span>
+  );
+  if (score < 25) return (
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400">
+      <AlertTriangle className="h-3 w-3" /> Low risk ({score}%)
+    </span>
+  );
+  if (score < 75) return (
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-400">
+      <AlertOctagon className="h-3 w-3" /> Suspicious ({score}%)
+    </span>
+  );
   return (
-    <span className={className}>
-      {display.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}
-      {suffix}
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400">
+      <AlertOctagon className="h-3 w-3" /> Malicious ({score}%)
     </span>
   );
 };
 
-const DataDisclaimer = () => (
-  <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/5 px-4 py-3 text-xs text-amber-700 dark:text-amber-400">
-    <Lock className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-    <span>
-      This data was not saved. For security and compliance reasons, Heimdall does not persist
-      raw request or response payloads — this prevents sensitive data (credentials, PII, tokens)
-      from being stored in our logs.
-    </span>
-  </div>
-);
+// ── IP Intelligence Panel ─────────────────────────────────────────────────────
+const IPIntelPanel = ({
+  ip, info, abuse, loading,
+}: {
+  ip: string;
+  info: IPInfo | null;
+  abuse: AbuseData | null;
+  loading: boolean;
+}) => {
+  const hasAbuseKey = true; // key lives on the backend — always attempt the lookup
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main component
-// ─────────────────────────────────────────────────────────────────────────────
+  if (loading) return (
+    <div className="rounded-[14px] border border-blue-100 dark:border-blue-900/20 bg-blue-50/30 dark:bg-blue-500/5 p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Globe className="h-4 w-4 text-blue-500 animate-pulse" />
+        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">IP Intelligence</span>
+        <span className="text-[10px] text-slate-400">looking up…</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {[1,2,3,4].map(i => <div key={i} className="h-14 rounded-xl bg-slate-200 dark:bg-slate-700/50 animate-pulse" />)}
+      </div>
+    </div>
+  );
+
+  const org      = info?.org || "";
+  const asnMatch = org.match(/^(AS\d+)\s+(.*)/);
+  const asn      = asnMatch ? asnMatch[1] : null;
+  const orgName  = asnMatch ? asnMatch[2] : (org || abuse?.isp || "—");
+  const location = [info?.city, info?.region, info?.country_name || info?.country].filter(Boolean).join(", ") || "—";
+
+  return (
+    <div className="rounded-[14px] border border-blue-100 dark:border-blue-900/20 bg-gradient-to-br from-blue-50/60 to-cyan-50/30 dark:from-blue-500/5 dark:to-cyan-500/5 p-4 space-y-4">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600/10 dark:bg-blue-500/15">
+            <Globe className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <span className="text-xs font-bold text-slate-900 dark:text-white">IP Intelligence</span>
+          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">{ip}</span>
+        </div>
+        {info?.bogon && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+            Private / Reserved
+          </span>
+        )}
+      </div>
+
+      {/* Geo tiles */}
+      {info && !info.error && (
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { icon: <MapPin    className="h-3.5 w-3.5 text-blue-500"   />, label: "Location",     value: location,           mono: false },
+            { icon: <Building2 className="h-3.5 w-3.5 text-cyan-500"   />, label: "Organisation", value: orgName,            mono: false },
+            { icon: <Network   className="h-3.5 w-3.5 text-violet-500" />, label: "ASN",           value: asn || "—",         mono: true  },
+            { icon: <Server    className="h-3.5 w-3.5 text-slate-400"  />, label: "Hostname",      value: info.hostname || "—", mono: true },
+          ].map(({ icon, label, value, mono }) => (
+            <div key={label} className="rounded-xl border border-white dark:border-blue-900/20 bg-white dark:bg-[#0d1829] px-3 py-2.5">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">{label}</p>
+              <div className="flex items-center gap-1.5">
+                {icon}
+                <span className={`${mono ? "font-mono" : ""} text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate`} title={value}>{value}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {(!info || info.error) && !loading && (
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">Geo lookup unavailable for this IP.</p>
+      )}
+
+      {/* AbuseIPDB section */}
+      {!hasAbuseKey ? (
+        <div className="rounded-xl border border-dashed border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/5 px-3 py-2.5">
+          <p className="text-[10px] text-amber-700 dark:text-amber-400">
+            Add <span className="font-mono font-bold bg-amber-100 dark:bg-amber-500/10 px-1 rounded">VITE_ABUSEIPDB_KEY</span> to enable abuse score, VPN/Tor detection, and report history.
+          </p>
+        </div>
+      ) : abuse ? (
+        <div className="space-y-3">
+          {/* Divider */}
+          <div className="border-t border-blue-100 dark:border-blue-900/20" />
+
+          {/* Score row */}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Abuse Score</span>
+            <AbuseBadge score={abuse.abuseConfidenceScore} />
+          </div>
+
+          {/* Score bar */}
+          <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ${
+                abuse.abuseConfidenceScore === 0 ? "bg-emerald-500"
+                : abuse.abuseConfidenceScore < 25 ? "bg-amber-500"
+                : abuse.abuseConfidenceScore < 75 ? "bg-orange-500"
+                : "bg-red-500"
+              }`}
+              style={{ width: `${abuse.abuseConfidenceScore}%` }}
+            />
+          </div>
+
+          {/* Flags */}
+          <div className="flex flex-wrap gap-1.5">
+            {abuse.isTor && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400">
+                🧅 Tor Exit Node
+              </span>
+            )}
+            {abuse.usageType?.toLowerCase().includes("data center") || abuse.usageType?.toLowerCase().includes("hosting") ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200 bg-slate-100 text-slate-600 dark:border-blue-900/20 dark:bg-slate-800 dark:text-slate-300">
+                <WifiOff className="h-3 w-3" /> Data Centre / Hosting
+              </span>
+            ) : abuse.usageType?.toLowerCase().includes("vpn") ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200 bg-slate-100 text-slate-600 dark:border-blue-900/20 dark:bg-slate-800 dark:text-slate-300">
+                <Wifi className="h-3 w-3" /> VPN
+              </span>
+            ) : abuse.usageType ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200 bg-slate-100 text-slate-600 dark:border-blue-900/20 dark:bg-slate-800 dark:text-slate-300">
+                {abuse.usageType}
+              </span>
+            ) : null}
+            {abuse.isWhitelisted && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400">
+                <CheckCircle2 className="h-3 w-3" /> Whitelisted
+              </span>
+            )}
+          </div>
+
+          {/* Report stats */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Total Reports",  value: abuse.totalReports.toLocaleString() },
+              { label: "Distinct Users", value: abuse.numDistinctUsers.toLocaleString() },
+              { label: "Last Reported",  value: abuse.lastReportedAt ? new Date(abuse.lastReportedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" }) : "Never" },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-xl border border-white dark:border-blue-900/20 bg-white dark:bg-[#0d1829] px-3 py-2.5 text-center">
+                <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">{value}</p>
+                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          <a href={`https://www.abuseipdb.com/check/${ip}`} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+            <ExternalLink className="h-3 w-3" /> View full report on AbuseIPDB
+          </a>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+// ── Detail Modal ──────────────────────────────────────────────────────────────
+const LogDetailModal = ({
+  log, open, onClose, ipInfo, abuse, ipLoading, onBlockIP,
+}: {
+  log: RequestLog | null;
+  open: boolean;
+  onClose: () => void;
+  ipInfo: IPInfo | null;
+  abuse: AbuseData | null;
+  ipLoading: boolean;
+  onBlockIP: (ip: string) => void;
+}) => {
+  if (!log) return null;
+
+  const methodColor: Record<string, string> = {
+    GET:    "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300",
+    POST:   "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+    PUT:    "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300",
+    PATCH:  "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300",
+    DELETE: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300",
+  };
+
+  const statusColor =
+    log.status_code < 300 ? "text-emerald-600 dark:text-emerald-400"
+    : log.status_code < 400 ? "text-blue-600 dark:text-blue-400"
+    : log.status_code < 500 ? "text-amber-600 dark:text-amber-400"
+    : "text-red-600 dark:text-red-400";
+
+  const threatColor: Record<string, string> = {
+    high:   "text-red-600 dark:text-red-400",
+    medium: "text-amber-600 dark:text-amber-400",
+    low:    "text-emerald-600 dark:text-emerald-400",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0 rounded-[22px] border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829] [&>button:first-of-type]:hidden">
+
+        {/* Gradient banner */}
+        <div className="relative rounded-t-[22px] bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#06b6d4] px-6 pt-6 pb-5 overflow-hidden">
+          <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-cyan-400/20 blur-2xl" />
+          
+          {/* Close */}
+          <button onClick={onClose}
+            className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors z-10">
+            <X className="h-3.5 w-3.5 text-white" />
+          </button>
+
+          <div className="relative flex items-start gap-3">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/15">
+              <Shield className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1 pr-8">
+              <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                <span className={`px-2 py-0.5 rounded-lg text-[11px] font-bold ${methodColor[log.method] || "bg-slate-100 text-slate-600"}`}>
+                  {log.method}
+                </span>
+                {log.waf_blocked && (
+                  <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-red-500/25 text-red-200 border border-red-400/30">
+                    🚫 WAF Blocked
+                  </span>
+                )}
+              </div>
+              <p className="font-mono text-sm font-semibold text-white leading-snug break-all">{log.path}</p>
+              <p className="text-xs text-blue-100/70 mt-1">{log.timestamp}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+
+          {/* Quick stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-[14px] border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-4 py-3 text-center">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">Status</p>
+              <p className={`text-2xl font-bold tabular-nums ${statusColor}`}>{log.status_code}</p>
+            </div>
+            <div className="rounded-[14px] border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-4 py-3 text-center">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">Response</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
+                {log.response_time_ms != null ? Math.round(log.response_time_ms) : 0}
+                <span className="text-xs font-medium text-slate-400 ml-0.5">ms</span>
+              </p>
+            </div>
+            <div className="rounded-[14px] border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-4 py-3 text-center">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">Threat</p>
+              <p className={`text-sm font-bold uppercase ${threatColor[log.threat_level] || "text-slate-400 dark:text-slate-500"}`}>
+                {log.threat_level || "none"}
+              </p>
+            </div>
+          </div>
+
+          {/* Client IP */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-[14px] border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-4 py-3">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Client IP</p>
+              <p className="font-mono text-sm font-semibold text-slate-900 dark:text-white">{log.client_ip}</p>
+            </div>
+            <div className="rounded-[14px] border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-4 py-3">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Endpoint</p>
+              <p className="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">{log.endpoint_name || log.path}</p>
+            </div>
+          </div>
+
+          {/* User Agent */}
+          <div className="rounded-[14px] border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-4 py-3">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">User Agent</p>
+            <p className="font-mono text-[11px] text-slate-600 dark:text-slate-400 break-all leading-relaxed">{log.user_agent || "—"}</p>
+          </div>
+
+          {/* IP Intelligence */}
+          <IPIntelPanel ip={log.client_ip} info={ipInfo} abuse={abuse} loading={ipLoading} />
+
+          {/* Block IP button */}
+          <button onClick={() => { onClose(); onBlockIP(log.client_ip); }}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-[14px] bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-sm font-semibold text-white shadow-md shadow-red-500/20 transition-all active:scale-[0.99]">
+            <Ban className="h-4 w-4" />
+            Block IP {log.client_ip}
+          </button>
+
+          {/* Request / Response data */}
+          <div className="space-y-3 pt-1">
+            {[
+              { label: "Request Headers",  value: log.headers },
+              { label: "Request Body",     value: log.request_body },
+              { label: "Response Headers", value: log.response_headers },
+              { label: "Response Body",    value: log.response_body },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1.5">{label}</p>
+                {isEmpty(value)
+                  ? <DataDisclaimer />
+                  : <pre className="text-xs bg-slate-100 dark:bg-slate-800/60 rounded-xl p-3 overflow-auto border border-slate-200/60 dark:border-slate-700/40 text-slate-700 dark:text-slate-300">
+                      {typeof value === "object" ? JSON.stringify(value, null, 2) : value}
+                    </pre>
+                }
+              </div>
+            ))}
+            {log.waf_rule_triggered && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1.5">WAF Rule Triggered</p>
+                <p className="text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-xl px-4 py-3 border border-red-100 dark:border-red-500/20">
+                  {log.waf_rule_triggered}
+                </p>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ── Main Component ────────────────────────────────────────────────────────────
 const SecurityHub = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // All logs (loaded once, large page size for accurate stats)
-  const [allLogs, setAllLogs] = useState<RequestLog[]>([]);
-  // Paginated logs for table display
-  const [tableLogs, setTableLogs] = useState<RequestLog[]>([]);
-
-  const [loading, setLoading] = useState(true);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(1);
+  const [allLogs, setAllLogs]             = useState<RequestLog[]>([]);
+  const [tableLogs, setTableLogs]         = useState<RequestLog[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [statsLoading, setStatsLoading]   = useState(true);
+  const [loadingMore, setLoadingMore]     = useState(false);
+  const [hasMore, setHasMore]             = useState(true);
+  const [page, setPage]                   = useState(1);
   const PAGE_SIZE = 20;
 
-  // Default to "today" for stats
-  const [statsRange, setStatsRange] = useState<TimeRangeKey>("today");
-
-  const [selectedLog, setSelectedLog] = useState<RequestLog | null>(null);
+  const [statsRange, setStatsRange]       = useState<TimeRangeKey>("today");
+  const [selectedLog, setSelectedLog]     = useState<RequestLog | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [blockIPDialog, setBlockIPDialog] = useState<{ open: boolean; ip: string }>({ open: false, ip: "" });
   const [blockEndpointDialog, setBlockEndpointDialog] = useState<{ open: boolean; endpoint: string; endpointId: string }>({ open: false, endpoint: "", endpointId: "" });
 
-  // Filters
-  const [searchTerm, setSearchTerm] = useState("");
-  const [ipFilter, setIpFilter] = useState("");
-  const [countryFilter, setCountryFilter] = useState<string | null>(null);
-  const [methodFilter, setMethodFilter] = useState("all");
-  const [statusCodeFilter, setStatusCodeFilter] = useState("all");
+  // IP Intel state
+  const [ipInfo, setIpInfo]   = useState<IPInfo | null>(null);
+  const [abuse, setAbuse]     = useState<AbuseData | null>(null);
+  const [ipLoading, setIpLoading] = useState(false);
+
+  const [searchTerm, setSearchTerm]               = useState("");
+  const [ipFilter, setIpFilter]                   = useState("");
+  const [countryFilter, setCountryFilter]         = useState<string | null>(null);
+  const [methodFilter, setMethodFilter]           = useState("all");
+  const [statusCodeFilter, setStatusCodeFilter]   = useState("all");
   const [threatLevelFilter, setThreatLevelFilter] = useState("all");
-  const [wafBlockedFilter, setWafBlockedFilter] = useState("all");
+  const [wafBlockedFilter, setWafBlockedFilter]   = useState("all");
+  const [platformName, setPlatformName]           = useState<string>("");
 
-  const [platformName, setPlatformName] = useState<string>("");
-
-  // ── Fetch ALL logs for accurate stats ───────────────────────────────────
+  // ── Fetch logic — UNCHANGED ───────────────────────────────────────────────
   const fetchAllLogsForStats = async (platformId: string) => {
     setStatsLoading(true);
     try {
-      const response = await apiService.getPlatformRequestLogs(platformId, {
-        page_size: 10000,
-        page: 1,
-      });
+      const response = await apiService.getPlatformRequestLogs(platformId, { page_size: 10000, page: 1 });
       let all: RequestLog[] = [];
       if (response.results)         all = response.results;
       else if (Array.isArray(response)) all = response;
       else if (response.logs)       all = response.logs;
       setAllLogs(all);
     } catch (error) {
-      console.error("Error loading all logs for stats:", error);
+      console.error("Stats fetch error:", error);
     } finally {
       setStatsLoading(false);
     }
   };
 
-  // ── Fetch paginated logs for table ──────────────────────────────────────
   const fetchTablePage = async (platformId: string, pageNum: number, append = false) => {
     if (loadingMore) return;
     setLoadingMore(true);
     try {
-      const response = await apiService.getPlatformRequestLogs(platformId, {
-        page: pageNum,
-        page_size: PAGE_SIZE,
-      });
+      const response = await apiService.getPlatformRequestLogs(platformId, { page: pageNum, page_size: PAGE_SIZE });
       let newLogs: RequestLog[] = [];
       if (response.results)         newLogs = response.results;
       else if (response.logs)       newLogs = response.logs;
@@ -269,7 +534,6 @@ const SecurityHub = () => {
       setTableLogs(prev => append ? [...prev, ...newLogs] : newLogs);
       setHasMore(!!response.next);
     } catch (error) {
-      console.error("Error loading table logs:", error);
       toast({ title: "Error loading logs", description: "Failed to fetch request logs", variant: "destructive" });
     } finally {
       setLoadingMore(false);
@@ -277,11 +541,9 @@ const SecurityHub = () => {
     }
   };
 
-  // ── Initial load ────────────────────────────────────────────────────────
   useEffect(() => {
     const platformId = localStorage.getItem("selected_platform_id");
     if (!platformId) { navigate("/platforms"); return; }
-
     const platforms = localStorage.getItem("user_platforms");
     if (platforms) {
       try {
@@ -290,17 +552,11 @@ const SecurityHub = () => {
         if (found) setPlatformName(found.name);
       } catch {}
     }
-
-    setLoading(true);
-    setPage(1);
-    setHasMore(true);
-
-    // Fetch both in parallel
+    setLoading(true); setPage(1); setHasMore(true);
     fetchAllLogsForStats(platformId);
     fetchTablePage(platformId, 1, false);
   }, [navigate]);
 
-  // ── Sync URL params ──────────────────────────────────────────────────────
   useEffect(() => {
     setMethodFilter(searchParams.get("method") || "all");
     setStatusCodeFilter(searchParams.get("status_code") || "all");
@@ -308,7 +564,47 @@ const SecurityHub = () => {
     setWafBlockedFilter(searchParams.get("blocked") || "all");
   }, [searchParams]);
 
-  // ── Stats: filter allLogs by selected time range ─────────────────────────
+  // ── IP Intel fetch — fires when modal opens ───────────────────────────────
+  useEffect(() => {
+    if (!selectedLog || !isDetailsOpen) { setIpInfo(null); setAbuse(null); return; }
+    const ip = selectedLog.client_ip;
+    if (!ip) return;
+
+    setIpLoading(true);
+    setIpInfo(null);
+    setAbuse(null);
+    const controller = new AbortController();
+    const token      = localStorage.getItem('auth_token');
+
+    const geoFetch = fetch(`https://ipinfo.io/${ip}/json`, { signal: controller.signal })
+      .then(r => r.json())
+      .catch(() => null);
+
+    // Route through our own backend proxy — key stays server-side, no CORS issues.
+    const abuseFetch = fetch(
+      `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'}/abuseipdb-check/?ip=${encodeURIComponent(ip)}`,
+      {
+        signal: controller.signal,
+        headers: {
+          ...(token ? { Authorization: `Token ${token}` } : {}),
+          Accept: 'application/json',
+        },
+      },
+    )
+      .then(r => r.json())
+      .then(d => d?.data ?? null)
+      .catch(() => null);
+
+    Promise.all([geoFetch, abuseFetch]).then(([geo, ab]) => {
+      setIpInfo(geo && !geo.error ? geo : null);
+      setAbuse(ab);
+      setIpLoading(false);
+    });
+
+    return () => controller.abort();
+  }, [selectedLog, isDetailsOpen]);
+
+  // ── Analytics ─────────────────────────────────────────────────────────────
   const rangeFilteredLogs = useMemo(() => {
     const rangeStart = getRangeStart(statsRange);
     return allLogs.filter(log => {
@@ -317,28 +613,23 @@ const SecurityHub = () => {
     });
   }, [allLogs, statsRange]);
 
-  // ── Analytics computed from time-ranged logs ─────────────────────────────
   const analytics = useMemo(() => {
     const src = rangeFilteredLogs;
     const totalLogs       = src.length;
     const blockedLogs     = src.filter(l => l.waf_blocked).length;
     const uniqueIPs       = new Set(src.map(l => l.client_ip)).size;
     const errorLogs       = src.filter(l => l.status_code >= 400).length;
-    const avgResponseTime = src.length
-      ? src.reduce((s, l) => s + (l.response_time_ms ?? 0), 0) / src.length
-      : 0;
-    const botPatterns = [/bot/i, /crawler/i, /spider/i, /scraper/i, /curl/i, /wget/i, /python/i, /postman/i];
+    const avgResponseTime = src.length ? src.reduce((s, l) => s + (l.response_time_ms ?? 0), 0) / src.length : 0;
+    const botPatterns     = [/bot/i, /crawler/i, /spider/i, /scraper/i, /curl/i, /wget/i, /python/i, /postman/i];
     const botRequests     = src.filter(l => botPatterns.some(p => p.test(l.user_agent || ""))).length;
     const ipFreq: Record<string, number> = {};
     src.forEach(l => { ipFreq[l.client_ip] = (ipFreq[l.client_ip] || 0) + 1; });
     const suspiciousIPs   = Object.values(ipFreq).filter(c => c > 10).length;
-    const uniqueCountries = new Set(
-      src.map(l => (l as any).country || (l as any).country_code).filter(Boolean)
-    ).size;
+    const uniqueCountries = new Set(src.map(l => (l as any).country || (l as any).country_code).filter(Boolean)).size;
     return { totalLogs, blockedLogs, uniqueIPs, errorLogs, avgResponseTime, botRequests, suspiciousIPs, uniqueCountries };
   }, [rangeFilteredLogs]);
 
-  // ── Table filtering (client-side on tableLogs) ───────────────────────────
+  // ── Table filtering ───────────────────────────────────────────────────────
   const filteredTableLogs = useMemo(() => {
     let filtered = [...tableLogs];
     if (searchTerm) {
@@ -356,17 +647,14 @@ const SecurityHub = () => {
       filtered = filtered.filter(log => {
         const c = (log as any).country || (log as any).country_code;
         if (!c) return true;
-        const sel = countriesData.find(cd => cd.name === countryFilter || cd.code === countryFilter);
+        const sel = countriesData.find((cd: any) => cd.name === countryFilter || cd.code === countryFilter);
         return sel ? (c === sel.code || c === sel.name || c.toLowerCase() === sel.name.toLowerCase()) : true;
       });
     }
     if (methodFilter !== "all")      filtered = filtered.filter(log => log.method === methodFilter);
     if (statusCodeFilter !== "all")  filtered = filtered.filter(log => log.status_code === parseInt(statusCodeFilter));
     if (threatLevelFilter !== "all") filtered = filtered.filter(log => log.threat_level === threatLevelFilter);
-    if (wafBlockedFilter !== "all") {
-      const blocked = wafBlockedFilter === "blocked";
-      filtered = filtered.filter(log => log.waf_blocked === blocked);
-    }
+    if (wafBlockedFilter !== "all")  filtered = filtered.filter(log => log.waf_blocked === (wafBlockedFilter === "blocked"));
     return filtered;
   }, [tableLogs, searchTerm, ipFilter, countryFilter, methodFilter, statusCodeFilter, threatLevelFilter, wafBlockedFilter]);
 
@@ -378,9 +666,8 @@ const SecurityHub = () => {
 
   const handleFilterChange = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams);
-    if (key === "blocked") {
-      updateQueryParam(key, value);
-    } else {
+    if (key === "blocked") { updateQueryParam(key, value); }
+    else {
       params.delete("method"); params.delete("status_code"); params.delete("threat_level");
       if (value !== "all") params.set(key, value);
       setSearchParams(params);
@@ -394,43 +681,33 @@ const SecurityHub = () => {
 
   const loadMore = () => {
     const platformId = localStorage.getItem("selected_platform_id");
-    if (platformId && hasMore && !loadingMore) {
-      fetchTablePage(platformId, page + 1, true);
-      setPage(p => p + 1);
-    }
+    if (platformId && hasMore && !loadingMore) { fetchTablePage(platformId, page + 1, true); setPage(p => p + 1); }
   };
 
   const handleRefresh = () => {
     const platformId = localStorage.getItem("selected_platform_id");
     if (!platformId) return;
-    setLoading(true);
-    setPage(1);
-    setHasMore(true);
+    setLoading(true); setPage(1); setHasMore(true);
     fetchAllLogsForStats(platformId);
     fetchTablePage(platformId, 1, false);
   };
 
-  // ── Export CSV based on time range ───────────────────────────────────────
   const exportLogs = () => {
     const src = rangeFilteredLogs.length > 0 ? rangeFilteredLogs : filteredTableLogs;
     const rangeLabel = TIME_RANGE_OPTIONS.find(o => o.value === statsRange)?.label ?? "today";
     const csv = [
-      ["Timestamp", "Method", "Path", "Status Code", "IP", "User Agent", "WAF Blocked", "Threat Level"],
-      ...src.map(log => [
-        log.timestamp, log.method, log.path, log.status_code.toString(),
-        log.client_ip, log.user_agent, log.waf_blocked ? "Yes" : "No", log.threat_level || "none",
-      ]),
+      ["Timestamp","Method","Path","Status Code","IP","User Agent","WAF Blocked","Threat Level"],
+      ...src.map(log => [log.timestamp, log.method, log.path, log.status_code.toString(), log.client_ip, log.user_agent, log.waf_blocked ? "Yes" : "No", log.threat_level || "none"]),
     ].map(row => row.map(cell => `"${cell}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
-    a.href     = url;
+    a.href = url;
     a.download = `security-hub-${rangeLabel.toLowerCase().replace(/ /g, "-")}-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleBlockIP = async (ip: string) => {
     try {
       const platformId = localStorage.getItem("selected_platform_id");
@@ -462,7 +739,7 @@ const SecurityHub = () => {
     }
   };
 
-  // ── Colour helpers ───────────────────────────────────────────────────────
+  // ── Colour helpers ────────────────────────────────────────────────────────
   const getMethodColor = (method: string) => ({
     GET:    "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400",
     POST:   "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400",
@@ -486,7 +763,6 @@ const SecurityHub = () => {
 
   const rangeLabel = TIME_RANGE_OPTIONS.find(o => o.value === statsRange)?.label ?? "Today";
 
-  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
       <div className="w-full space-y-6">
@@ -496,11 +772,7 @@ const SecurityHub = () => {
           className="rounded-[24px] bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 text-white shadow-lg">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 flex-1">
-              {platformName && (
-                <div className="mb-4">
-                  <span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">{platformName}</span>
-                </div>
-              )}
+              {platformName && <div className="mb-4"><span className="inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">{platformName}</span></div>}
               <h1 className="text-2xl lg:text-3xl font-bold leading-tight tracking-tight mb-3">Security Hub</h1>
               <p className="text-sm text-blue-100 max-w-xl">Comprehensive request log analysis and security investigation</p>
             </div>
@@ -517,7 +789,7 @@ const SecurityHub = () => {
           </div>
         </motion.div>
 
-        {/* Stats time range selector */}
+        {/* Time range selector */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
@@ -525,7 +797,7 @@ const SecurityHub = () => {
               {statsLoading && <span className="ml-2 text-xs font-normal text-slate-400">(loading…)</span>}
             </p>
             <p className="text-xs text-slate-400 dark:text-slate-500">
-              {allLogs.length.toLocaleString()} total logs loaded · {rangeFilteredLogs.length.toLocaleString()} in selected range
+              {allLogs.length.toLocaleString()} total logs · {rangeFilteredLogs.length.toLocaleString()} in range
             </p>
           </div>
           <div className="flex gap-1.5 flex-wrap">
@@ -534,10 +806,8 @@ const SecurityHub = () => {
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
                   statsRange === opt.value
                     ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                    : "bg-white dark:bg-[#0d1829] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-blue-900/30 hover:border-blue-300 dark:hover:border-blue-500/40"
-                }`}>
-                {opt.label}
-              </button>
+                    : "bg-white dark:bg-[#0d1829] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-blue-900/30 hover:border-blue-300"
+                }`}>{opt.label}</button>
             ))}
           </div>
         </div>
@@ -545,33 +815,9 @@ const SecurityHub = () => {
         {/* Key Metrics */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {[
-            {
-              label: "total_requests",
-              value: analytics.totalLogs,
-              sub: `Total requests — ${rangeLabel}`,
-              icon: <Activity className="h-4 w-4 text-blue-600 dark:text-blue-400" />,
-              bar: "from-blue-600 to-sky-500",
-              barBg: "bg-blue-50 dark:bg-slate-800",
-              pct: analytics.totalLogs > 0 ? 100 : 0,
-            },
-            {
-              label: "blocked_requests",
-              value: analytics.blockedLogs,
-              sub: `Threats blocked — ${rangeLabel}`,
-              icon: <Ban className="h-4 w-4 text-red-500 dark:text-red-400" />,
-              bar: "from-red-500 to-rose-500",
-              barBg: "bg-red-50 dark:bg-slate-800",
-              pct: analytics.totalLogs > 0 ? (analytics.blockedLogs / analytics.totalLogs) * 100 : 0,
-            },
-            {
-              label: "unique_ips",
-              value: analytics.uniqueIPs,
-              sub: `Source addresses — ${rangeLabel}`,
-              icon: <MapPin className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />,
-              bar: "from-emerald-500 to-teal-500",
-              barBg: "bg-emerald-50 dark:bg-slate-800",
-              pct: analytics.uniqueIPs > 0 ? 100 : 0,
-            },
+            { label: "total_requests",   value: analytics.totalLogs,  sub: `Total requests — ${rangeLabel}`,   icon: <Activity className="h-4 w-4 text-blue-600 dark:text-blue-400" />,   bar: "from-blue-600 to-sky-500",     barBg: "bg-blue-50 dark:bg-slate-800",   pct: 100 },
+            { label: "blocked_requests", value: analytics.blockedLogs, sub: `Threats blocked — ${rangeLabel}`, icon: <Ban      className="h-4 w-4 text-red-500 dark:text-red-400" />,       bar: "from-red-500 to-rose-500",     barBg: "bg-red-50 dark:bg-slate-800",    pct: analytics.totalLogs > 0 ? (analytics.blockedLogs / analytics.totalLogs) * 100 : 0 },
+            { label: "unique_ips",       value: analytics.uniqueIPs,   sub: `Source addresses — ${rangeLabel}`, icon: <MapPin  className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />, bar: "from-emerald-500 to-teal-500", barBg: "bg-emerald-50 dark:bg-slate-800", pct: 100 },
           ].map(m => (
             <div key={m.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
               <div className="p-6">
@@ -582,8 +828,7 @@ const SecurityHub = () => {
                 <div className="mt-4">
                   {statsLoading
                     ? <div className="h-9 w-24 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-                    : <AnimatedNumber value={m.value} className="font-sans tabular-nums text-3xl font-semibold leading-none tracking-[-0.05em] text-slate-900 dark:text-white" />
-                  }
+                    : <AnimatedNumber value={m.value} className="font-sans tabular-nums text-3xl font-semibold leading-none tracking-[-0.05em] text-slate-900 dark:text-white" />}
                 </div>
                 <p className="mt-3 text-sm font-medium text-slate-400 dark:text-slate-500">{m.sub}</p>
                 <div className={`mt-4 h-1.5 rounded-full ${m.barBg}`}>
@@ -608,10 +853,7 @@ const SecurityHub = () => {
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-2">{s.label}</p>
               {statsLoading
                 ? <div className="h-8 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse mt-1" />
-                : <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    <AnimatedNumber value={s.value} />{s.label === "Avg Response" ? "ms" : ""}
-                  </p>
-              }
+                : <p className="text-2xl font-bold text-slate-900 dark:text-white"><AnimatedNumber value={s.value} />{s.label === "Avg Response" ? "ms" : ""}</p>}
               {s.sub && s.label !== "Avg Response" && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{s.sub}</p>}
             </div>
           ))}
@@ -635,69 +877,38 @@ const SecurityHub = () => {
               className="pl-10 rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <Select value={methodFilter}      onValueChange={v => handleFilterChange("method",       v)}>
+            <Select value={methodFilter}      onValueChange={v => handleFilterChange("method", v)}>
               <SelectTrigger className="rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"><SelectValue placeholder="Method" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Methods</SelectItem>
-                <SelectItem value="GET">GET</SelectItem>
-                <SelectItem value="POST">POST</SelectItem>
-                <SelectItem value="PUT">PUT</SelectItem>
-                <SelectItem value="PATCH">PATCH</SelectItem>
-                <SelectItem value="DELETE">DELETE</SelectItem>
-              </SelectContent>
+              <SelectContent><SelectItem value="all">All Methods</SelectItem><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem><SelectItem value="PUT">PUT</SelectItem><SelectItem value="PATCH">PATCH</SelectItem><SelectItem value="DELETE">DELETE</SelectItem></SelectContent>
             </Select>
-            <Select value={statusCodeFilter}  onValueChange={v => handleFilterChange("status_code",  v)}>
+            <Select value={statusCodeFilter}  onValueChange={v => handleFilterChange("status_code", v)}>
               <SelectTrigger className="rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"><SelectValue placeholder="Status Code" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status Codes</SelectItem>
-                <SelectItem value="200">200 OK</SelectItem>
-                <SelectItem value="400">400 Bad Request</SelectItem>
-                <SelectItem value="401">401 Unauthorized</SelectItem>
-                <SelectItem value="403">403 Forbidden</SelectItem>
-                <SelectItem value="404">404 Not Found</SelectItem>
-                <SelectItem value="500">500 Server Error</SelectItem>
-              </SelectContent>
+              <SelectContent><SelectItem value="all">All Status Codes</SelectItem><SelectItem value="200">200 OK</SelectItem><SelectItem value="400">400 Bad Request</SelectItem><SelectItem value="401">401 Unauthorized</SelectItem><SelectItem value="403">403 Forbidden</SelectItem><SelectItem value="404">404 Not Found</SelectItem><SelectItem value="500">500 Server Error</SelectItem></SelectContent>
             </Select>
             <Select value={threatLevelFilter} onValueChange={v => handleFilterChange("threat_level", v)}>
               <SelectTrigger className="rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"><SelectValue placeholder="Threat Level" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="high">🔴 High</SelectItem>
-                <SelectItem value="medium">🟡 Medium</SelectItem>
-                <SelectItem value="low">🟢 Low</SelectItem>
-                <SelectItem value="none">None</SelectItem>
-              </SelectContent>
+              <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="high">🔴 High</SelectItem><SelectItem value="medium">🟡 Medium</SelectItem><SelectItem value="low">🟢 Low</SelectItem><SelectItem value="none">None</SelectItem></SelectContent>
             </Select>
-            <Select value={wafBlockedFilter}  onValueChange={v => handleFilterChange("blocked",      v)}>
+            <Select value={wafBlockedFilter}  onValueChange={v => handleFilterChange("blocked", v)}>
               <SelectTrigger className="rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"><SelectValue placeholder="WAF Status" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Requests</SelectItem>
-                <SelectItem value="blocked">🚫 Blocked</SelectItem>
-                <SelectItem value="allowed">✅ Allowed</SelectItem>
-              </SelectContent>
+              <SelectContent><SelectItem value="all">All Requests</SelectItem><SelectItem value="blocked">🚫 Blocked</SelectItem><SelectItem value="allowed">✅ Allowed</SelectItem></SelectContent>
             </Select>
           </div>
         </div>
 
         {/* Logs Table */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
-          <div className="border-b border-slate-200/70 dark:border-slate-800/70 px-6 py-4 bg-white dark:bg-slate-900">
+          <div className="border-b border-slate-200/70 dark:border-slate-800/70 px-6 py-4">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Latest Request Logs</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {filteredTableLogs.length > 0 ? `Showing ${filteredTableLogs.length} requests` : "No logs to display"}
-            </p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{filteredTableLogs.length > 0 ? `Showing ${filteredTableLogs.length} requests` : "No logs to display"}</p>
           </div>
           <div className="p-6 pt-0">
             {loading ? (
               <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
             ) : filteredTableLogs.length === 0 ? (
-              <div className="text-center py-16">
-                <Shield className="h-12 w-12 mx-auto text-blue-400 mb-4" />
-                <p className="text-lg font-semibold text-slate-900 dark:text-white">No logs match your filters</p>
-              </div>
+              <div className="text-center py-16"><Shield className="h-12 w-12 mx-auto text-blue-400 mb-4" /><p className="text-lg font-semibold text-slate-900 dark:text-white">No logs match your filters</p></div>
             ) : (
               <>
-                {/* Desktop */}
                 <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/50">
@@ -715,32 +926,16 @@ const SecurityHub = () => {
                           <td className="px-4 py-3"><span className="font-mono text-xs truncate max-w-xs block text-slate-700 dark:text-slate-300" title={log.path}>{log.path}</span></td>
                           <td className="px-4 py-3"><Badge className={getStatusCodeColor(log.status_code)}>{log.status_code}</Badge></td>
                           <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{log.client_ip}</td>
-                          <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">{log.response_time_ms ? log.response_time_ms.toFixed(0) : "-"}ms</td>
-                          <td className="px-4 py-3">
-                            {log.waf_blocked
-                              ? <Badge className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">🚫 Blocked</Badge>
-                              : <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">✓ Allowed</Badge>}
-                          </td>
-                          <td className="px-4 py-3">
-                            {log.threat_level && log.threat_level !== "none"
-                              ? <Badge className={getThreatLevelColor(log.threat_level)}>{log.threat_level}</Badge>
-                              : <Badge variant="outline">-</Badge>}
-                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">{log.response_time_ms ? Math.round(log.response_time_ms) : "-"}ms</td>
+                          <td className="px-4 py-3">{log.waf_blocked ? <Badge className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">🚫 Blocked</Badge> : <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">✓ Allowed</Badge>}</td>
+                          <td className="px-4 py-3">{log.threat_level && log.threat_level !== "none" ? <Badge className={getThreatLevelColor(log.threat_level)}>{log.threat_level}</Badge> : <Badge variant="outline">-</Badge>}</td>
                           <td className="px-4 py-3 text-center">
                             <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button>
-                              </DropdownMenuTrigger>
+                              <DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => { setSelectedLog(log); setIsDetailsOpen(true); }}>
-                                  <Eye className="h-4 w-4 mr-2" /> View Details
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setBlockIPDialog({ open: true, ip: log.client_ip })} className="text-red-600">
-                                  <Ban className="h-4 w-4 mr-2" /> Block IP
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setBlockEndpointDialog({ open: true, endpoint: `${log.method} ${log.path}`, endpointId: log.endpoint })} className="text-orange-600">
-                                  <Shield className="h-4 w-4 mr-2" /> Protect Endpoint
-                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setSelectedLog(log); setIsDetailsOpen(true); }}><Eye className="h-4 w-4 mr-2" /> View Details</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setBlockIPDialog({ open: true, ip: log.client_ip })} className="text-red-600"><Ban className="h-4 w-4 mr-2" /> Block IP</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setBlockEndpointDialog({ open: true, endpoint: `${log.method} ${log.path}`, endpointId: log.endpoint })} className="text-orange-600"><Shield className="h-4 w-4 mr-2" /> Protect Endpoint</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </td>
@@ -749,9 +944,7 @@ const SecurityHub = () => {
                     </tbody>
                   </table>
                 </div>
-
-                {/* Mobile */}
-                <div className="lg:hidden space-y-3">
+                <div className="lg:hidden space-y-3 pt-4">
                   {filteredTableLogs.map(log => (
                     <div key={log.id} className="border border-slate-200/70 dark:border-slate-800/70 rounded-xl p-4 bg-white dark:bg-slate-900">
                       <div className="flex items-center justify-between mb-2">
@@ -761,21 +954,15 @@ const SecurityHub = () => {
                       <p className="font-mono text-sm truncate text-slate-700 dark:text-slate-300 mb-2">{log.path}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">{log.timestamp}</p>
                       <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-800/70">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-3 w-3 text-slate-400" />
-                          <span className="text-xs font-mono">{log.client_ip}</span>
-                        </div>
+                        <div className="flex items-center gap-2"><MapPin className="h-3 w-3 text-slate-400" /><span className="text-xs font-mono">{log.client_ip}</span></div>
                         <Button variant="ghost" size="sm" onClick={() => { setSelectedLog(log); setIsDetailsOpen(true); }}>Details</Button>
                       </div>
                     </div>
                   ))}
                 </div>
-
                 {hasMore && !loading && (
                   <div className="text-center mt-6">
-                    <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
-                      {loadingMore ? "Loading..." : "Load more"}
-                    </Button>
+                    <Button variant="outline" onClick={loadMore} disabled={loadingMore}>{loadingMore ? "Loading..." : "Load more"}</Button>
                   </div>
                 )}
               </>
@@ -783,69 +970,41 @@ const SecurityHub = () => {
           </div>
         </div>
 
-        {/* Details Dialog */}
-        <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{selectedLog?.method} {selectedLog?.path}</DialogTitle>
-              <DialogDescription>Complete request and response details</DialogDescription>
-            </DialogHeader>
-            {selectedLog && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  <div><Label>Status Code</Label><p>{selectedLog.status_code}</p></div>
-                  <div><Label>Response Time</Label><p>{selectedLog.response_time_ms ?? 0}ms</p></div>
-                  <div><Label>Client IP</Label><p>{selectedLog.client_ip}</p></div>
-                  <div><Label>User Agent</Label><p className="text-xs break-all">{selectedLog.user_agent}</p></div>
-                </div>
-                <div>
-                  <Label>Request Headers</Label>
-                  {isEmpty(selectedLog.headers) ? <DataDisclaimer /> : <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded overflow-auto">{JSON.stringify(selectedLog.headers, null, 2)}</pre>}
-                </div>
-                <div>
-                  <Label>Request Body</Label>
-                  {isEmpty(selectedLog.request_body) ? <DataDisclaimer /> : <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded overflow-auto">{typeof selectedLog.request_body === "object" ? JSON.stringify(selectedLog.request_body, null, 2) : selectedLog.request_body}</pre>}
-                </div>
-                <div>
-                  <Label>Response Headers</Label>
-                  {isEmpty(selectedLog.response_headers) ? <DataDisclaimer /> : <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded overflow-auto">{JSON.stringify(selectedLog.response_headers, null, 2)}</pre>}
-                </div>
-                <div>
-                  <Label>Response Body</Label>
-                  {isEmpty(selectedLog.response_body) ? <DataDisclaimer /> : <pre className="text-xs bg-slate-100 dark:bg-slate-800 p-2 rounded overflow-auto">{typeof selectedLog.response_body === "object" ? JSON.stringify(selectedLog.response_body, null, 2) : selectedLog.response_body}</pre>}
-                </div>
-                {selectedLog.waf_rule_triggered && (
-                  <div><Label>WAF Rule</Label><p className="text-red-600">{selectedLog.waf_rule_triggered}</p></div>
-                )}
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        {/* Detail Modal */}
+        <LogDetailModal
+          log={selectedLog}
+          open={isDetailsOpen}
+          onClose={() => setIsDetailsOpen(false)}
+          ipInfo={ipInfo}
+          abuse={abuse}
+          ipLoading={ipLoading}
+          onBlockIP={(ip) => setBlockIPDialog({ open: true, ip })}
+        />
 
         {/* Block IP Dialog */}
         <AlertDialog open={blockIPDialog.open} onOpenChange={open => setBlockIPDialog({ open, ip: blockIPDialog.ip })}>
-          <AlertDialogContent>
+          <AlertDialogContent className="rounded-2xl">
             <AlertDialogHeader>
               <AlertDialogTitle>Block IP Address</AlertDialogTitle>
               <AlertDialogDescription>{blockIPDialog.ip} will be permanently added to your IP blacklist.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => handleBlockIP(blockIPDialog.ip)} className="bg-red-600 hover:bg-red-700">Block IP Address</AlertDialogAction>
+              <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handleBlockIP(blockIPDialog.ip)} className="rounded-xl bg-red-600 hover:bg-red-700">Block IP Address</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
 
         {/* Block Endpoint Dialog */}
         <AlertDialog open={blockEndpointDialog.open} onOpenChange={open => setBlockEndpointDialog({ open, endpoint: blockEndpointDialog.endpoint, endpointId: blockEndpointDialog.endpointId })}>
-          <AlertDialogContent>
+          <AlertDialogContent className="rounded-2xl">
             <AlertDialogHeader>
               <AlertDialogTitle>Protect Endpoint</AlertDialogTitle>
               <AlertDialogDescription>{blockEndpointDialog.endpoint} will have enhanced protection enabled.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => handleBlockEndpoint(blockEndpointDialog.endpoint)} className="bg-orange-600 hover:bg-orange-700">Protect Endpoint</AlertDialogAction>
+              <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handleBlockEndpoint(blockEndpointDialog.endpoint)} className="rounded-xl bg-orange-600 hover:bg-orange-700">Protect Endpoint</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

@@ -3,7 +3,7 @@ import {
   Globe, ChevronDown, Mail, Settings, LogOut, Sun, Moon, Users, Clock,
   Search, Check, Command, ArrowUp, ArrowDown, CornerDownLeft, X, Home,
   Shield, AlertTriangle, Bell, Activity, Link, Ban, FlaskConical,
-  FileText, Timer, Briefcase, Send, Zap,
+  FileText, Timer, Briefcase, Send, Zap, Sparkles,
 } from 'lucide-react';
 import { usePlatform } from '@/contexts/PlatformContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,14 +16,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
 import { apiService } from '@/services/api';
 
-// ── Hash ─────────────────────────────────────────────────────────────────────
 const djb2 = (s: string) => {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
   return Math.abs(h >>> 0);
 };
 
-// ── Avatar tokens (unchanged) ─────────────────────────────────────────────────
 const AVATAR_TOKENS = [
   { from: "#1e3a8a", to: "#06b6d4", svg: (<svg viewBox="0 0 20 20" fill="none" width="18" height="18"><circle cx="10" cy="10" r="2.5" fill="white" fillOpacity="0.95" /><circle cx="3" cy="3" r="1.5" fill="white" fillOpacity="0.6" /><circle cx="17" cy="3" r="1.5" fill="white" fillOpacity="0.6" /><circle cx="3" cy="17" r="1.5" fill="white" fillOpacity="0.6" /><circle cx="17" cy="17" r="1.5" fill="white" fillOpacity="0.6" /><line x1="3" y1="3" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /><line x1="17" y1="3" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /><line x1="3" y1="17" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /><line x1="17" y1="17" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /></svg>) },
   { from: "#312e81", to: "#6366f1", svg: (<svg viewBox="0 0 20 20" fill="none" width="18" height="18"><path d="M3 14 Q6 8 13 5" stroke="white" strokeOpacity="0.9" strokeWidth="1.6" strokeLinecap="round" /><path d="M5 16 Q9 11 15 8" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" strokeLinecap="round" /><path d="M7 18 Q12 14 17 11" stroke="white" strokeOpacity="0.3" strokeWidth="0.9" strokeLinecap="round" /><circle cx="13.5" cy="4.5" r="2.5" fill="white" fillOpacity="0.9" /><circle cx="13.5" cy="4.5" r="1" fill="white" /></svg>) },
@@ -51,45 +49,113 @@ const AVATAR_TOKENS = [
   { from: "#831843", to: "#fb7185", svg: (<svg viewBox="0 0 20 20" fill="none" width="18" height="18"><circle cx="10" cy="10" r="7.5" stroke="white" strokeOpacity="0.25" strokeWidth="1" fill="none" /><circle cx="10" cy="10" r="5" stroke="white" strokeOpacity="0.4" strokeWidth="1.2" fill="none" /><circle cx="10" cy="10" r="2.5" fill="white" fillOpacity="0.9" /><line x1="10" y1="2.5" x2="10" y2="5" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><line x1="10" y1="15" x2="10" y2="17.5" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><line x1="2.5" y1="10" x2="5" y2="10" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><line x1="15" y1="10" x2="17.5" y2="10" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /></svg>) },
 ];
 
-// ── Presence (unchanged) ──────────────────────────────────────────────────────
 const IDLE_MS = 3 * 60 * 1000;
 const getRecentSearchesKey = (userId?: number) =>
   userId ? `heimdall_recent_searches_${userId}` : 'heimdall_recent_searches_anonymous';
 
 function usePresenceStatus() {
   const [isActive, setIsActive] = useState(true);
+
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
-    const reset = () => { setIsActive(true); clearTimeout(timer); timer = setTimeout(() => setIsActive(false), IDLE_MS); };
+
+    const reset = () => {
+      setIsActive(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setIsActive(false), IDLE_MS);
+    };
+
     const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'wheel', 'click'];
     events.forEach(e => window.addEventListener(e, reset, { passive: true }));
-    const onVis = () => { if (document.visibilityState === 'hidden') { clearTimeout(timer); setIsActive(false); } else reset(); };
+
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') {
+        clearTimeout(timer);
+        setIsActive(false);
+      } else {
+        reset();
+      }
+    };
+
     document.addEventListener('visibilitychange', onVis);
     reset();
-    return () => { clearTimeout(timer); events.forEach(e => window.removeEventListener(e, reset)); document.removeEventListener('visibilitychange', onVis); };
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach(e => window.removeEventListener(e, reset));
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, []);
+
   return isActive;
 }
 
-// ── Avatar (unchanged) ────────────────────────────────────────────────────────
-const UserAvatar = ({ email, size = "sm", isActive = true }: { email: string; size?: "sm" | "md"; isActive?: boolean }) => {
+const UserAvatar = ({
+  email,
+  size = "sm",
+  isActive = true,
+}: {
+  email: string;
+  size?: "sm" | "md";
+  isActive?: boolean;
+}) => {
   const token = AVATAR_TOKENS[djb2(email || "user@heimdall") % AVATAR_TOKENS.length];
   const dim = size === "sm" ? 28 : 40;
+
   return (
-    <div style={{ width: dim, height: dim, borderRadius: "50%", flexShrink: 0, background: `linear-gradient(135deg, ${token.from}, ${token.to})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 0 1.5px ${token.to}30, 0 1px 4px ${token.from}55`, position: "relative" }}>
+    <div
+      style={{
+        width: dim,
+        height: dim,
+        borderRadius: "50%",
+        flexShrink: 0,
+        background: `linear-gradient(135deg, ${token.from}, ${token.to})`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: `0 0 0 1.5px ${token.to}30, 0 1px 4px ${token.from}55`,
+        position: "relative",
+      }}
+    >
       {token.svg}
-      <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: "50%", border: "1.5px solid white" }}>
+      <span
+        style={{
+          position: "absolute",
+          bottom: -1,
+          right: -1,
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          border: "1.5px solid white",
+        }}
+      >
         {isActive && (
-          <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "#22c55e", opacity: 0.75, animation: "ping 1.4s cubic-bezier(0,0,0.2,1) infinite" }} />
+          <span
+            style={{
+              position: "absolute",
+              inset: 0,
+              borderRadius: "50%",
+              background: "#22c55e",
+              opacity: 0.75,
+              animation: "ping 1.4s cubic-bezier(0,0,0.2,1) infinite",
+            }}
+          />
         )}
-        <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: isActive ? "#22c55e" : "#eab308", transition: "background 0.6s ease" }} />
+        <span
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            background: isActive ? "#22c55e" : "#eab308",
+            transition: "background 0.6s ease",
+          }}
+        />
         <style>{`@keyframes ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }`}</style>
       </span>
     </div>
   );
 };
 
-// ── Path resolution (unchanged) ───────────────────────────────────────────────
 const resolvePath = (path: string): string => {
   if (path.includes(':id')) {
     const platformId = localStorage.getItem('selected_platform_id');
@@ -99,7 +165,6 @@ const resolvePath = (path: string): string => {
   return path;
 };
 
-// ── Page index (unchanged) ────────────────────────────────────────────────────
 const PAGE_INDEX = [
   { label: 'Dashboard', path: '/platforms', keywords: ['dashboard', 'home', 'overview', 'main', 'start'], icon: Home },
   { label: 'Security Hub', path: '/security-hub', keywords: ['security', 'hub', 'triage', 'center'], icon: Shield },
@@ -116,13 +181,14 @@ const PAGE_INDEX = [
   { label: 'Settings', path: '/settings', keywords: ['setting', 'settings', 'config', 'configuration', 'preferences', 'options', 'setup'], icon: Settings },
   { label: 'Audit Logs', path: '/audit-logs', keywords: ['audit', 'log', 'logs', 'history', 'activity', 'trail', 'changes'], icon: Clock },
   { label: 'Workspaces', path: '/platforms', keywords: ['workspace', 'workspaces', 'platform', 'platforms', 'project', 'space'], icon: Briefcase },
+  { label: 'Heimdall AI', path: '/heimdall-ai', keywords: ['heimdall', 'ai', 'chat', 'assistant', 'security', 'chatbot', 'intelligence', 'analysis'], icon: Zap },
 ];
 
-// ── Smart search scoring (unchanged) ─────────────────────────────────────────
 function scoreResult(item: typeof PAGE_INDEX[0], q: string): number {
   const label = item.label.toLowerCase();
   const words = q.toLowerCase().trim().split(/\s+/);
   let score = 0;
+
   for (const word of words) {
     if (label === word) score += 100;
     else if (label.startsWith(word)) score += 60;
@@ -131,19 +197,24 @@ function scoreResult(item: typeof PAGE_INDEX[0], q: string): number {
     else if (item.keywords.some(k => k.startsWith(word))) score += 35;
     else if (item.keywords.some(k => k.includes(word))) score += 15;
   }
+
   return score;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// REDESIGNED: Icon action button — consistent pill with subtle glass bg
-// ─────────────────────────────────────────────────────────────────────────────
 const IconBtn = ({
-  children, onClick, title, colorClass = "text-slate-500 dark:text-slate-400",
+  children,
+  onClick,
+  title,
+  colorClass = "text-slate-500 dark:text-slate-400",
   hoverClass = "hover:bg-slate-100 dark:hover:bg-slate-800/60",
   badge,
 }: {
-  children: React.ReactNode; onClick?: () => void; title?: string;
-  colorClass?: string; hoverClass?: string; badge?: React.ReactNode;
+  children: React.ReactNode;
+  onClick?: () => void;
+  title?: string;
+  colorClass?: string;
+  hoverClass?: string;
+  badge?: React.ReactNode;
 }) => (
   <button
     onClick={onClick}
@@ -155,7 +226,48 @@ const IconBtn = ({
   </button>
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
+const HeimdallAIButton = ({ onClick }: { onClick: () => void }) => {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <motion.button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
+      initial={false}
+      animate={{ width: hovered ? 132 : 42 }}
+      transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.7 }}
+      aria-label="Heimdall AI"
+      className={`ml-1.5 flex h-10 items-center overflow-hidden rounded-full ${
+        hovered
+          ? 'bg-white/95 dark:bg-slate-900/90 ring-1 ring-slate-200/80 dark:ring-slate-700/50 shadow-[0_8px_20px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_20px_rgba(2,6,23,0.28)]'
+          : 'bg-transparent ring-1 ring-transparent shadow-none'
+      }`}
+    >
+      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
+        <Sparkles
+          className="h-[22px] w-[22px] text-blue-600 dark:text-blue-400"
+          strokeWidth={2.2}
+        />
+      </span>
+
+      <motion.span
+        initial={false}
+        animate={{
+          opacity: hovered ? 1 : 0,
+          x: hovered ? 0 : -10,
+        }}
+        transition={{ duration: 0.16, ease: 'easeOut' }}
+        className="pr-4 whitespace-nowrap text-[13px] font-semibold leading-none tracking-tight text-slate-900 dark:text-slate-100"
+      >
+        Heimdall AI
+      </motion.span>
+    </motion.button>
+  );
+};
+
 const PlatformIndicator: React.FC = () => {
   const { hasSelectedPlatform, selectedPlatformId: platformId } = usePlatform();
   const { user, logout } = useAuth();
@@ -166,15 +278,18 @@ const PlatformIndicator: React.FC = () => {
   const { toast } = useToast();
 
   const [manualStatus, setManualStatus] = useState<'active' | 'away' | null>(null);
-  const [loadingStatus, setLoadingStatus] = useState(true);
+  const [, setLoadingStatus] = useState(true);
 
   useEffect(() => {
     const fetchStatus = async () => {
       try {
         const data = await apiService.getUserStatus();
         setManualStatus(data.status as 'active' | 'away');
-      } catch { setManualStatus('active'); }
-      finally { setLoadingStatus(false); }
+      } catch {
+        setManualStatus('active');
+      } finally {
+        setLoadingStatus(false);
+      }
     };
     fetchStatus();
   }, []);
@@ -182,12 +297,21 @@ const PlatformIndicator: React.FC = () => {
   const setAndPersistStatus = async (status: 'active' | 'away') => {
     const previous = manualStatus;
     setManualStatus(status);
+
     try {
       await apiService.updateUserStatus(status);
-      toast({ title: "Status updated", description: `Your status is now ${status}.`, variant: "default" });
+      toast({
+        title: "Status updated",
+        description: `Your status is now ${status}.`,
+        variant: "default",
+      });
     } catch {
       setManualStatus(previous);
-      toast({ title: "Failed to update status", description: "Please try again.", variant: "destructive" });
+      toast({
+        title: "Failed to update status",
+        description: "Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -201,27 +325,34 @@ const PlatformIndicator: React.FC = () => {
   });
 
   useEffect(() => {
-    if (isDark) { document.documentElement.classList.add('dark'); localStorage.setItem('heimdall_theme', 'dark'); }
-    else { document.documentElement.classList.remove('dark'); localStorage.setItem('heimdall_theme', 'light'); }
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('heimdall_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('heimdall_theme', 'light');
+    }
   }, [isDark]);
 
   const [hasPendingInvitations, setHasPendingInvitations] = useState(false);
 
-
-  // Fetch both sent + received — dot shows green if any are pending
   useEffect(() => {
     const check = async () => {
-  if (!platformId) return;  // add this line
-  try {
+      if (!platformId) return;
+
+      try {
         const [received, sent] = await Promise.allSettled([
           platformId ? apiService.getInvitations(platformId) : Promise.resolve([]),
           apiService.getSentInvitations(),
         ]);
+
         const toArr = (r: PromiseSettledResult<any>) =>
           r.status === 'fulfilled'
             ? (Array.isArray(r.value) ? r.value : r.value?.results ?? [])
             : [];
+
         const all = [...toArr(received), ...toArr(sent)];
+
         setHasPendingInvitations(
           all.some((inv: any) => !inv.status || inv.status === 'pending' || inv.status === 'sent')
         );
@@ -229,31 +360,42 @@ const PlatformIndicator: React.FC = () => {
         setHasPendingInvitations(false);
       }
     };
+
     check();
     const id = setInterval(check, 60_000);
     return () => clearInterval(id);
   }, []);
-  // ── Search state (unchanged logic) ─────────────────────────────────────────
+
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem(getRecentSearchesKey(user?.id)) || '[]'); } catch { return []; }
+    try {
+      return JSON.parse(localStorage.getItem(getRecentSearchesKey(user?.id)) || '[]');
+    } catch {
+      return [];
+    }
   });
+
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const searchResults = searchQuery.trim()
     ? PAGE_INDEX.map(p => ({ ...p, score: scoreResult(p, searchQuery) }))
-        .filter(p => p.score > 0).sort((a, b) => b.score - a.score).slice(0, 6)
+        .filter(p => p.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 6)
     : [];
 
-  const showDropdown = searchOpen && (searchQuery.trim() ? searchResults.length > 0 : recentSearches.length > 0);
+  const showDropdown =
+    searchOpen && (searchQuery.trim() ? searchResults.length > 0 : recentSearches.length > 0);
 
   const saveRecent = useCallback((label: string) => {
     setRecentSearches(prev => {
       const updated = [label, ...prev.filter(r => r !== label)].slice(0, 5);
-      try { localStorage.setItem(getRecentSearchesKey(user?.id), JSON.stringify(updated)); } catch {}
+      try {
+        localStorage.setItem(getRecentSearchesKey(user?.id), JSON.stringify(updated));
+      } catch {}
       return updated;
     });
   }, [user?.id]);
@@ -261,13 +403,19 @@ const PlatformIndicator: React.FC = () => {
   const navigateTo = useCallback((path: string, label: string) => {
     const resolvedPath = resolvePath(path);
     saveRecent(label);
+
     if (path.includes('rate-limiting') && !localStorage.getItem('selected_platform_id')) {
-      toast({ title: "Select a workspace first", description: "Please select a workspace to access Rate Limiting", variant: "default" });
+      toast({
+        title: "Select a workspace first",
+        description: "Please select a workspace to access Rate Limiting",
+        variant: "default",
+      });
       navigate('/platforms');
       setSearchOpen(false);
       setSearchQuery('');
       return;
     }
+
     navigate(resolvedPath);
     setSearchQuery('');
     setSearchOpen(false);
@@ -276,45 +424,69 @@ const PlatformIndicator: React.FC = () => {
 
   useEffect(() => {
     if (!searchOpen) return;
+
     const items = searchQuery.trim()
       ? searchResults
       : recentSearches.map(r => PAGE_INDEX.find(p => p.label === r)).filter(Boolean) as typeof PAGE_INDEX;
+
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(i => Math.min(i + 1, items.length - 1)); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(i => Math.max(i - 1, 0)); }
-      else if (e.key === 'Enter') { e.preventDefault(); const item = items[selectedIndex]; if (item) navigateTo(item.path, item.label); }
-      else if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(i => Math.min(i + 1, items.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(i => Math.max(i - 1, 0));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const item = items[selectedIndex];
+        if (item) navigateTo(item.path, item.label);
+      } else if (e.key === 'Escape') {
+        setSearchOpen(false);
+        setSearchQuery('');
+      }
     };
+
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [searchOpen, searchQuery, searchResults, recentSearches, selectedIndex, navigateTo]);
 
-  useEffect(() => { setSelectedIndex(0); }, [searchQuery]);
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchQuery]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault(); setSearchOpen(true);
+        e.preventDefault();
+        setSearchOpen(true);
         setTimeout(() => inputRef.current?.focus(), 50);
       }
     };
+
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
     };
+
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const handleLogout = async () => {
-    try { await logout(); navigate('/login'); } catch {}
+    try {
+      await logout();
+      navigate('/login');
+    } catch {}
   };
 
-  const recentItems = recentSearches.map(r => PAGE_INDEX.find(p => p.label === r)).filter(Boolean) as typeof PAGE_INDEX;
+  const recentItems =
+    recentSearches.map(r => PAGE_INDEX.find(p => p.label === r)).filter(Boolean) as typeof PAGE_INDEX;
   const dropdownItems = searchQuery.trim() ? searchResults : recentItems;
 
   const displayName = user?.first_name
@@ -323,160 +495,174 @@ const PlatformIndicator: React.FC = () => {
 
   return (
     <div className="flex items-center gap-1.5 w-full">
+      <div className="flex items-center gap-0">
+        <div ref={searchRef} className="relative">
+          <div className={`
+            relative flex items-center gap-2 h-9 rounded-2xl px-3 w-64 transition-all duration-200
+            ${searchOpen
+              ? 'bg-white dark:bg-slate-900 ring-2 ring-blue-500/30 shadow-[0_0_0_4px_rgba(37,99,235,0.06)] dark:shadow-[0_0_0_4px_rgba(37,99,235,0.12)]'
+              : 'bg-slate-100/80 dark:bg-slate-800/60 ring-1 ring-slate-200/60 dark:ring-slate-700/40 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+            }
+          `}>
+            <Search className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={searchQuery}
+              onChange={e => {
+                setSearchQuery(e.target.value);
+                setSearchOpen(true);
+              }}
+              onFocus={() => setSearchOpen(true)}
+              placeholder="Search pages…"
+              className="bg-transparent text-xs font-medium text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none w-full"
+            />
+            {searchQuery ? (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  inputRef.current?.focus();
+                }}
+                className="flex-shrink-0 rounded-md p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                <X className="h-3 w-3 text-slate-400" />
+              </button>
+            ) : (
+              <div className="flex-shrink-0 flex items-center gap-0.5 rounded-lg border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 bg-white dark:bg-slate-800">
+                <Command className="h-2.5 w-2.5 text-slate-400 dark:text-slate-500" />
+                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">K</span>
+              </div>
+            )}
+          </div>
 
-      {/* ── Search ──────────────────────────────────────────────────────────── */}
-      <div ref={searchRef} className="relative">
-        {/* Outer shell: subtle gradient border trick via ring */}
-        <div className={`
-          relative flex items-center gap-2 h-9 rounded-2xl px-3 w-64 transition-all duration-200
-          ${searchOpen
-            ? 'bg-white dark:bg-slate-900 ring-2 ring-blue-500/30 shadow-[0_0_0_4px_rgba(37,99,235,0.06)] dark:shadow-[0_0_0_4px_rgba(37,99,235,0.12)]'
-            : 'bg-slate-100/80 dark:bg-slate-800/60 ring-1 ring-slate-200/60 dark:ring-slate-700/40 hover:bg-slate-100 dark:hover:bg-slate-800/80'
-          }
-        `}>
-          <Search className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={searchQuery}
-            onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
-            onFocus={() => setSearchOpen(true)}
-            placeholder="Search pages…"
-            className="bg-transparent text-xs font-medium text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none w-full"
-          />
-          {searchQuery ? (
-            <button onClick={() => { setSearchQuery(''); inputRef.current?.focus(); }} className="flex-shrink-0 rounded-md p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-              <X className="h-3 w-3 text-slate-400" />
-            </button>
-          ) : (
-            <div className="flex-shrink-0 flex items-center gap-0.5 rounded-lg border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 bg-white dark:bg-slate-800">
-              <Command className="h-2.5 w-2.5 text-slate-400 dark:text-slate-500" />
-              <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">K</span>
-            </div>
-          )}
+          <AnimatePresence>
+            {showDropdown && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 500, damping: 32, mass: 0.6 }}
+                className="absolute top-full mt-2 left-0 w-72 z-50 overflow-hidden"
+                style={{
+                  borderRadius: 18,
+                  border: '1px solid rgba(148,163,184,0.15)',
+                  background: 'var(--search-bg, rgba(255,255,255,0.95))',
+                  backdropFilter: 'blur(20px)',
+                  boxShadow: '0 20px 40px rgba(15,23,42,0.12), 0 1px 0 rgba(255,255,255,0.8) inset',
+                }}
+              >
+                <style>{`.dark { --search-bg: rgba(15,23,42,0.95); }`}</style>
+                <div
+                  style={{
+                    height: 1,
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(37,99,235,0.4) 40%, rgba(6,182,212,0.4) 60%, transparent 100%)',
+                  }}
+                />
+                <div className="flex items-center justify-between px-4 pt-3 pb-2">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+                    {searchQuery.trim()
+                      ? `${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}`
+                      : 'Recent'}
+                  </span>
+                  {!searchQuery.trim() && recentSearches.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setRecentSearches([]);
+                        localStorage.removeItem(getRecentSearchesKey(user?.id));
+                      }}
+                      className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 hover:text-red-400 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <div className="px-2 pb-2 space-y-0.5">
+                  {dropdownItems.map((item, i) => {
+                    const IconComponent = item.icon;
+                    const active = selectedIndex === i;
+
+                    return (
+                      <motion.button
+                        key={item.label + i}
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.025, duration: 0.15 }}
+                        onClick={() => navigateTo(item.path, item.label)}
+                        onMouseEnter={() => setSelectedIndex(i)}
+                        className={`
+                          w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all duration-100
+                          ${active
+                            ? 'bg-blue-50 dark:bg-blue-500/10 rounded-[12px]'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-[12px]'
+                          }
+                        `}
+                      >
+                        <div className={`
+                          flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl transition-colors
+                          ${active ? 'bg-blue-100 dark:bg-blue-500/20' : 'bg-slate-100 dark:bg-slate-800'}
+                        `}>
+                          <IconComponent
+                            className={`h-3.5 w-3.5 ${active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}
+                          />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <span className={`text-xs font-semibold block transition-colors ${active ? 'text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-200'}`}>
+                            {item.label}
+                          </span>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate block">
+                            {item.path}
+                          </span>
+                        </div>
+
+                        {active && (
+                          <div className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-md bg-blue-100 dark:bg-blue-500/20">
+                            <CornerDownLeft className="h-3 w-3 text-blue-500 dark:text-blue-400" />
+                          </div>
+                        )}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+
+                <div className="border-t border-slate-100 dark:border-slate-800/60 px-4 py-2 flex items-center gap-4">
+                  {[
+                    { icon: <><ArrowUp className="h-2.5 w-2.5" /><ArrowDown className="h-2.5 w-2.5" /></>, label: 'navigate' },
+                    { icon: <CornerDownLeft className="h-2.5 w-2.5" />, label: 'select' },
+                    { icon: <span className="text-[8px] font-bold">esc</span>, label: 'close' },
+                  ].map(({ icon, label }) => (
+                    <div key={label} className="flex items-center gap-1">
+                      <div className="flex items-center gap-0.5 text-slate-400 dark:text-slate-600">{icon}</div>
+                      <span className="text-[9px] text-slate-400 dark:text-slate-600 font-medium">{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        <AnimatePresence>
-          {showDropdown && (
-            <motion.div
-              initial={{ opacity: 0, y: -6, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.97 }}
-              transition={{ type: "spring", stiffness: 500, damping: 32, mass: 0.6 }}
-              className="absolute top-full mt-2 left-0 w-72 z-50 overflow-hidden"
-              style={{
-                borderRadius: 18,
-                border: '1px solid rgba(148,163,184,0.15)',
-                background: 'var(--search-bg, rgba(255,255,255,0.95))',
-                backdropFilter: 'blur(20px)',
-                boxShadow: '0 20px 40px rgba(15,23,42,0.12), 0 1px 0 rgba(255,255,255,0.8) inset',
-              }}
-            >
-              <style>{`.dark { --search-bg: rgba(15,23,42,0.95); }`}</style>
-
-              {/* Top shimmer line */}
-              <div style={{ height: 1, background: 'linear-gradient(90deg, transparent 0%, rgba(37,99,235,0.4) 40%, rgba(6,182,212,0.4) 60%, transparent 100%)' }} />
-
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 pt-3 pb-2">
-                <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
-                  {searchQuery.trim() ? `${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}` : 'Recent'}
-                </span>
-                {!searchQuery.trim() && recentSearches.length > 0 && (
-                  <button
-                    onClick={() => {
-                      setRecentSearches([]);
-                      localStorage.removeItem(getRecentSearchesKey(user?.id));
-                    }}
-                    className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 hover:text-red-400 transition-colors"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              {/* Results */}
-              <div className="px-2 pb-2 space-y-0.5">
-                {dropdownItems.map((item, i) => {
-                  const IconComponent = item.icon;
-                  const active = selectedIndex === i;
-                  return (
-                    <motion.button
-                      key={item.label + i}
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.025, duration: 0.15 }}
-                      onClick={() => navigateTo(item.path, item.label)}
-                      onMouseEnter={() => setSelectedIndex(i)}
-                      className={`
-                        w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all duration-100
-                        ${active
-                          ? 'bg-blue-50 dark:bg-blue-500/10 rounded-[12px]'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-[12px]'
-                        }
-                      `}
-                    >
-                      {/* Icon container */}
-                      <div className={`
-                        flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl transition-colors
-                        ${active ? 'bg-blue-100 dark:bg-blue-500/20' : 'bg-slate-100 dark:bg-slate-800'}
-                      `}>
-                        <IconComponent className={`h-3.5 w-3.5 ${active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className={`text-xs font-semibold block transition-colors ${active ? 'text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-200'}`}>
-                          {item.label}
-                        </span>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate block">{item.path}</span>
-                      </div>
-                      {active && (
-                        <div className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-md bg-blue-100 dark:bg-blue-500/20">
-                          <CornerDownLeft className="h-3 w-3 text-blue-500 dark:text-blue-400" />
-                        </div>
-                      )}
-                    </motion.button>
-                  );
-                })}
-              </div>
-
-              {/* Footer */}
-              <div className="border-t border-slate-100 dark:border-slate-800/60 px-4 py-2 flex items-center gap-4">
-                {[
-                  { icon: <><ArrowUp className="h-2.5 w-2.5" /><ArrowDown className="h-2.5 w-2.5" /></>, label: 'navigate' },
-                  { icon: <CornerDownLeft className="h-2.5 w-2.5" />, label: 'select' },
-                  { icon: <span className="text-[8px] font-bold">esc</span>, label: 'close' },
-                ].map(({ icon, label }) => (
-                  <div key={label} className="flex items-center gap-1">
-                    <div className="flex items-center gap-0.5 text-slate-400 dark:text-slate-600">{icon}</div>
-                    <span className="text-[9px] text-slate-400 dark:text-slate-600 font-medium">{label}</span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <HeimdallAIButton onClick={() => navigate('/heimdall-ai')} />
       </div>
 
       <div className="flex-1" />
 
-      {/* ── Right action group — glass pill container ───────────────────────── */}
       <div className="flex items-center gap-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/40 ring-1 ring-slate-200/60 dark:ring-slate-700/30 px-1.5 py-1">
-
-        {/* Invitations */}
         <IconBtn
           onClick={() => navigate('/invitations')}
           title="Invitations"
           colorClass="text-emerald-600 dark:text-emerald-400"
           hoverClass="hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30"
-          badge={hasPendingInvitations
-            ? <span className="absolute bottom-0.5 right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-slate-100 dark:ring-slate-800" />
-            : undefined
+          badge={
+            hasPendingInvitations
+              ? <span className="absolute bottom-0.5 right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-slate-100 dark:ring-slate-800" />
+              : undefined
           }
         >
           <Mail className="h-4 w-4" />
         </IconBtn>
 
-        {/* Theme toggle */}
         <IconBtn
           onClick={() => setIsDark(p => !p)}
           title={isDark ? "Switch to light" : "Switch to dark"}
@@ -496,10 +682,8 @@ const PlatformIndicator: React.FC = () => {
           </AnimatePresence>
         </IconBtn>
 
-        {/* Divider */}
         <div className="h-5 w-px bg-slate-200 dark:bg-slate-700/60 mx-0.5" />
 
-        {/* Workspace selector — refined pill */}
         <button
           onClick={() => navigate('/platforms')}
           className={`
@@ -510,12 +694,13 @@ const PlatformIndicator: React.FC = () => {
             }
           `}
         >
-          {/* Status dot */}
-          <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
-            isOnPlatformsPage || !hasSelectedPlatform
-              ? 'bg-blue-400 dark:bg-blue-500'
-              : 'bg-emerald-400'
-          }`} />
+          <span
+            className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
+              isOnPlatformsPage || !hasSelectedPlatform
+                ? 'bg-blue-400 dark:bg-blue-500'
+                : 'bg-emerald-400'
+            }`}
+          />
           <span className="hidden sm:block">
             {isOnPlatformsPage || !hasSelectedPlatform ? 'Select Workspace' : 'Workspace'}
           </span>
@@ -524,7 +709,6 @@ const PlatformIndicator: React.FC = () => {
         </button>
       </div>
 
-      {/* ── Account dropdown ─────────────────────────────────────────────────── */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center rounded-2xl px-1.5 py-1 transition-all hover:bg-slate-100/80 dark:hover:bg-slate-800/50 ring-1 ring-transparent hover:ring-slate-200/60 dark:hover:ring-slate-700/40">
@@ -544,7 +728,6 @@ const PlatformIndicator: React.FC = () => {
             boxShadow: '0 24px 48px rgba(15,23,42,0.14), 0 1px 0 rgba(255,255,255,0.8) inset',
           }}
         >
-          {/* Dark mode override */}
           <style>{`.dark [data-radix-popper-content-wrapper] [role="menu"] { background: rgba(15,23,42,0.95) !important; box-shadow: 0 24px 48px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.04) inset !important; }`}</style>
 
           <motion.div
@@ -552,10 +735,15 @@ const PlatformIndicator: React.FC = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ type: "spring", stiffness: 500, damping: 32, mass: 0.6 }}
           >
-            {/* Top shimmer */}
-            <div style={{ height: 1, margin: '0 8px 8px', borderRadius: 1, background: 'linear-gradient(90deg, transparent, rgba(37,99,235,0.3), rgba(6,182,212,0.3), transparent)' }} />
+            <div
+              style={{
+                height: 1,
+                margin: '0 8px 8px',
+                borderRadius: 1,
+                background: 'linear-gradient(90deg, transparent, rgba(37,99,235,0.3), rgba(6,182,212,0.3), transparent)',
+              }}
+            />
 
-            {/* User info */}
             <DropdownMenuLabel className="pb-2">
               <div className="flex items-center gap-3 px-2 py-1">
                 <UserAvatar email={user?.email || ""} size="md" isActive={effectiveStatus} />
@@ -566,9 +754,11 @@ const PlatformIndicator: React.FC = () => {
               </div>
             </DropdownMenuLabel>
 
-            {/* Status section */}
             <div className="mx-2 mb-2 rounded-[14px] bg-slate-50 dark:bg-slate-800/60 p-1.5">
-              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500 px-2 mb-1">Status</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500 px-2 mb-1">
+                Status
+              </p>
+
               <button
                 onClick={() => setAndPersistStatus('active')}
                 className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl transition-all ${
@@ -577,13 +767,24 @@ const PlatformIndicator: React.FC = () => {
               >
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
-                    {effectiveStatus && <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />}
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 6px #22c55e99' }} />
+                    {effectiveStatus && (
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                    )}
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: '#22c55e',
+                        boxShadow: '0 0 6px #22c55e99',
+                      }}
+                    />
                   </span>
                   <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Active</span>
                 </div>
                 {effectiveStatus && <Check className="h-3 w-3 text-emerald-500" />}
               </button>
+
               <button
                 onClick={() => setAndPersistStatus('away')}
                 className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl transition-all ${
@@ -591,7 +792,17 @@ const PlatformIndicator: React.FC = () => {
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#eab308', boxShadow: '0 0 6px #eab30899', flexShrink: 0, display: 'inline-block' }} />
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: '#eab308',
+                      boxShadow: '0 0 6px #eab30899',
+                      flexShrink: 0,
+                      display: 'inline-block',
+                    }}
+                  />
                   <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Away</span>
                 </div>
                 {!effectiveStatus && <Check className="h-3 w-3 text-amber-500" />}
@@ -600,7 +811,6 @@ const PlatformIndicator: React.FC = () => {
 
             <DropdownMenuSeparator className="bg-slate-100 dark:bg-slate-800 mx-2" />
 
-            {/* Nav items */}
             {[
               { label: 'Users & Teams', icon: Users, path: '/users' },
               { label: 'Audit Logs', icon: Clock, path: '/audit-logs' },

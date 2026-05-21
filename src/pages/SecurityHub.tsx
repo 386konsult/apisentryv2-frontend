@@ -352,7 +352,7 @@ const LogDetailModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0 rounded-[22px] border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829] [&>button:first-of-type]:hidden">
+      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto p-0 gap-0 rounded-[22px] border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829] [&>button:first-of-type]:hidden">
 
         {/* Gradient banner */}
         <div className="relative rounded-t-[22px] bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#06b6d4] px-6 pt-6 pb-5 overflow-hidden">

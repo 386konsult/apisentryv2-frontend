@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Shield, AlertTriangle, Globe, Settings, Users, Code, LogOut,
-  Search, Clock, FileText, LayoutDashboard, Link2, BookOpen, Bell, BarChart3, Mail, Gauge,
+  Search, Clock, FileText, LayoutDashboard, Link2, BookOpen, Bell, BarChart3, Mail, Gauge, Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -39,7 +39,8 @@ const ANIM: Record<string, { a: object; ms: number }> = {
   "Workspaces": { a: { scale: [1, 1.3, 0.82, 1.18, 0.92, 1.06, 1], rotate: [0, 6, -5, 2, 0] }, ms: 620 },
   "Invitations": { a: { y: [0, -6, 2, -3, 1, 0], rotate: [0, -8, 4, -2, 0] }, ms: 500 },
   "CISO Reports": { a: { rotate: [0, 12, -8, 5, -3, 1, 0], scale: [1, 1.08, 0.96, 1.04, 1] }, ms: 520 },
-  "Rate Limiting": { a: { rotate: [0, 15, -8, 12, -5, 4, -2, 0], scale: [1, 1.12, 0.94, 1.06, 0.98, 1.02, 1], originX: 0.5, originY: 0.5 }, ms: 550 }
+  "Rate Limiting": { a: { rotate: [0, 15, -8, 12, -5, 4, -2, 0], scale: [1, 1.12, 0.94, 1.06, 0.98, 1.02, 1], originX: 0.5, originY: 0.5 }, ms: 550 },
+  "Heimdall AI": { a: { scale: [1, 1.25, 0.85, 1.15, 0.95, 1.05, 1], rotate: [0, -8, 12, -5, 3, 0] }, ms: 600 }
 };
 
 // ── Nav items (unchanged) ─────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ const securityItems = [
   { title: "Playground", url: "/playground", icon: Code },
   { title: "CISO Reports", url: "/ciso-reports", icon: FileText },
   { title: "Rate Limiting", url: null, icon: Gauge, isDynamic: true },
+  //{ title: "Heimdall AI", url: "/heimdall-ai", icon: Sparkles },
 ];
 
 const SHOW_SOURCE_CODE = false;

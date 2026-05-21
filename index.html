@@ -36,6 +36,21 @@
   </head>
 
   <body>
+    <!-- Blocking theme script: runs before React, prevents flash -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('app-theme');
+          if (t === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

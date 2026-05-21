@@ -10,8 +10,9 @@ import {
 } from 'recharts';
 import {
   Shield, AlertTriangle, Activity, TrendingUp,
-  Globe, Eye, Plus, Search, Users, ArrowLeft,
+  Globe, Eye, Plus, Search, Users, ArrowLeft, Sparkles, RefreshCw, CheckCircle, ChevronRight,
 } from 'lucide-react';
+import HeimdallAILogo from '@/components/HeimdallAILogo';
 import { motion } from 'framer-motion';
 import apiService from '@/services/api';
 import { geoMercator, geoPath } from 'd3-geo';
@@ -517,6 +518,36 @@ const PlatformDetails: React.FC = () => {
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [countryDetail, setCountryDetail] = useState<any>(null);
   const [countryDetailLoading, setCountryDetailLoading] = useState(false);
+  const [aiInsights, setAiInsights] = useState<any>(null);
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
+  const [aiInsightsError, setAiInsightsError] = useState<string | null>(null);
+
+  const fetchAiInsights = useCallback(async () => {
+    if (!id) return;
+    setAiInsightsLoading(true);
+    setAiInsightsError(null);
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || 'https://staging.breachnet.io/api/v1';
+      const res = await fetch(`${apiBase}/platforms/${id}/ai-insights/`, {
+        headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+      });
+      // Guard: if the server returns HTML (e.g. a Django debug/500 page) don't
+      // try to parse it as JSON — surface a clear message instead.
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        throw new Error(`Server returned ${res.status} — check the Django logs for the full error`);
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || `Server error ${res.status}`);
+      }
+      setAiInsights(data);
+    } catch (e: any) {
+      setAiInsightsError(e.message || 'Could not load AI insights');
+    } finally {
+      setAiInsightsLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
     if (!selectedCountryCode || !id) {
@@ -662,6 +693,7 @@ const PlatformDetails: React.FC = () => {
 
   useEffect(() => { fetchData(); }, [id]);
   useEffect(() => { fetchAllRangedData(); }, [id, timeRange]);
+  // AI insights are NOT auto-fetched — user clicks Refresh to trigger them.
 
   const totalRequests = analytics ? Number(analytics.total_requests ?? 0) : 0;
   const blockedRequests = analytics ? Number(analytics.blocked_requests ?? 0) : 0;
@@ -1197,6 +1229,130 @@ const PlatformDetails: React.FC = () => {
             ) : (
               <div className={`flex h-28 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
                 <div className="text-center"><AlertTriangle className="mx-auto mb-2 h-7 w-7 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No live activity yet</p></div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── AI Security Insights ── */}
+        <Card className={`border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm ${R}`}>
+          <CardHeader className={`border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-5 py-4 ${Rsub}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <HeimdallAILogo size={22} />
+                <div>
+                  <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">AI Security Insights</CardTitle>
+                  <CardDescription className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                    Powered by Heimdall AI{aiInsights ? ' · updated just now' : ' · click Refresh to generate'}
+                  </CardDescription>
+                </div>
+              </div>
+              <button
+                onClick={fetchAiInsights}
+                disabled={aiInsightsLoading}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3 w-3 ${aiInsightsLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-5">
+            {aiInsightsLoading && !aiInsights && (
+              <div className="space-y-3 animate-pulse">
+                <div className="h-14 rounded-[14px] bg-slate-100 dark:bg-slate-800" />
+                <div className="h-10 rounded-[14px] bg-slate-100 dark:bg-slate-800" />
+                <div className="grid grid-cols-3 gap-2">
+                  {[0,1,2].map(i => <div key={i} className="h-16 rounded-[14px] bg-slate-100 dark:bg-slate-800" />)}
+                </div>
+              </div>
+            )}
+
+            {aiInsightsError && !aiInsights && (
+              <div className={`flex items-center gap-3 px-4 py-3 border border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-500/10 ${Rsub}`}>
+                <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                <p className="text-xs text-red-600 dark:text-red-400">{aiInsightsError}</p>
+              </div>
+            )}
+
+            {!aiInsightsLoading && !aiInsights && !aiInsightsError && (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <HeimdallAILogo size={36} className="opacity-40" />
+                <p className="text-xs text-slate-400 dark:text-slate-500 text-center max-w-xs leading-relaxed">Click <span className="font-semibold text-slate-600 dark:text-slate-300">Refresh</span> to generate an AI-powered security analysis of your last 7 days of traffic.</p>
+              </div>
+            )}
+
+            {aiInsights && (
+              <div className="space-y-4">
+                {/* Threat summary */}
+                {aiInsights.threat_summary && (
+                  <div className={`flex gap-3 px-4 py-3 border border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-500/8 ${Rsub}`}>
+                    <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">{aiInsights.threat_summary}</p>
+                  </div>
+                )}
+
+                {/* Top recommendation */}
+                {aiInsights.top_recommendation && (
+                  <div className={`flex gap-3 px-4 py-3 border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/8 ${Rsub}`}>
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-0.5">Top Recommendation</p>
+                      <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">{aiInsights.top_recommendation}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recommendations list */}
+                {aiInsights.recommendations && aiInsights.recommendations.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Action Items</p>
+                    <div className="space-y-2">
+                      {aiInsights.recommendations.slice(0, 3).map((rec: any, i: number) => {
+                        const priority = (rec.priority || '').toLowerCase();
+                        const priorityStyle = priority === 'high'
+                          ? 'border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-500/8 text-red-600 dark:text-red-400'
+                          : priority === 'medium'
+                          ? 'border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/8 text-amber-600 dark:text-amber-400'
+                          : 'border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-500/8 text-blue-600 dark:text-blue-400';
+                        const priorityBadge = priority === 'high'
+                          ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400'
+                          : priority === 'medium'
+                          ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                          : 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400';
+                        return (
+                          <div key={i} className={`flex items-start gap-3 px-3 py-2.5 border ${priorityStyle} ${Rsub}`}>
+                            <ChevronRight className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed flex-1">{rec.action || rec.text || rec}</p>
+                            {rec.priority && (
+                              <span className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${priorityBadge}`}>{rec.priority}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Positive signals */}
+                {aiInsights.positive_signals && aiInsights.positive_signals.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">What's Working</p>
+                    <div className="space-y-1.5">
+                      {aiInsights.positive_signals.map((signal: string, i: number) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{signal}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Risk assessment footer */}
+                {aiInsights.risk_assessment && (
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 italic border-t border-slate-100 dark:border-slate-800 pt-3">{aiInsights.risk_assessment}</p>
+                )}
               </div>
             )}
           </CardContent>

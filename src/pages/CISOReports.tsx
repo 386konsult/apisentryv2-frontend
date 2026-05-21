@@ -417,8 +417,13 @@ const CISOReports = () => {
     }
     setLoading(true);
     try {
-      const res = await apiService.request(`/ciso-reports/${id}/`);
-      const data = res.report_data || res;
+      const res = await (apiService as any).request(`/ciso-reports/${id}/`);
+      const data = (res as any)?.report_data ?? res;
+      // Guard: if the fetched object is missing required shape, bail out cleanly
+      if (!data || !data.metadata) {
+        toast({ title: "Report Unavailable", description: "Report data is incomplete or could not be loaded. Try regenerating the report.", variant: "destructive" });
+        return;
+      }
       reportCache.current[id] = data;
       setSelectedReport(data);
     } catch { toast({ title: "Error", description: "Failed to load report", variant: "destructive" }); }
@@ -540,9 +545,24 @@ const CISOReports = () => {
 
   // ── Detail View ───────────────────────────────────────────────────────────
   const report = selectedReport;
+  if (!report || !report.metadata) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-[#F2F6FE] dark:bg-[#0F1724]">
+        <div className="flex flex-col items-center gap-3 text-center px-8">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-500/10">
+            <AlertTriangle className="h-7 w-7 text-red-500" />
+          </div>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">Report data unavailable</p>
+          <p className="text-xs text-slate-400 max-w-xs">This report's data could not be loaded. Try regenerating it using the "New Report" button.</p>
+          <button onClick={() => setSelectedReport(null)} className="mt-2 text-xs text-blue-600 underline">← Back to reports</button>
+        </div>
+      </div>
+    );
+  }
   const acc = riskAccent(report.metadata.risk_status);
   const blockedPct = report.total_requests ? ((report.blocked_requests / report.total_requests) * 100).toFixed(1) : "0";
   const postureScore = Math.round((report.control_score + (100 - report.risk_index)) / 2);
+  const hasTrafficData = (report.total_requests ?? 0) > 0;
 
   return (
     <div className="w-full min-h-screen bg-[#F2F6FE] dark:bg-[#0F1724] px-5 pb-12 pt-0.5 print:bg-white">
@@ -590,6 +610,20 @@ const CISOReports = () => {
 
         {/* ── REPORT BODY ── */}
         <div id="ciso-report-content" className="space-y-5">
+
+          {/* No-data notice */}
+          {!hasTrafficData && (
+            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+              className={`flex items-start gap-3 px-5 py-4 border border-amber-200 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/8 ${R}`}>
+              <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">No traffic data recorded for this period</p>
+                <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-0.5">
+                  No API requests were logged for {formatMonthYear(report.metadata.year, report.metadata.month)}. Charts will appear empty. If this is unexpected, check that your platform is correctly connected and receiving traffic.
+                </p>
+              </div>
+            </motion.div>
+          )}
 
           {/* 1. Executive Summary */}
           <Section icon={<FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />} title="Executive Summary" subtitle="AI-generated narrative — one page overview">
@@ -671,6 +705,13 @@ const CISOReports = () => {
 
           {/* 3. Threat Activity & Attack Trends */}
           <Section icon={<AlertTriangle className="h-4 w-4 text-blue-600 dark:text-blue-400" />} title="Threat Activity & Attack Trends" subtitle="With month-over-month comparison">
+            {!hasTrafficData ? (
+              <div className={`flex flex-col items-center justify-center py-10 ${Rsub} border border-slate-100 dark:border-blue-900/20 bg-slate-50/50 dark:bg-[#0F1724]/40`}>
+                <Shield className="h-8 w-8 text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">No threats recorded this period</p>
+                <p className="text-xs text-slate-400 mt-1">Charts will populate once traffic data is available</p>
+              </div>
+            ) : (
             <div className="grid gap-5 lg:grid-cols-2 mb-4">
               <div>
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Distribution</p>
@@ -697,27 +738,30 @@ const CISOReports = () => {
                 </ResponsiveContainer>
               </div>
             </div>
-            {/* Month-over-month table */}
-            <div className={`overflow-hidden border border-slate-100 dark:border-blue-900/20 ${Rsub}`}>
-              <div className="grid grid-cols-4 px-4 py-2.5 bg-slate-50 dark:bg-[#0F1724]/60 border-b border-slate-100 dark:border-blue-900/20">
-                {["Threat Type", "This Month", "Last Month", "Change"].map(h => (
-                  <span key={h} className="font-mono text-[9px] font-bold uppercase tracking-wider text-slate-400">{h}</span>
+            )}
+            {/* Month-over-month table — only when there's real threat data */}
+            {hasTrafficData && (
+              <div className={`overflow-hidden border border-slate-100 dark:border-blue-900/20 ${Rsub} mt-4`}>
+                <div className="grid grid-cols-4 px-4 py-2.5 bg-slate-50 dark:bg-[#0F1724]/60 border-b border-slate-100 dark:border-blue-900/20">
+                  {["Threat Type", "This Month", "Last Month", "Change"].map(h => (
+                    <span key={h} className="font-mono text-[9px] font-bold uppercase tracking-wider text-slate-400">{h}</span>
+                  ))}
+                </div>
+                {report.threat_distribution.map((t, i) => (
+                  <div key={i} className="grid grid-cols-4 px-4 py-2.5 border-b border-slate-50 dark:border-blue-900/10 last:border-0 hover:bg-slate-50/80 dark:hover:bg-blue-900/5 transition-colors">
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{t.name}</span>
+                    <span className="text-xs font-mono text-slate-600 dark:text-slate-400">{t.value}%</span>
+                    <span className="text-xs font-mono text-slate-400">{t.prev_value ?? "—"}%</span>
+                    <span className={`text-xs font-bold flex items-center gap-0.5 ${(t.change || 0) > 0 ? "text-red-500" : (t.change || 0) < 0 ? "text-emerald-500" : "text-slate-400"}`}>
+                      {(t.change || 0) > 0 ? <ArrowUpRight className="h-3 w-3" /> : (t.change || 0) < 0 ? <ArrowDownRight className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+                      {t.change_label || "0%"}
+                    </span>
+                  </div>
                 ))}
               </div>
-              {report.threat_distribution.map((t, i) => (
-                <div key={i} className="grid grid-cols-4 px-4 py-2.5 border-b border-slate-50 dark:border-blue-900/10 last:border-0 hover:bg-slate-50/80 dark:hover:bg-blue-900/5 transition-colors">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{t.name}</span>
-                  <span className="text-xs font-mono text-slate-600 dark:text-slate-400">{t.value}%</span>
-                  <span className="text-xs font-mono text-slate-400">{t.prev_value ?? "—"}%</span>
-                  <span className={`text-xs font-bold flex items-center gap-0.5 ${(t.change || 0) > 0 ? "text-red-500" : (t.change || 0) < 0 ? "text-emerald-500" : "text-slate-400"}`}>
-                    {(t.change || 0) > 0 ? <ArrowUpRight className="h-3 w-3" /> : (t.change || 0) < 0 ? <ArrowDownRight className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-                    {t.change_label || "0%"}
-                  </span>
-                </div>
-              ))}
-            </div>
-            {/* Daily trend */}
-            {report.daily_trend.length > 0 && (
+            )}
+            {/* Daily trend — only when there are blocked requests */}
+            {hasTrafficData && report.daily_trend.length > 0 && (
               <div className="mt-4">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Daily Blocked Threats</p>
                 <ResponsiveContainer width="100%" height={160}>
@@ -811,7 +855,7 @@ const CISOReports = () => {
               <KpiTile label="Req / sec" value={report.operational.rps} accent="from-purple-500 to-violet-500" icon={<Zap className="h-3.5 w-3.5 text-purple-500" />} />
             </div>
             {/* Geo breakdown */}
-            {report.top_countries.length > 0 && (
+            {hasTrafficData && report.top_countries.length > 0 && (
               <div className="mt-5">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Top Request Origins</p>
                 <ResponsiveContainer width="100%" height={180}>

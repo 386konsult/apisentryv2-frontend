@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "./components/AppSidebar";
 import ProtectedPlatformRoute from "./components/ProtectedPlatformRoute";
@@ -62,6 +62,9 @@ import AcceptInvitation from "./pages/AcceptInvitation";
 import Invitations from "./components/Invitations"; // Import the Invitations component
 import VerifyEmail from './pages/VerifyEmail';
 import RateLimiting from "@/pages/RateLimiting";
+import HeimdallAI from "./pages/HeimdallAI";
+import { motion } from "framer-motion";
+import { Sparkles } from "lucide-react";
 const queryClient = new QueryClient();
 
 const THEME_STORAGE_KEY = "app-theme";
@@ -89,10 +92,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[#f4f8ff]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p>Loading...</p>
+          <p className="text-slate-500 text-sm">Loading...</p>
         </div>
       </div>
     );
@@ -103,6 +106,45 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   return <>{children}</>;
+};
+
+// ── Heimdall AI floating action button ───────────────────────────────────────
+// Hidden on the /heimdall-ai page itself. Must be rendered inside <BrowserRouter>.
+const HeimdallFAB: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [hovered, setHovered] = useState(false);
+  if (location.pathname === '/heimdall-ai') return null;
+  return (
+    <motion.button
+      onClick={() => navigate('/heimdall-ai')}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
+      initial={false}
+      animate={{ width: hovered ? 132 : 42 }}
+      transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.7 }}
+      aria-label="Heimdall AI"
+      className={`fixed bottom-6 right-6 z-50 flex h-10 items-center overflow-hidden rounded-full ${
+        hovered
+          ? 'bg-white/95 dark:bg-slate-900/90 ring-1 ring-slate-200/80 dark:ring-slate-700/50 shadow-[0_8px_20px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_20px_rgba(2,6,23,0.28)]'
+          : 'bg-transparent ring-1 ring-transparent shadow-none'
+      }`}
+    >
+      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
+        <Sparkles className="h-[22px] w-[22px] text-blue-600 dark:text-blue-400" strokeWidth={2.2} />
+      </span>
+      <motion.span
+        initial={false}
+        animate={{ opacity: hovered ? 1 : 0, x: hovered ? 0 : -10 }}
+        transition={{ duration: 0.16, ease: 'easeOut' }}
+        className="pr-4 whitespace-nowrap text-[13px] font-semibold leading-none tracking-tight text-slate-900 dark:text-slate-100"
+      >
+        Heimdall AI
+      </motion.span>
+    </motion.button>
+  );
 };
 
 const AppContent = () => {
@@ -151,7 +193,8 @@ const AppContent = () => {
   </div>
 </header>
 
-                    <main className="p-6 overflow-x-hidden overflow-y-auto flex-1 min-w-0">
+                    <main className="p-6 overflow-x-hidden overflow-y-auto flex-1 min-w-0 relative">
+                      <HeimdallFAB />
                       <Routes>
                         <Route path="/" element={<Platforms />} />
 
@@ -395,6 +438,7 @@ const AppContent = () => {
                         <Route path="/workspace/:id/rate-limiting" element={<RateLimiting />} />
 
                         <Route path="/audit-logs" element={<AuditLogs />} />
+                        <Route path="/heimdall-ai" element={<HeimdallAI />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </main>

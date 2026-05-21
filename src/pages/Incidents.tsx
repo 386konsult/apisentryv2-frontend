@@ -151,7 +151,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto rounded-2xl border border-white/20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl p-0 shadow-2xl" style={{ willChange: 'auto' }}>
+      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0 shadow-2xl" style={{ willChange: 'auto' }}>
   <motion.div
     initial={{ opacity: 0, y: -8, scale: 0.96 }}
     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -159,7 +159,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
     transition={{ type: "spring", stiffness: 450, damping: 30, mass: 0.7 }}
     style={{ willChange: 'auto' }}
   >
-          <DialogHeader className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50/50 to-transparent px-6 py-5 dark:border-slate-700/60 dark:from-slate-800/30">
+          <DialogHeader className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-6 py-5">
             <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">
               Create New Incident
             </DialogTitle>
@@ -170,7 +170,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
 
           <form onSubmit={handleSubmit} className="space-y-6 p-6">
             {/* Incident Overview */}
-            <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5 space-y-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5 space-y-4">
               <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Incident Overview
               </h3>
@@ -181,7 +181,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   required
-                  className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                  className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -193,7 +193,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                       setFormData({ ...formData, severity: val })
                     }
                   >
-                    <SelectTrigger className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50">
+                    <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -212,7 +212,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                       setFormData({ ...formData, status: val })
                     }
                   >
-                    <SelectTrigger className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50">
+                    <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -229,19 +229,19 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
             </div>
 
             {/* Category */}
-            <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5 space-y-2">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5 space-y-2">
               <Label htmlFor="category">Category / Attack Type</Label>
               <Input
                 id="category"
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 placeholder="e.g., SQL Injection, Credential Stuffing"
-                className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
               />
             </div>
 
             {/* Summary */}
-            <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5 space-y-2">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5 space-y-2">
               <Label htmlFor="summary">Summary of Activity *</Label>
               <Textarea
                 id="summary"
@@ -250,12 +250,12 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                 onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
                 required
                 placeholder="Describe the incident..."
-                className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
               />
             </div>
 
             {/* Scope */}
-            <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5 space-y-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5 space-y-4">
               <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Scope And Indicators
               </h3>
@@ -271,7 +271,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                     })
                   }
                   placeholder="/api/login, /api/users"
-                  className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                  className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                 />
               </div>
               <div className="space-y-2">
@@ -281,13 +281,13 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                   value={formData.sourceIPs}
                   onChange={(e) => setFormData({ ...formData, sourceIPs: e.target.value })}
                   placeholder="e.g., 44.22.11.5, 192.168.1.100"
-                  className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                  className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                 />
               </div>
             </div>
 
             {/* Ownership */}
-            <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5 space-y-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5 space-y-4">
               <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Ownership
               </h3>
@@ -298,7 +298,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                   value={formData.assignedTo}
                   onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
                   placeholder="Team member name or email"
-                  className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                  className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                 />
               </div>
               <div className="space-y-2">
@@ -309,13 +309,13 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                   value={formData.nextStep}
                   onChange={(e) => setFormData({ ...formData, nextStep: e.target.value })}
                   placeholder="Describe the next action..."
-                  className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                  className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                 />
               </div>
             </div>
 
             {/* Compliance */}
-            <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5 space-y-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5 space-y-4">
               <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Compliance
               </h3>
@@ -328,7 +328,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                       setFormData({ ...formData, customerDataExposure: val })
                     }
                   >
-                    <SelectTrigger className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50">
+                    <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -344,7 +344,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                     value={formData.dataClass}
                     onChange={(e) => setFormData({ ...formData, dataClass: e.target.value })}
                     placeholder="e.g., PII, Health, Financial"
-                    className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                    className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                   />
                 </div>
                 <div className="space-y-2">
@@ -355,7 +355,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                       setFormData({ ...formData, requiresCustomerNotification: val })
                     }
                   >
-                    <SelectTrigger className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50">
+                    <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -371,14 +371,14 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                     value={formData.regulatoryImpact}
                     onChange={(e) => setFormData({ ...formData, regulatoryImpact: e.target.value })}
                     placeholder="GDPR, CCPA, HIPAA, etc."
-                    className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                    className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                   />
                 </div>
               </div>
             </div>
 
             {/* Containment Actions */}
-            <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5 space-y-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5 space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Containment Actions
@@ -388,7 +388,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                   variant="outline"
                   size="sm"
                   onClick={addContainmentAction}
-                  className="rounded-full border-slate-200 bg-white/50 dark:border-slate-700 dark:bg-slate-800/50"
+                  className="rounded-full border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
                 >
                   + Add Action
                 </Button>
@@ -406,7 +406,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
                       value={action}
                       onChange={(e) => updateContainmentAction(idx, e.target.value)}
                       placeholder={`Action ${idx + 1}`}
-                      className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                     />
                     <Button
                       type="button"
@@ -423,12 +423,12 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
             </div>
 
             {/* Buttons */}
-            <div className="flex justify-end gap-3 border-t border-slate-200/60 pt-4">
+            <div className="flex justify-end gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                className="rounded-xl border-slate-200 bg-white/50 dark:border-slate-700 dark:bg-slate-800/50"
+                className="rounded-xl border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
               >
                 Cancel
               </Button>
@@ -545,13 +545,13 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-0 shadow-2xl">
+      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0 shadow-2xl">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: "spring", stiffness: 400, damping: 30 }}
         >
-          <DialogHeader className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50/50 to-transparent px-6 py-5 dark:border-slate-700/60 dark:from-slate-800/30">
+          <DialogHeader className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-6 py-5">
             <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">
               Update Incident
             </DialogTitle>
@@ -561,7 +561,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-6 p-6">
-            <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5 space-y-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5 space-y-4">
               <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Incident Overview
               </h3>
@@ -572,7 +572,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   required
-                  className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                  className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -582,7 +582,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
                     value={formData.severity}
                     onValueChange={(val: any) => setFormData({ ...formData, severity: val })}
                   >
-                    <SelectTrigger className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50">
+                    <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -599,7 +599,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
                     value={formData.status}
                     onValueChange={(val: any) => setFormData({ ...formData, status: val })}
                   >
-                    <SelectTrigger className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50">
+                    <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -615,7 +615,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5 space-y-2">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5 space-y-2">
               <Label htmlFor="summary">Summary of Activity *</Label>
               <Textarea
                 id="summary"
@@ -623,11 +623,11 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
                 value={formData.summary}
                 onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
                 required
-                className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
               />
             </div>
 
-            <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5 space-y-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5 space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Containment Actions
@@ -637,7 +637,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
                   variant="outline"
                   size="sm"
                   onClick={addContainmentAction}
-                  className="rounded-full border-slate-200 bg-white/50 dark:border-slate-700 dark:bg-slate-800/50"
+                  className="rounded-full border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
                 >
                   + Add Action
                 </Button>
@@ -655,7 +655,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
                       value={action}
                       onChange={(e) => updateContainmentAction(idx, e.target.value)}
                       placeholder={`Action ${idx + 1}`}
-                      className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                     />
                     <Button
                       type="button"
@@ -672,7 +672,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
             </div>
 
             {formData.status === "Closed" && (
-              <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 dark:bg-emerald-500/10 backdrop-blur-sm p-5 space-y-4">
+              <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-500/10 p-5 space-y-4">
                 <div className="mb-2">
                   <h3 className="text-base font-semibold text-emerald-800 dark:text-emerald-300">
                     Closure Details
@@ -689,7 +689,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
                     onChange={(e) => setResponseNote(e.target.value)}
                     rows={3}
                     required
-                    className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                    className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                   />
                 </div>
                 <div className="space-y-2">
@@ -700,7 +700,7 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
                     onChange={(e) => setActionsTaken(e.target.value)}
                     rows={4}
                     required
-                    className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                    className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                   />
                 </div>
                 <div className="space-y-2">
@@ -711,18 +711,18 @@ const UpdateIncidentModal: React.FC<UpdateIncidentModalProps> = ({
                     onChange={(e) => setLessonsLearned(e.target.value)}
                     rows={4}
                     required
-                    className="rounded-xl border-slate-200/60 bg-white/50 dark:bg-slate-800/50"
+                    className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white"
                   />
                 </div>
               </div>
             )}
 
-            <div className="flex justify-end gap-3 border-t border-slate-200/60 pt-4">
+            <div className="flex justify-end gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                className="rounded-xl border-slate-200 bg-white/50 dark:border-slate-700 dark:bg-slate-800/50"
+                className="rounded-xl border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
               >
                 Cancel
               </Button>
@@ -777,13 +777,13 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-0 shadow-2xl">
+      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0 shadow-2xl">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: "spring", stiffness: 400, damping: 30 }}
         >
-          <DialogHeader className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50/50 to-transparent px-6 py-5 dark:border-slate-700/60 dark:from-slate-800/30">
+          <DialogHeader className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-6 py-5">
             <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">
               {incident.title}
             </DialogTitle>
@@ -797,20 +797,20 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
               <Badge className={severityClass}>{incident.severity}</Badge>
               <Badge className={statusClass}>{incident.status}</Badge>
               {incident.category && (
-                <Badge variant="outline" className="rounded-full border-slate-200/60 bg-white/30 dark:bg-slate-800/30">
+                <Badge variant="outline" className="rounded-full border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                   {incident.category}
                 </Badge>
               )}
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-4">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-4">
                 <Label className="text-xs text-muted-foreground">Created</Label>
                 <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">
                   {new Date(incident.createdAt).toLocaleString()}
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-4">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-4">
                 <Label className="text-xs text-muted-foreground">Updated</Label>
                 <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">
                   {new Date(incident.updatedAt).toLocaleString()}
@@ -818,13 +818,13 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5">
               <Label className="text-xs font-medium text-muted-foreground">Summary</Label>
               <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">{incident.summary}</p>
             </div>
 
             {incident.impactedEndpoints.length > 0 && (
-              <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5">
                 <Label className="text-xs font-medium text-muted-foreground">Impacted Endpoints</Label>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {incident.impactedEndpoints.map((ep, idx) => (
@@ -837,7 +837,7 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
             )}
 
             {incident.sourceIPs && (
-              <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5">
                 <Label className="text-xs font-medium text-muted-foreground">Source IPs</Label>
                 <p className="mt-3 font-mono text-sm text-slate-700 dark:text-slate-300">{incident.sourceIPs}</p>
               </div>
@@ -846,19 +846,19 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
             {incident.status === "Closed" && (
               <>
                 {incident.responseNote && (
-                  <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 dark:bg-emerald-500/10 backdrop-blur-sm p-5">
+                  <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-500/10 p-5">
                     <Label className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Response Note</Label>
                     <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{incident.responseNote}</p>
                   </div>
                 )}
                 {incident.actionsTaken && (
-                  <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5">
+                  <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5">
                     <Label className="text-xs font-medium text-muted-foreground">Actions Taken</Label>
                     <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{incident.actionsTaken}</p>
                   </div>
                 )}
                 {incident.lessonsLearned && (
-                  <div className="rounded-2xl border border-slate-200/60 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5">
+                  <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5">
                     <Label className="text-xs font-medium text-muted-foreground">Lessons Learned</Label>
                     <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{incident.lessonsLearned}</p>
                   </div>
@@ -1435,9 +1435,9 @@ const Incidents = () => {
           </div>
         </motion.div>
 
-        {/* Frosted Stats Cards */}
+        {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm p-6">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6">
             <div className="flex items-start justify-between">
               <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-500/10">
                 <AlertTriangle className="h-5 w-5 text-blue-500" />
@@ -1445,13 +1445,13 @@ const Incidents = () => {
             </div>
             <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mt-4">Total Incidents</p>
             <p className="text-3xl font-bold text-slate-900 dark:text-white">{totalIncidents}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">All incidents</p>
+            <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">All incidents</p>
             <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
               <div className="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-700" style={{ width: totalIncidents > 0 ? "100%" : "0%" }} />
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm p-6">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6">
             <div className="flex items-start justify-between">
               <div className="p-3 rounded-xl bg-orange-50 dark:bg-orange-500/10">
                 <Activity className="h-5 w-5 text-orange-500" />
@@ -1459,13 +1459,13 @@ const Incidents = () => {
             </div>
             <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mt-4">Open</p>
             <p className="text-3xl font-bold text-slate-900 dark:text-white">{openIncidents}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Requires attention</p>
+            <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">Requires attention</p>
             <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
               <div className="h-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-700" style={{ width: totalIncidents > 0 ? `${(openIncidents / totalIncidents) * 100}%` : "0%" }} />
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm p-6">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6">
             <div className="flex items-start justify-between">
               <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10">
                 <Shield className="h-5 w-5 text-red-500" />
@@ -1473,13 +1473,13 @@ const Incidents = () => {
             </div>
             <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mt-4">Critical</p>
             <p className="text-3xl font-bold text-red-600 dark:text-red-400">{criticalIncidents}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">High priority</p>
+            <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">High priority</p>
             <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
               <div className="h-1.5 rounded-full bg-gradient-to-r from-red-500 to-rose-500 transition-all duration-700" style={{ width: totalIncidents > 0 ? `${(criticalIncidents / totalIncidents) * 100}%` : "0%" }} />
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm p-6">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6">
             <div className="flex items-start justify-between">
               <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10">
                 <Clock className="h-5 w-5 text-emerald-500" />
@@ -1487,19 +1487,19 @@ const Incidents = () => {
             </div>
             <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mt-4">Closed</p>
             <p className="text-3xl font-bold text-slate-900 dark:text-white">{closedIncidents}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Resolved</p>
+            <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">Resolved</p>
             <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
               <div className="h-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-green-500 transition-all duration-700" style={{ width: totalIncidents > 0 ? `${(closedIncidents / totalIncidents) * 100}%` : "0%" }} />
             </div>
           </div>
         </div>
 
-        {/* Frosted Filters Card */}
-        <div className="rounded-2xl border border-slate-200/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm p-6 space-y-4">
+        {/* Filters Card */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6 space-y-4">
           <div className="flex justify-between items-center">
             <div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Filters</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Narrow down incidents by title, status, and severity.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-500">Narrow down incidents by title, status, and severity.</p>
             </div>
           </div>
           <div className="grid gap-4 lg:grid-cols-[1.4fr_220px_220px]">
@@ -1509,11 +1509,11 @@ const Incidents = () => {
                 placeholder="Search incidents..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 rounded-lg border-slate-200/70 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm"
+                className="pl-9 rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="rounded-lg border-slate-200/70 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm">
+              <SelectTrigger className="rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white">
                 <Filter className="h-4 w-4 mr-2 text-slate-400" />
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -1528,7 +1528,7 @@ const Incidents = () => {
               </SelectContent>
             </Select>
             <Select value={severityFilter} onValueChange={setSeverityFilter}>
-              <SelectTrigger className="rounded-lg border-slate-200/70 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm">
+              <SelectTrigger className="rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white">
                 <Filter className="h-4 w-4 mr-2 text-slate-400" />
                 <SelectValue placeholder="Severity" />
               </SelectTrigger>
@@ -1543,9 +1543,9 @@ const Incidents = () => {
           </div>
         </div>
 
-        {/* Frosted Incident Table Card */}
-        <div className="rounded-2xl border border-slate-200/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm overflow-hidden">
-          <div className="border-b border-slate-200/60 px-6 py-4 bg-white/30 dark:bg-slate-800/30">
+        {/* Incident Table Card */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+          <div className="border-b border-slate-200 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-800/60">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
               Incident Queue
               <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-100 px-2 text-xs font-bold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
@@ -1572,8 +1572,8 @@ const Incidents = () => {
               <>
                 <div className="hidden lg:block overflow-x-auto max-h-[620px]">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 z-10 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm">
-                      <tr className="border-b border-slate-200/60 dark:border-slate-800/60">
+                    <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
+                      <tr className="border-b border-slate-200 dark:border-slate-800">
                         <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[280px]">Title</th>
                         <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[110px]">Severity</th>
                         <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 min-w-[130px]">Status</th>
@@ -1586,7 +1586,7 @@ const Incidents = () => {
                       {filteredIncidents.map((incident, index) => (
                         <tr
                           key={incident.id ?? `incident-${index}`}
-                          className="border-b border-slate-200/40 transition-colors hover:bg-blue-50/40 dark:border-slate-800/40 dark:hover:bg-slate-800/30"
+                          className="border-b border-slate-100 transition-colors hover:bg-blue-50/40 dark:border-slate-800 dark:hover:bg-slate-800/40"
                         >
                           <td className="px-4 py-4 align-top">
                             <div className="min-w-0">
@@ -1619,7 +1619,7 @@ const Incidents = () => {
                                   <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="rounded-xl backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-slate-200/60">
+                              <DropdownMenuContent align="end" className="rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
                                 <DropdownMenuItem onClick={() => handleViewDetails(incident)}>
                                   <Eye className="h-4 w-4 mr-2" /> View Details
                                 </DropdownMenuItem>
@@ -1645,7 +1645,7 @@ const Incidents = () => {
                   {filteredIncidents.map((incident, index) => (
                     <div
                       key={incident.id ?? `incident-mobile-${index}`}
-                      className="rounded-2xl border border-slate-200/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-4 shadow-sm"
+                      className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
@@ -1658,7 +1658,7 @@ const Incidents = () => {
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="rounded-xl backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-slate-200/60">
+                          <DropdownMenuContent align="end" className="rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
                             <DropdownMenuItem onClick={() => handleViewDetails(incident)}>
                               <Eye className="h-4 w-4 mr-2" /> View Details
                             </DropdownMenuItem>

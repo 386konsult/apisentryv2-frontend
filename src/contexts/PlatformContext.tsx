@@ -2,8 +2,11 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 
 interface PlatformContextType {
   selectedPlatformId: string | null;
+  selectedPlatformName: string | null;
   setSelectedPlatformId: (id: string | null) => void;
   hasSelectedPlatform: boolean;
+  /** null = still checking, true = accessible, false = no access */
+  isPlatformAccessible: boolean | null;
   requirePlatform: () => boolean;
 }
 
@@ -17,20 +20,48 @@ export const usePlatform = () => {
   return context;
 };
 
-interface PlatformProviderProps {
-  children: ReactNode;
-}
-
-export const PlatformProvider: React.FC<PlatformProviderProps> = ({ children }) => {
+export const PlatformProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [selectedPlatformId, setSelectedPlatformIdState] = useState<string | null>(null);
+  const [selectedPlatformName, setSelectedPlatformName] = useState<string | null>(null);
+  const [isPlatformAccessible, setIsPlatformAccessible] = useState<boolean | null>(null);
 
+  // Load stored platform ID on mount
   useEffect(() => {
-    // Initialize from localStorage on mount
-    const storedPlatformId = localStorage.getItem('selected_platform_id');
-    if (storedPlatformId) {
-      setSelectedPlatformIdState(storedPlatformId);
+    const storedId = localStorage.getItem('selected_platform_id');
+    if (storedId) {
+      setSelectedPlatformIdState(storedId);
     }
   }, []);
+
+  // Validate access whenever the selected platform changes
+  useEffect(() => {
+    if (!selectedPlatformId) {
+      setIsPlatformAccessible(null);
+      setSelectedPlatformName(null);
+      return;
+    }
+
+    setIsPlatformAccessible(null); // mark as "checking"
+
+    const apiBase = import.meta.env.VITE_API_URL || 'https://staging.breachnet.io/api/v1';
+    const token = localStorage.getItem('auth_token');
+
+    fetch(`${apiBase}/platforms/${selectedPlatformId}/`, {
+      headers: token ? { Authorization: `Token ${token}` } : {},
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('no_access');
+        return res.json();
+      })
+      .then(data => {
+        setIsPlatformAccessible(true);
+        setSelectedPlatformName(data.name ?? null);
+      })
+      .catch(() => {
+        setIsPlatformAccessible(false);
+        setSelectedPlatformName(null);
+      });
+  }, [selectedPlatformId]);
 
   const setSelectedPlatformId = (id: string | null) => {
     if (id) {
@@ -41,21 +72,17 @@ export const PlatformProvider: React.FC<PlatformProviderProps> = ({ children }) 
     setSelectedPlatformIdState(id);
   };
 
-  const hasSelectedPlatform = !!selectedPlatformId;
-
-  const requirePlatform = () => {
-    return hasSelectedPlatform;
-  };
-
-  const value: PlatformContextType = {
-    selectedPlatformId,
-    setSelectedPlatformId,
-    hasSelectedPlatform,
-    requirePlatform,
-  };
-
   return (
-    <PlatformContext.Provider value={value}>
+    <PlatformContext.Provider
+      value={{
+        selectedPlatformId,
+        selectedPlatformName,
+        setSelectedPlatformId,
+        hasSelectedPlatform: !!selectedPlatformId,
+        isPlatformAccessible,
+        requirePlatform: () => !!selectedPlatformId,
+      }}
+    >
       {children}
     </PlatformContext.Provider>
   );

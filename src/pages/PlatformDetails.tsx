@@ -10,9 +10,12 @@ import {
 } from 'recharts';
 import {
   Shield, AlertTriangle, Activity, TrendingUp,
-  Globe, Eye, Plus, Search, Users, ArrowLeft, Sparkles, RefreshCw, CheckCircle, ChevronRight,
+  Globe, Eye, Plus, Search, Users, ArrowLeft, Sparkles, RefreshCw, CheckCircle, ChevronRight, Gauge,
 } from 'lucide-react';
 import HeimdallAILogo from '@/components/HeimdallAILogo';
+import WorkspaceAccessGate from '@/components/WorkspaceAccessGate';
+import HeatmapCard from '@/components/HeatmapCard';
+import LiveFeedCard from '@/components/LiveFeedCard';
 import { motion } from 'framer-motion';
 import apiService from '@/services/api';
 import { geoMercator, geoPath } from 'd3-geo';
@@ -36,7 +39,61 @@ const ALPHA2_TO_NUMERIC: Record<string, number> = {
 };
 
 const SVG_W = 600;
-const SVG_H = 300;
+const SVG_H = 370;
+
+// ── Memoized paths — only re-render when data or selection changes, NOT on tooltip ──
+const MapPaths = React.memo(({
+  features, pathGen, countryData, selectedCountryCode, maxCount, zoomScale,
+  onEnter, onLeave, onClick,
+}: {
+  features: any[];
+  pathGen: any;
+  countryData: CountryData[];
+  selectedCountryCode: string | null;
+  maxCount: number;
+  zoomScale: number;
+  onEnter: (e: React.MouseEvent, entry: CountryData) => void;
+  onLeave: () => void;
+  onClick: (code: string) => void;
+}) => (
+  <>
+    {features.map((feat: any) => {
+      const numericId = Number(feat.id);
+      const entry = countryData.find(c => ALPHA2_TO_NUMERIC[c.code] === numericId);
+      const isSelected = entry?.code === selectedCountryCode;
+      const fill = isSelected
+        ? '#1e40af'
+        : entry
+          ? `rgba(37,99,235,${(0.25 + (entry.count / maxCount) * 0.65).toFixed(2)})`
+          : '#e2e8f0';
+      const d = pathGen(feat);
+      if (!d) return null;
+      return (
+        <path
+          key={feat.id}
+          d={d}
+          fill={fill}
+          stroke={isSelected ? '#3b82f6' : '#fff'}
+          strokeWidth={isSelected ? 0.8 / zoomScale : 0.3 / zoomScale}
+          vectorEffect="non-scaling-stroke"
+          style={{
+            cursor: entry ? 'pointer' : 'default',
+            transition: 'fill 0.18s ease',
+            filter: isSelected ? 'drop-shadow(0 0 4px rgba(59,130,246,0.55))' : undefined,
+          }}
+          onMouseEnter={e => entry && onEnter(e, entry)}
+          onMouseLeave={onLeave}
+          onClick={() => entry && onClick(entry.code)}
+        />
+      );
+    })}
+  </>
+), (prev, next) =>
+  prev.countryData === next.countryData &&
+  prev.selectedCountryCode === next.selectedCountryCode &&
+  prev.maxCount === next.maxCount &&
+  prev.zoomScale === next.zoomScale
+);
 
 const WorldMap = ({
   countryData,
@@ -47,18 +104,19 @@ const WorldMap = ({
   selectedCountryCode: string | null;
   onCountryClick: (code: string) => void;
 }) => {
-  const [geoJson, setGeoJson]   = useState<any>(null);
-  const [tooltip, setTooltip]   = useState<{ name: string; count: number; percent: number; x: number; y: number } | null>(null);
+  const [geoJson, setGeoJson]     = useState<any>(null);
+  const [tooltip, setTooltip]     = useState<{ name: string; count: number; percent: number; x: number; y: number } | null>(null);
   const [zoomState, setZoomState] = useState<{ tx: number; ty: number; s: number }>({ tx: 0, ty: 0, s: 1 });
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const projection = useMemo(() => 
-  geoMercator().scale(120).translate([SVG_W / 2, SVG_H / 2]).center([0, 20])
-, []);
-const pathGen = useMemo(() => geoPath().projection(projection), [projection]);
+  const projection = useMemo(() =>
+    geoMercator().scale(128).translate([SVG_W / 2, SVG_H / 2]).center([0, 20])
+  , []);
+  const pathGen = useMemo(() => geoPath().projection(projection), [projection]);
 
+  // 50m resolution — includes small countries like Singapore, Andorra, Malta, etc.
   useEffect(() => {
-    fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+    fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
       .then(r => r.json())
       .then(topo => setGeoJson(feature(topo, topo.objects.countries)))
       .catch(() => setGeoJson(null));
@@ -74,107 +132,86 @@ const pathGen = useMemo(() => geoPath().projection(projection), [projection]);
     const feat = geoJson.features.find((f: any) => Number(f.id) === numericId);
     if (!feat) { setZoomState({ tx: 0, ty: 0, s: 1 }); return; }
     try {
+      // Use geographic centroid for accurate center — avoids bbox skew from Alaska / island territories
+      const centroid = pathGen.centroid(feat);
+      if (!centroid || isNaN(centroid[0]) || isNaN(centroid[1])) { setZoomState({ tx: 0, ty: 0, s: 1 }); return; }
+      const [cx, cy] = centroid;
+      // Bounds for scale only
       const [[x0, y0], [x1, y1]] = pathGen.bounds(feat);
-      const bW = x1 - x0, bH = y1 - y0;
-      if (!bW || !bH) return;
-      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-      const s = Math.min(
-        Math.min((SVG_W * 0.7) / bW, (SVG_H * 0.7) / bH),
-        9
-      );
-      const clampedS = Math.max(s, 1.8);
-      setZoomState({
-        tx: SVG_W / 2 - cx * clampedS,
-        ty: SVG_H / 2 - cy * clampedS,
-        s: clampedS,
-      });
-    } catch {
-      setZoomState({ tx: 0, ty: 0, s: 1 });
-    }
+      const bW = Math.max(x1 - x0, 1), bH = Math.max(y1 - y0, 1);
+      const s = Math.min((SVG_W * 0.6) / bW, (SVG_H * 0.6) / bH, 14);
+      const clampedS = Math.max(s, 2);
+      setZoomState({ tx: SVG_W / 2 - cx * clampedS, ty: SVG_H / 2 - cy * clampedS, s: clampedS });
+    } catch { setZoomState({ tx: 0, ty: 0, s: 1 }); }
   }, [selectedCountryCode, geoJson, pathGen]);
 
-  if (!geoJson) {
-    return (
-      <div className="flex items-center justify-center h-64 text-slate-400 text-xs">
-        Loading map…
-      </div>
-    );
-  }
+  const total    = useMemo(() => countryData.reduce((s, c) => s + c.count, 0), [countryData]);
+  const maxCount = useMemo(() => Math.max(...countryData.map(c => c.count), 1), [countryData]);
 
-  const total    = countryData.reduce((s, c) => s + c.count, 0);
-  const maxCount = Math.max(...countryData.map(c => c.count), 1);
-
-  const handleMouseEnter = (evt: React.MouseEvent, country: CountryData) => {
+  // Stable callbacks — don't cause MapPaths to re-render
+  const handleEnter = useCallback((evt: React.MouseEvent, country: CountryData) => {
     const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) {
-      setTooltip({
-        name: country.name, count: country.count,
-        percent: total ? (country.count / total) * 100 : 0,
-        x: evt.clientX - rect.left,
-        y: evt.clientY - rect.top,
-      });
-    }
-  };
+    if (rect) setTooltip({
+      name: country.name, count: country.count,
+      percent: total ? (country.count / total) * 100 : 0,
+      x: evt.clientX - rect.left,
+      y: evt.clientY - rect.top,
+    });
+  }, [total]);
+  const handleLeave  = useCallback(() => setTooltip(null), []);
+  const handleClick  = useCallback((code: string) => onCountryClick(code), [onCountryClick]);
+
+  if (!geoJson) return (
+    <div className="flex items-center justify-center h-64 text-slate-400 text-xs gap-2">
+      <div className="h-4 w-4 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+      Loading map…
+    </div>
+  );
 
   return (
-    <div ref={containerRef} className="relative w-full min-h-[300px] overflow-hidden rounded-xl border border-slate-200 dark:border-blue-900/20 bg-gradient-to-b from-slate-50 to-blue-50/50 dark:from-[#0a1020] dark:to-blue-900/10">
-      <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full h-auto">
-        <rect width={SVG_W} height={SVG_H} fill="url(#ocean)" />
+    <div ref={containerRef} className="relative w-full min-h-[370px] overflow-hidden rounded-xl border border-slate-200 dark:border-blue-900/20 bg-gradient-to-b from-slate-50 to-blue-50/50 dark:from-[#0a1020] dark:to-blue-900/10">
+      <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full h-auto" style={{ display: 'block' }}>
         <defs>
           <radialGradient id="ocean" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#cbd5e1" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.15" />
+            <stop offset="0%" stopColor="#dde6f5" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#c8d8ef" stopOpacity="0.25" />
           </radialGradient>
         </defs>
-        <g
-          style={{
-            transform: `translate(${zoomState.tx}px, ${zoomState.ty}px) scale(${zoomState.s})`,
-            transformOrigin: '0 0',
-            transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
-            willChange: 'transform',
-          }}
-        >
-          {geoJson.features.map((feat: any) => {
-            const numericId = Number(feat.id);
-            const entry = countryData.find(c => ALPHA2_TO_NUMERIC[c.code] === numericId);
-            const isSelected = entry?.code === selectedCountryCode;
-            const fill = isSelected
-              ? '#1e40af'
-              : entry
-                ? `rgba(37, 99, 235, ${0.3 + (entry.count / maxCount) * 0.6})`
-                : '#e2e8f0';
-            return (
-              <path
-                key={feat.id ?? Math.random()}
-                d={pathGen(feat) || ''}
-                fill={fill}
-                stroke={isSelected ? '#3b82f6' : '#ffffff'}
-                strokeWidth={isSelected ? 0.8 / zoomState.s : 0.4 / zoomState.s}
-                vectorEffect="non-scaling-stroke"
-                style={{
-                  cursor: entry ? 'pointer' : 'default',
-                  transition: 'fill 0.2s ease',
-                  filter: isSelected ? 'drop-shadow(0 0 5px rgba(59,130,246,0.5))' : undefined,
-                }}
-                onMouseEnter={e => entry && handleMouseEnter(e, entry)}
-                onMouseLeave={() => setTooltip(null)}
-                onClick={() => entry && onCountryClick(entry.code)}
-              />
-            );
-          })}
+        <rect width={SVG_W} height={SVG_H} fill="url(#ocean)" />
+        <g style={{
+          transform: `translate(${zoomState.tx}px,${zoomState.ty}px) scale(${zoomState.s})`,
+          transformOrigin: '0 0',
+          transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)',
+          willChange: 'transform',
+        }}>
+          <MapPaths
+            features={geoJson.features}
+            pathGen={pathGen}
+            countryData={countryData}
+            selectedCountryCode={selectedCountryCode}
+            maxCount={maxCount}
+            zoomScale={zoomState.s}
+            onEnter={handleEnter}
+            onLeave={handleLeave}
+            onClick={handleClick}
+          />
         </g>
       </svg>
+
+      {/* Hover tooltip */}
       {tooltip && (
         <div
-          className="pointer-events-none absolute z-50 rounded-lg border border-slate-200 dark:border-blue-900/30 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm shadow-lg px-3 py-2 text-xs"
-          style={{ left: tooltip.x + 12, top: tooltip.y - 36 }}
+          className="pointer-events-none absolute z-50 rounded-xl border border-slate-200 dark:border-blue-900/30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm shadow-lg px-3 py-2 text-xs"
+          style={{ left: tooltip.x + 10, top: tooltip.y - 40, maxWidth: 180 }}
         >
-          <p className="font-bold text-slate-800 dark:text-slate-100">{tooltip.name}</p>
+          <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{tooltip.name}</p>
           <p className="text-slate-500 dark:text-slate-400 mt-0.5">
-            {tooltip.count.toLocaleString()} requests · {tooltip.percent.toFixed(1)}%
+            {tooltip.count.toLocaleString()} req · {tooltip.percent.toFixed(1)}%
           </p>
         </div>
       )}
+
+      {/* Reset zoom + scale badge */}
       {selectedCountryCode && (
         <>
           <button
@@ -241,9 +278,10 @@ const MemberAvatar = ({ email, size = 28, isActive = false }: { email: string; s
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
 
 const TIME_RANGES = [
-  { label: 'Last 7 Days', value: '7d' },
+  { label: 'Last 7 Days',  value: '7d'  },
   { label: 'Last 30 Days', value: '30d' },
-  { label: 'Last Year', value: '1y' },
+  { label: 'Last 90 Days', value: '90d' },
+  { label: 'Last Year',    value: '1y'  },
 ];
 
 const getStorageKey = (id: string | undefined) => `heimdall_timeRange_${id ?? 'default'}`;
@@ -259,6 +297,7 @@ interface CountryData {
   code: string;
   name: string;
   count: number;
+  blocked: number;
 }
 
 interface PlatformMember {
@@ -344,15 +383,17 @@ const THREAT_SEVERITY_COLORS: Record<string, string> = {
 };
 
 const CountryDetailPanel = ({
-  detail, loading, countryName, countryCode, totalRequests, totalCountryRequests, onBack,
+  detail, loading, countryName, countryCode, totalRequests, blockedFallback, totalCountryRequests, onBack,
 }: {
   detail: any; loading: boolean; countryName: string; countryCode: string;
-  totalRequests: number; totalCountryRequests: number; onBack: () => void;
+  totalRequests: number; blockedFallback: number; totalCountryRequests: number; onBack: () => void;
 }) => {
   const Rsub = 'rounded-[12px]';
   const requestCount = detail?.request_count ?? detail?.total_requests ?? totalRequests ?? 0;
-  const blockedCount = detail?.blocked_count ?? detail?.blocked_requests ?? 0;
-  const blockRate = requestCount > 0 ? ((blockedCount / requestCount) * 100).toFixed(1) : '0';
+  const blockedCount = detail?.blocked_count ?? detail?.blocked_requests ?? blockedFallback ?? 0;
+  const blockRate = detail?.block_rate != null
+    ? Number(detail.block_rate).toFixed(1)
+    : requestCount > 0 ? ((blockedCount / requestCount) * 100).toFixed(1) : '0';
   const shareOfTotal = totalCountryRequests > 0 ? ((requestCount / totalCountryRequests) * 100).toFixed(1) : '0';
   const topThreats = detail?.top_threats ?? detail?.threats ?? [];
   const ipList = detail?.ip_list ?? detail?.top_ips ?? [];
@@ -470,7 +511,7 @@ const CountryDetailPanel = ({
 
       {!loading && !topThreats.length && !ipList.length && (
         <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-3">
-          {detail ? 'No detailed analytics available for this country.' : 'Connect your backend to see threats and IPs for each country.'}
+          No threat or IP data for this country in this period.
         </p>
       )}
     </motion.div>
@@ -480,7 +521,14 @@ const CountryDetailPanel = ({
 const PlatformDetails: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   const [platform, setPlatform] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if (!id) return true;
+    try {
+      const raw = localStorage.getItem('_hc_platform:' + id);
+      if (raw && JSON.parse(raw).expires > Date.now()) return false;
+    } catch {}
+    return true;
+  });
   const [error, setError] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<any>(null);
   const [endpoints, setEndpoints] = useState<any[]>([]);
@@ -514,6 +562,18 @@ const PlatformDetails: React.FC = () => {
   const [isAlertClicked, setIsAlertClicked] = useState(false);
   const navigate = useNavigate();
   const navigateTo = (path: string) => { window.scrollTo({ top: 0, behavior: "instant" }); navigate(path); };
+
+  // ── Theme detection for Recharts tooltip styles ───────────────────────────
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    const obs = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
+  const tooltipStyle = isDark
+    ? { background: '#0f1724', border: '1px solid rgba(37,99,235,0.25)', borderRadius: '12px', fontSize: '12px', color: '#e2e8f0', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }
+    : { background: '#ffffff', border: '1px solid rgba(148,163,184,0.25)', borderRadius: '12px', fontSize: '12px', color: '#0f172a', boxShadow: '0 8px 24px rgba(15,23,42,0.1)' };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [countryDetail, setCountryDetail] = useState<any>(null);
@@ -557,9 +617,9 @@ const PlatformDetails: React.FC = () => {
     const controller = new AbortController();
     setCountryDetailLoading(true);
     fetch(
-      `${import.meta.env.VITE_API_URL || 'https://staging.breachnet.io/api/v1'}/platforms/${id}/country/${selectedCountryCode}/analytics?range=${timeRange}`,
+      `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'}/platforms/${id}/country/${selectedCountryCode}/analytics/?range=${timeRange}`,
       {
-        headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
+        headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
         signal: controller.signal,
       }
     )
@@ -573,149 +633,149 @@ const PlatformDetails: React.FC = () => {
   const fetchData = () => {
     if (!id) return;
     setLoading(true);
-    apiService.getPlatformDetails(id)
-  .then((data: any) => {
-    // If API returns name, use it. Otherwise fall back to localStorage cache.
-    if (!data.name) {
-      try {
-        const cached = localStorage.getItem('user_platforms');
-        if (cached) {
-          const arr = JSON.parse(cached);
-          const found = arr.find((p: any) => p.id === id);
-          if (found?.name) data.name = found.name;
-        }
-      } catch {}
+
+    // Fire all non-ranged fetches in parallel
+    Promise.all([
+      apiService.getPlatformDetails(id),
+      apiService.getPlatformEndpoints(id),
+      apiService.getPlatformWAFRules(id),
+      apiService.getPlatformMembers(id),
+    ]).then(([detailsData, endpointsRes, wafData, membersData]: [any, any, any, any[]]) => {
+      // Platform details
+      if (!detailsData.name) {
+        try {
+          const cached = localStorage.getItem('user_platforms');
+          if (cached) {
+            const arr = JSON.parse(cached);
+            const found = arr.find((p: any) => p.id === id);
+            if (found?.name) detailsData.name = found.name;
+          }
+        } catch {}
+      }
+      setPlatform(detailsData);
+
+      // Endpoints
+      const endpointsArr = Array.isArray(endpointsRes) ? endpointsRes : endpointsRes?.results || [];
+      setEndpoints(endpointsArr);
+
+      // WAF rules
+      setWafRules(Array.isArray(wafData) ? wafData : wafData?.results || []);
+
+      // Members
+      const formatted = membersData.map((m: any) => ({
+        id: m.id, user_email: m.user_email, user_name: m.user_name,
+        user_status: m.user_status,
+        role: m.role || (m.is_owner ? 'owner' : 'member'), is_owner: m.is_owner || false,
+      }));
+      setPlatformMembers(formatted);
+    }).catch((err: any) => {
+      setError(err?.message ?? 'Failed to load workspace');
+    }).finally(() => {
+      setLoading(false);
+      setMembersLoading(false);
+    });
+  };
+
+  const applyAnalyticsData = (data: any, range: string) => {
+    if (!data?.success || !data.analytics) return;
+    let analyticsData;
+    if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && range in data.analytics) analyticsData = data.analytics[range];
+    else if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && '1y' in data.analytics) analyticsData = data.analytics['1y'];
+    else analyticsData = data.analytics;
+
+    setAnalytics(analyticsData);
+
+    if (analyticsData?.method_status_breakdown) {
+      const trafficArr = HTTP_METHODS.map((method) => { const methodData = analyticsData.method_status_breakdown[method] || {}; return { method, ...methodData }; });
+      setTrafficData(trafficArr);
+    } else setTrafficData([]);
+
+    if (analyticsData?.status_code_breakdown) {
+      const colors: Record<string, string> = { '200': '#22c55e', '201': '#16a34a', '204': '#10b981', '400': '#f97316', '403': '#ef4444', '404': '#6366f1', '500': '#eab308', '504': '#06b6d4', other: '#9ca3af' };
+      setThreatTypes(Object.entries(analyticsData.status_code_breakdown).map(([name, value]) => ({ name, value: Number(value), color: colors[name] || colors.other })));
+    } else setThreatTypes([]);
+
+    const threatTypeColors: Record<string, string> = { 'Malicious Payload': '#ef4444', 'XSS Attack Detected': '#f59e0b', 'Suspicious User Agent': '#8b5cf6', 'Brute Force Attempt': '#dc2626', 'SQL Injection Detection': '#ec4899', 'Command Injection': '#06b6d4', 'Path Traversal': '#10b981', 'Rate Limit Exceeded': '#3b82f6', 'Security Misconfiguration': '#f97316', 'Insecure Direct Object Reference': '#eab308', 'Broken Authentication': '#14b8a6', 'SQL Injection': '#ef4444', XSS: '#f59e0b', 'Brute Force': '#dc2626', CSRF: '#06b6d4', XXE: '#10b981', SSRF: '#3b82f6', LFI: '#f97316', RFI: '#eab308' };
+    const threatSource = analyticsData?.threat_type_summary || analyticsData?.threat_types;
+    if (threatSource && typeof threatSource === 'object') {
+      setThreatTypesByCategory(Object.entries(threatSource).map(([name, value]) => ({ name, value: Number(value), color: threatTypeColors[name] || '#9ca3af' })).filter(i => i.value > 0).sort((a, b) => b.value - a.value));
+    } else setThreatTypesByCategory([]);
+
+    if (analyticsData?.country_summary && Array.isArray(analyticsData.country_summary)) {
+      setCountryData(analyticsData.country_summary.map((item: any) => ({ code: (item.country_code || '').toUpperCase(), name: item.country_name || item.country_code || '', count: Number(item.total_requests || 0), blocked: Number(item.blocked_requests || 0) })).filter((item: CountryData) => item.count > 0 && item.code).sort((a, b) => b.count - a.count));
+    } else if (analyticsData?.country_breakdown || analyticsData?.geographic_breakdown) {
+      const countryBreakdown = analyticsData.country_breakdown || analyticsData.geographic_breakdown;
+      const countryCodeToName: Record<string, string> = { US: 'United States', CN: 'China', RU: 'Russia', GB: 'United Kingdom', DE: 'Germany', FR: 'France', IN: 'India', BR: 'Brazil', JP: 'Japan', CA: 'Canada', AU: 'Australia', KR: 'South Korea', IT: 'Italy', ES: 'Spain', NL: 'Netherlands', MX: 'Mexico', ID: 'Indonesia', TR: 'Turkey', SA: 'Saudi Arabia', PL: 'Poland', EG: 'Egypt', CH: 'Switzerland', NG: 'Nigeria' };
+      setCountryData(Object.entries(countryBreakdown).map(([code, count]) => ({ code: code.toUpperCase(), name: countryCodeToName[code.toUpperCase()] || code, count: Number(count), blocked: 0 })).filter(i => i.count > 0).sort((a, b) => b.count - a.count));
+    } else setCountryData([]);
+
+    if (analyticsData?.owasp_top10_summary && Array.isArray(analyticsData.owasp_top10_summary)) {
+      const owaspCategoryMap: Record<string, { name: string; category: string; severity: 'critical' | 'high' | 'medium' | 'low' }> = {
+        'A01:2021 – Broken Access Control': { name: 'Broken Access Control', category: 'Access Control', severity: 'critical' },
+        'A02:2021 – Cryptographic Failures': { name: 'Cryptographic Failures', category: 'Cryptography', severity: 'high' },
+        'A03:2021 – Injection': { name: 'Injection', category: 'Injection', severity: 'critical' },
+        'A04:2021 – Insecure Design': { name: 'Insecure Design', category: 'Design', severity: 'high' },
+        'A05:2021 – Security Misconfiguration': { name: 'Security Misconfiguration', category: 'Configuration', severity: 'medium' },
+        'A06:2021 – Vulnerable Components': { name: 'Vulnerable Components', category: 'Components', severity: 'high' },
+        'A07:2021 – Identification and Authentication Failures': { name: 'Authentication Failures', category: 'Authentication', severity: 'critical' },
+        'A08:2021 – Software and Data Integrity Failures': { name: 'Software & Data Integrity', category: 'Integrity', severity: 'high' },
+        'A09:2021 – Security Logging and Monitoring Failures': { name: 'Security Logging Failures', category: 'Logging', severity: 'medium' },
+        'A10:2021 – Server-Side Request Forgery': { name: 'Server-Side Request Forgery', category: 'SSRF', severity: 'high' },
+      };
+      const owaspArr = analyticsData.owasp_top10_summary.map((item: any) => { const ci = owaspCategoryMap[item.category] || { name: item.category, category: item.category.split(':')[0] || item.category, severity: 'medium' as const }; return { name: ci.name, category: ci.category, count: Number(item.threat_count || 0), severity: ci.severity } as OWASPThreat; }).filter((i: OWASPThreat) => i.count > 0).sort((a, b) => b.count - a.count);
+      const allOwaspItems: OWASPThreat[] = [
+        { name: 'Broken Access Control', category: 'Access Control', count: 0, severity: 'critical' }, { name: 'Cryptographic Failures', category: 'Cryptography', count: 0, severity: 'high' },
+        { name: 'Injection', category: 'Injection', count: 0, severity: 'critical' }, { name: 'Insecure Design', category: 'Design', count: 0, severity: 'high' },
+        { name: 'Security Misconfiguration', category: 'Configuration', count: 0, severity: 'medium' }, { name: 'Vulnerable Components', category: 'Components', count: 0, severity: 'high' },
+        { name: 'Authentication Failures', category: 'Authentication', count: 0, severity: 'critical' }, { name: 'Software & Data Integrity', category: 'Integrity', count: 0, severity: 'high' },
+        { name: 'Security Logging Failures', category: 'Logging', count: 0, severity: 'medium' }, { name: 'Server-Side Request Forgery', category: 'SSRF', count: 0, severity: 'high' },
+      ];
+      setOwaspThreats(allOwaspItems.map(d => owaspArr.find((a) => a.name === d.name) || d));
     }
-    setPlatform(data);
-    setLoading(false);
-  })
-      .catch((err: any) => { setError(err?.message ?? 'Failed to load workspace'); setLoading(false); });
-    apiService.getAnalytics(id)
-      .then((data: any) => {
-        if (data?.success && data.analytics) {
-          let analyticsData;
-          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && '1y' in data.analytics) analyticsData = data.analytics['1y'];
-          else analyticsData = data.analytics;
-          setAnalytics(analyticsData);
-        }
-      })
-      .catch(() => setAnalytics(null));
-    apiService.getPlatformEndpoints(id)
-      .then((res: any) => { const endpointsArr = Array.isArray(res) ? res : res?.results || []; setEndpoints(endpointsArr); })
-      .catch(() => setEndpoints([]));
-    apiService.getPlatformWAFRules(id)
-      .then((data: any) => setWafRules(Array.isArray(data) ? data : data?.results || []))
-      .catch(() => {});
-    apiService.getPlatformMembers(id)
-      .then((members: any[]) => {
-        const formatted = members.map(m => ({
-          id: m.id, user_email: m.user_email, user_name: m.user_name,
-          user_status: m.user_status,
-          role: m.role || (m.is_owner ? 'owner' : 'member'), is_owner: m.is_owner || false,
-        }));
-        setPlatformMembers(formatted);
-      })
-      .catch((err) => console.error('Failed to fetch members:', err))
-      .finally(() => setMembersLoading(false));
   };
 
   const fetchAllRangedData = () => {
     if (!id) return;
-    const params = { range: timeRange };
-    apiService.getAnalytics(id, params)
-      .then((data: any) => {
-        if (data?.success && data.analytics) {
-          let analyticsData;
-          if (typeof data.analytics === 'object' && !Array.isArray(data.analytics) && timeRange in data.analytics) analyticsData = data.analytics[timeRange];
-          else analyticsData = data.analytics;
+    // NOTE: do NOT clear chart state here — keep stale data visible while new data loads
+    Promise.all([
+      apiService.getAnalytics(id, { range: timeRange }),
+      apiService.getPlatformRequestLogs(id, { num: '10' }),
+    ]).then(([analyticsData, logs]: [any, any]) => {
+      applyAnalyticsData(analyticsData, timeRange);
 
-          if (analyticsData?.method_status_breakdown) {
-            const trafficArr = HTTP_METHODS.map((method) => { const methodData = analyticsData.method_status_breakdown[method] || {}; return { method, ...methodData }; });
-            setTrafficData(trafficArr);
-          } else setTrafficData([]);
-
-          if (analyticsData?.status_code_breakdown) {
-            const colors: Record<string, string> = { '200': '#22c55e', '201': '#16a34a', '204': '#10b981', '400': '#f97316', '403': '#ef4444', '404': '#6366f1', '500': '#eab308', '504': '#06b6d4', other: '#9ca3af' };
-            setThreatTypes(Object.entries(analyticsData.status_code_breakdown).map(([name, value]) => ({ name, value: Number(value), color: colors[name] || colors.other })));
-          } else setThreatTypes([]);
-
-          const threatTypeColors: Record<string, string> = { 'Malicious Payload': '#ef4444', 'XSS Attack Detected': '#f59e0b', 'Suspicious User Agent': '#8b5cf6', 'Brute Force Attempt': '#dc2626', 'SQL Injection Detection': '#ec4899', 'Command Injection': '#06b6d4', 'Path Traversal': '#10b981', 'Rate Limit Exceeded': '#3b82f6', 'Security Misconfiguration': '#f97316', 'Insecure Direct Object Reference': '#eab308', 'Broken Authentication': '#14b8a6', 'SQL Injection': '#ef4444', XSS: '#f59e0b', 'Brute Force': '#dc2626', CSRF: '#06b6d4', XXE: '#10b981', SSRF: '#3b82f6', LFI: '#f97316', RFI: '#eab308' };
-          const threatSource = analyticsData?.threat_type_summary || analyticsData?.threat_types;
-          if (threatSource && typeof threatSource === 'object') {
-            setThreatTypesByCategory(Object.entries(threatSource).map(([name, value]) => ({ name, value: Number(value), color: threatTypeColors[name] || '#9ca3af' })).filter(i => i.value > 0).sort((a, b) => b.value - a.value));
-          } else setThreatTypesByCategory([]);
-
-          if (analyticsData?.country_summary && Array.isArray(analyticsData.country_summary)) {
-            setCountryData(analyticsData.country_summary.map((item: any) => ({ code: (item.country_code || '').toUpperCase(), name: item.country_name || item.country_code || '', count: Number(item.total_requests || 0) })).filter((item: CountryData) => item.count > 0 && item.code).sort((a, b) => b.count - a.count));
-          } else if (analyticsData?.country_breakdown || analyticsData?.geographic_breakdown) {
-            const countryBreakdown = analyticsData.country_breakdown || analyticsData.geographic_breakdown;
-            const countryCodeToName: Record<string, string> = { US: 'United States', CN: 'China', RU: 'Russia', GB: 'United Kingdom', DE: 'Germany', FR: 'France', IN: 'India', BR: 'Brazil', JP: 'Japan', CA: 'Canada', AU: 'Australia', KR: 'South Korea', IT: 'Italy', ES: 'Spain', NL: 'Netherlands', MX: 'Mexico', ID: 'Indonesia', TR: 'Turkey', SA: 'Saudi Arabia', PL: 'Poland', EG: 'Egypt', CH: 'Switzerland', NG: 'Nigeria' };
-            setCountryData(Object.entries(countryBreakdown).map(([code, count]) => ({ code: code.toUpperCase(), name: countryCodeToName[code.toUpperCase()] || code, count: Number(count) })).filter(i => i.count > 0).sort((a, b) => b.count - a.count));
-          } else setCountryData([]);
-
-          if (analyticsData?.owasp_top10_summary && Array.isArray(analyticsData.owasp_top10_summary)) {
-            const owaspCategoryMap: Record<string, { name: string; category: string; severity: 'critical' | 'high' | 'medium' | 'low' }> = {
-              'A01:2021 – Broken Access Control': { name: 'Broken Access Control', category: 'Access Control', severity: 'critical' },
-              'A02:2021 – Cryptographic Failures': { name: 'Cryptographic Failures', category: 'Cryptography', severity: 'high' },
-              'A03:2021 – Injection': { name: 'Injection', category: 'Injection', severity: 'critical' },
-              'A04:2021 – Insecure Design': { name: 'Insecure Design', category: 'Design', severity: 'high' },
-              'A05:2021 – Security Misconfiguration': { name: 'Security Misconfiguration', category: 'Configuration', severity: 'medium' },
-              'A06:2021 – Vulnerable Components': { name: 'Vulnerable Components', category: 'Components', severity: 'high' },
-              'A07:2021 – Identification and Authentication Failures': { name: 'Authentication Failures', category: 'Authentication', severity: 'critical' },
-              'A08:2021 – Software and Data Integrity Failures': { name: 'Software & Data Integrity', category: 'Integrity', severity: 'high' },
-              'A09:2021 – Security Logging and Monitoring Failures': { name: 'Security Logging Failures', category: 'Logging', severity: 'medium' },
-              'A10:2021 – Server-Side Request Forgery': { name: 'Server-Side Request Forgery', category: 'SSRF', severity: 'high' },
-            };
-            const owaspArr = analyticsData.owasp_top10_summary.map((item: any) => { const ci = owaspCategoryMap[item.category] || { name: item.category, category: item.category.split(':')[0] || item.category, severity: 'medium' as const }; return { name: ci.name, category: ci.category, count: Number(item.threat_count || 0), severity: ci.severity } as OWASPThreat; }).filter((i: OWASPThreat) => i.count > 0).sort((a, b) => b.count - a.count);
-            const allOwaspItems: OWASPThreat[] = [
-              { name: 'Broken Access Control', category: 'Access Control', count: 0, severity: 'critical' }, { name: 'Cryptographic Failures', category: 'Cryptography', count: 0, severity: 'high' },
-              { name: 'Injection', category: 'Injection', count: 0, severity: 'critical' }, { name: 'Insecure Design', category: 'Design', count: 0, severity: 'high' },
-              { name: 'Security Misconfiguration', category: 'Configuration', count: 0, severity: 'medium' }, { name: 'Vulnerable Components', category: 'Components', count: 0, severity: 'high' },
-              { name: 'Authentication Failures', category: 'Authentication', count: 0, severity: 'critical' }, { name: 'Software & Data Integrity', category: 'Integrity', count: 0, severity: 'high' },
-              { name: 'Security Logging Failures', category: 'Logging', count: 0, severity: 'medium' }, { name: 'Server-Side Request Forgery', category: 'SSRF', count: 0, severity: 'high' },
-            ];
-            setOwaspThreats(allOwaspItems.map(d => owaspArr.find((a) => a.name === d.name) || d));
-          }
-        }
-      })
-      .catch(() => { setTrafficData([]); setThreatTypes([]); setThreatTypesByCategory([]); setCountryData([]); });
-
-    apiService.getPlatformRequestLogs(id, { num: '10' })
-      .then((logs: any) => {
-        let logsArray = [];
-        if (logs?.results && Array.isArray(logs.results)) logsArray = logs.results;
-        else if (Array.isArray(logs)) logsArray = logs;
-        else if (logs?.logs && Array.isArray(logs.logs)) logsArray = logs.logs;
-        setThreatLogs(logsArray);
-      })
-      .catch(() => setThreatLogs([]));
+      let logsArray: any[] = [];
+      if (logs?.results && Array.isArray(logs.results)) logsArray = logs.results;
+      else if (Array.isArray(logs)) logsArray = logs;
+      else if (logs?.logs && Array.isArray(logs.logs)) logsArray = logs.logs;
+      setThreatLogs(logsArray);
+    }).catch(() => {/* keep stale data on error */});
   };
 
   useEffect(() => { fetchData(); }, [id]);
   useEffect(() => { fetchAllRangedData(); }, [id, timeRange]);
   // AI insights are NOT auto-fetched — user clicks Refresh to trigger them.
 
-  const totalRequests = analytics ? Number(analytics.total_requests ?? 0) : 0;
-  const blockedRequests = analytics ? Number(analytics.blocked_requests ?? 0) : 0;
-  const successRate = analytics && typeof analytics.success_rate === 'number' ? Number(analytics.success_rate) : 0;
-  const blockedRate = totalRequests > 0 ? (blockedRequests / totalRequests) * 100 : 0;
-  const activeEndpointCount = Array.isArray(endpoints) ? endpoints.filter((e: any) => e.status === 'active' || e.is_active).length : 0;
+  const totalRequests = useMemo(() => analytics ? Number(analytics.total_requests ?? 0) : 0, [analytics]);
+  const blockedRequests = useMemo(() => analytics ? Number(analytics.blocked_requests ?? 0) : 0, [analytics]);
+  const successRate = useMemo(() => analytics && typeof analytics.success_rate === 'number' ? Number(analytics.success_rate) : 0, [analytics]);
+  const blockedRate = useMemo(() => totalRequests > 0 ? (blockedRequests / totalRequests) * 100 : 0, [totalRequests, blockedRequests]);
+  const activeEndpointCount = useMemo(() => Array.isArray(endpoints) ? endpoints.filter((e: any) => e.status === 'active' || e.is_active).length : 0, [endpoints]);
 
-  const trafficOverviewData = HTTP_METHODS.map((method) => {
+  const trafficOverviewData = useMemo(() => HTTP_METHODS.map((method) => {
     const row = trafficData.find((item: any) => item.method === method) || { method };
     const total = Object.entries(row).reduce((sum: number, [key, value]) => key === 'method' ? sum : sum + Number(value || 0), 0);
     return { method, total };
-  });
+  }), [trafficData]);
 
-  const topThreats = threatTypesByCategory.slice(0, 4);
-  const activeOwaspThreats = owaspThreats.filter((item) => item.count > 0);
-  const recentRows = threatLogs.slice(0, 4).map((log: any) => ({
-    id: log.id ?? `${log.path}-${Math.random()}`,
+  const topThreats = useMemo(() => threatTypesByCategory.slice(0, 4), [threatTypesByCategory]);
+  const activeOwaspThreats = useMemo(() => owaspThreats.filter((item) => item.count > 0), [owaspThreats]);
+  const recentRows = useMemo(() => threatLogs.slice(0, 4).map((log: any) => ({
+    id: log.id ?? `${log.path}-${log.timestamp ?? Math.random()}`,
     path: log.path || '-',
     attack: log.waf_rule_triggered || (log.threat_level && log.threat_level !== 'none' ? `${String(log.threat_level).toUpperCase()} Threat` : log.waf_blocked ? 'Suspicious Request' : 'Clean'),
     source: log.client_ip || '-',
     status: log.waf_blocked ? 'blocked' : Number(log.status_code) >= 400 ? 'warning' : 'allowed',
-  }));
+  })), [threatLogs]);
 
   const R = 'rounded-[22px]';
   const Rsub = 'rounded-[14px]';
@@ -752,8 +812,8 @@ const PlatformDetails: React.FC = () => {
     );
   }
 
-  if (error) return <div className="p-8 text-center text-red-600 dark:text-red-400">Error: {error}</div>;
-  if (!platform) return <div className="p-8 text-center text-slate-900 dark:text-white">Workspace not found.</div>;
+  if (error) return <WorkspaceAccessGate variant="no_access" platformName={null} platformOwner={null} />;
+  if (!platform) return <WorkspaceAccessGate variant="no_platform" />;
 
   const totalCountryRequests = countryData.reduce((s, c) => s + c.count, 0);
   const selectedCountryEntry = countryData.find(c => c.code === selectedCountryCode);
@@ -864,7 +924,7 @@ const PlatformDetails: React.FC = () => {
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" vertical={false} />
                       <XAxis dataKey="method" tick={{ fontSize: 11, fill: '#94a3b8', fontFamily: 'monospace' }} axisLine={false} tickLine={false} />
                       <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={32} />
-                      <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '12px', color: '#e2e8f0' }} cursor={{ stroke: 'rgba(37,99,235,0.3)', strokeWidth: 1 }} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: 'rgba(37,99,235,0.3)', strokeWidth: 1 }} />
                       <Area type="monotone" dataKey="total" stroke="#2563EB" fill="url(#trafficGradient)" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={1000} />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -1009,6 +1069,8 @@ const PlatformDetails: React.FC = () => {
           ))}
         </div>
 
+        {id && <HeatmapCard platformId={id} />}
+
         <div className="grid gap-5 xl:grid-cols-2">
           <Card className={`${cardClass} overflow-hidden`}>
             <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-5 pb-4 ${headerClass}`}>
@@ -1028,7 +1090,7 @@ const PlatformDetails: React.FC = () => {
                       <Pie data={threatTypes} dataKey="value" innerRadius={45} outerRadius={72} paddingAngle={3} isAnimationActive={true} animationDuration={800}>
                         {threatTypes.map((entry: any, index: number) => (<Cell key={`resp-${index}`} fill={entry.color} />))}
                       </Pie>
-                      <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '11px', color: '#e2e8f0' }} />
+                      <Tooltip contentStyle={{ ...tooltipStyle, fontSize: '11px' }} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-1.5">
@@ -1060,7 +1122,7 @@ const PlatformDetails: React.FC = () => {
                     <defs><linearGradient id="owaspFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563EB" stopOpacity={0.35} /><stop offset="95%" stopColor="#06B6D4" stopOpacity={0.02} /></linearGradient></defs>
                     <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" />
                     <XAxis dataKey="name" hide /><YAxis hide />
-                    <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '11px', color: '#e2e8f0' }} />
+                    <Tooltip contentStyle={{ ...tooltipStyle, fontSize: '11px' }} />
                     <Area type="monotone" dataKey="count" stroke="#2563EB" fill="url(#owaspFill)" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={800} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -1088,9 +1150,9 @@ const PlatformDetails: React.FC = () => {
             </select>
           </CardHeader>
           <CardContent className="p-5 pt-2">
-            <div className="flex flex-col lg:flex-row gap-5">
+            <div className="flex flex-col lg:flex-row gap-5 lg:items-stretch">
 
-              <div className="flex-1 min-h-[300px]">
+              <div className="flex-1 min-h-[370px]">
                 <WorldMap
                   countryData={countryData}
                   selectedCountryCode={selectedCountryCode}
@@ -1107,7 +1169,7 @@ const PlatformDetails: React.FC = () => {
                 )}
               </div>
 
-              <div className="w-full lg:w-72 max-h-[400px] overflow-y-auto pr-1">
+              <div className="w-full lg:w-72 overflow-y-auto pr-1 max-h-[640px]">
                 {selectedCountryCode ? (
                   <CountryDetailPanel
                     detail={countryDetail}
@@ -1115,31 +1177,38 @@ const PlatformDetails: React.FC = () => {
                     countryName={selectedCountryEntry?.name || selectedCountryCode}
                     countryCode={selectedCountryCode}
                     totalRequests={selectedCountryEntry?.count ?? 0}
+                    blockedFallback={selectedCountryEntry?.blocked ?? 0}
                     totalCountryRequests={totalCountryRequests}
                     onBack={() => setSelectedCountryCode(null)}
                   />
                 ) : (
                   <div className="space-y-2">
-                    {countryData.length > 0 ? (
-                      countryData.slice(0, 8).map((country) => {
-                        const max = Math.max(...countryData.map(c => c.count), 1);
+                    {countryData.length > 0 ? (() => {
+                      const max = Math.max(...countryData.map(c => c.count), 1);
+                      return countryData.map((country) => {
                         const pct = (country.count / max) * 100;
+                        const blockPct = country.count > 0 ? (country.blocked / country.count) * 100 : 0;
                         return (
                           <div
                             key={country.code}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 cursor-pointer hover:bg-blue-50/60 dark:hover:bg-blue-500/5 hover:border-blue-200 dark:hover:border-blue-500/30 transition-colors`}
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 cursor-pointer hover:bg-blue-50/60 dark:hover:bg-blue-500/5 hover:border-blue-200 dark:hover:border-blue-800/40 transition-colors"
                             onClick={() => setSelectedCountryCode(country.code)}
                           >
                             <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded px-1.5 py-0.5 flex-shrink-0">{country.code}</span>
                             <span className="flex-1 text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{country.name}</span>
-                            <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400 flex-shrink-0">{country.count.toLocaleString()}</span>
-                            <div className="h-1.5 w-14 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0">
+                            <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                              <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400">{country.count.toLocaleString()}</span>
+                              {country.blocked > 0 && (
+                                <span className="font-mono text-[9px] font-bold text-red-500 dark:text-red-400">{blockPct.toFixed(0)}% blk</span>
+                              )}
+                            </div>
+                            <div className="h-1.5 w-14 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0 relative">
                               <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500" style={{ width: `${pct}%` }} />
                             </div>
                           </div>
                         );
-                      })
-                    ) : (
+                      });
+                    })() : (
                       <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-400 dark:text-slate-500">
                         No country data available
                       </div>
@@ -1167,7 +1236,7 @@ const PlatformDetails: React.FC = () => {
                 </div>
                 <div className="divide-y divide-slate-50 dark:divide-blue-900/10">
                   {recentRows.map((row) => (
-                    <div key={row.id} className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-blue-900/5">
+                    <div key={row.id} className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-blue-500/5">
                       <span className="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">{row.path}</span>
                       <span className={`text-xs font-semibold ${getAttackTextClass(row.attack)}`}>{row.attack}</span>
                       <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{row.source}</span>
@@ -1186,53 +1255,7 @@ const PlatformDetails: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className={`${cardClass} overflow-hidden`}>
-          <CardHeader className={`flex flex-row items-start justify-between space-y-0 p-6 pb-4 ${headerClass}`}>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-100 dark:ring-amber-500/20">
-                <AlertTriangle className="h-5 w-5 text-amber-500 dark:text-amber-400" />
-              </div>
-              <div>
-                <CardTitle className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Live Threat Activity</CardTitle>
-                <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Real-time API requests and security events</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6 pt-0">
-            {threatLogs && threatLogs.length > 0 ? (
-              <div className="space-y-2">
-                {threatLogs.slice(0, 8).map((log: any, idx: number) => {
-                  const isBlocked = log.waf_blocked;
-                  const threatLevel = log.threat_level || 'none';
-                  const statusColor = isBlocked ? 'text-red-600 dark:text-red-400' : threatLevel !== 'none' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
-                  return (
-                    <div key={log.id || idx} className={`flex items-center justify-between border px-4 py-3 transition-colors ${Rsub} ${isBlocked ? 'border-red-100 dark:border-red-500/15 bg-red-50/60 dark:bg-red-500/5' : threatLevel !== 'none' ? 'border-amber-100 dark:border-amber-500/15 bg-amber-50/60 dark:bg-amber-500/5' : 'border-emerald-100 dark:border-emerald-500/15 bg-emerald-50/60 dark:bg-emerald-500/5'}`}>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-mono text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded px-1.5 py-0.5">{log.method || 'GET'}</span>
-                          <span className="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">{log.path || '/api/endpoint'}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px]">
-                          <span className="text-slate-400 dark:text-slate-500 font-mono">{log.client_ip || 'Unknown IP'}</span>
-                          <span className="text-slate-300 dark:text-slate-600">·</span>
-                          <span className={`font-semibold ${statusColor}`}>{isBlocked ? 'Blocked' : threatLevel !== 'none' ? `${threatLevel.toUpperCase()} Threat` : 'Clean'}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2.5 ml-4 flex-shrink-0">
-                        <span className="font-mono text-[11px] font-semibold text-slate-400 dark:text-slate-500">{log.status_code || '200'}</span>
-                        <div className={`h-2 w-2 rounded-full ${isBlocked ? 'bg-red-500' : threatLevel !== 'none' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className={`flex h-28 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
-                <div className="text-center"><AlertTriangle className="mx-auto mb-2 h-7 w-7 text-slate-300 dark:text-slate-700" /><p className="text-xs text-slate-400 dark:text-slate-500">No live activity yet</p></div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {id && <LiveFeedCard platformId={id} />}
 
         {/* ── AI Security Insights ── */}
         <Card className={`border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm ${R}`}>
@@ -1286,19 +1309,19 @@ const PlatformDetails: React.FC = () => {
               <div className="space-y-4">
                 {/* Threat summary */}
                 {aiInsights.threat_summary && (
-                  <div className={`flex gap-3 px-4 py-3 border border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-500/8 ${Rsub}`}>
+                  <div className={`flex gap-3 px-4 py-3 border border-blue-200 dark:border-blue-700/40 bg-blue-50 dark:bg-blue-500/15 ${Rsub}`}>
                     <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">{aiInsights.threat_summary}</p>
+                    <p className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">{aiInsights.threat_summary}</p>
                   </div>
                 )}
 
                 {/* Top recommendation */}
                 {aiInsights.top_recommendation && (
-                  <div className={`flex gap-3 px-4 py-3 border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/8 ${Rsub}`}>
+                  <div className={`flex gap-3 px-4 py-3 border border-amber-200 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-500/15 ${Rsub}`}>
                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-0.5">Top Recommendation</p>
-                      <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">{aiInsights.top_recommendation}</p>
+                      <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">{aiInsights.top_recommendation}</p>
                     </div>
                   </div>
                 )}
@@ -1311,10 +1334,10 @@ const PlatformDetails: React.FC = () => {
                       {aiInsights.recommendations.slice(0, 3).map((rec: any, i: number) => {
                         const priority = (rec.priority || '').toLowerCase();
                         const priorityStyle = priority === 'high'
-                          ? 'border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-500/8 text-red-600 dark:text-red-400'
+                          ? 'border-red-200 dark:border-red-700/40 bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400'
                           : priority === 'medium'
-                          ? 'border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-500/8 text-amber-600 dark:text-amber-400'
-                          : 'border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-500/8 text-blue-600 dark:text-blue-400';
+                          ? 'border-amber-200 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                          : 'border-blue-200 dark:border-blue-700/40 bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400';
                         const priorityBadge = priority === 'high'
                           ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400'
                           : priority === 'medium'
@@ -1323,7 +1346,7 @@ const PlatformDetails: React.FC = () => {
                         return (
                           <div key={i} className={`flex items-start gap-3 px-3 py-2.5 border ${priorityStyle} ${Rsub}`}>
                             <ChevronRight className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed flex-1">{rec.action || rec.text || rec}</p>
+                            <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed flex-1">{rec.action || rec.text || rec}</p>
                             {rec.priority && (
                               <span className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${priorityBadge}`}>{rec.priority}</span>
                             )}
@@ -1342,7 +1365,7 @@ const PlatformDetails: React.FC = () => {
                       {aiInsights.positive_signals.map((signal: string, i: number) => (
                         <div key={i} className="flex items-start gap-2">
                           <CheckCircle className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
-                          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{signal}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{signal}</p>
                         </div>
                       ))}
                     </div>
@@ -1351,7 +1374,7 @@ const PlatformDetails: React.FC = () => {
 
                 {/* Risk assessment footer */}
                 {aiInsights.risk_assessment && (
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 italic border-t border-slate-100 dark:border-slate-800 pt-3">{aiInsights.risk_assessment}</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 italic border-t border-slate-100 dark:border-blue-900/20 pt-3">{aiInsights.risk_assessment}</p>
                 )}
               </div>
             )}
@@ -1363,7 +1386,7 @@ const PlatformDetails: React.FC = () => {
             { title: 'Security Hub', description: 'Triage security logs and alerts', icon: <Eye className="h-5 w-5 text-blue-600 dark:text-blue-400" />, url: '/security-hub' },
             { title: 'Threat Logs', description: 'Review detailed security events', icon: <AlertTriangle className="h-5 w-5 text-amber-500 dark:text-amber-400" />, url: '/threat-logs' },
             { title: 'API Endpoints', description: 'Manage and monitor API endpoints', icon: <Globe className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />, url: '/api-endpoints' },
-            { title: 'WAF Rules', description: 'Configure security rules and policies', icon: <Shield className="h-5 w-5 text-red-500 dark:text-red-400" />, url: '/waf-rules' },
+            { title: 'Rate Limiting', description: 'Throttle and protect API endpoints', icon: <Gauge className="h-5 w-5 text-orange-500 dark:text-orange-400" />, url: `/workspace/${id}/rate-limiting` },
             { title: 'User Management', description: 'Manage team access and permissions', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z" fill="#22c55e" /></svg>, url: '/users' },
             { title: 'Audit Logs', description: 'View system activity and changes', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M17 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H7V5h10v14Zm-5-2a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-4h-2V7h2v6Z" fill="#a78bfa" /></svg>, url: '/audit-logs' },
             { title: 'IP Blacklist', description: 'Manage blocked IP addresses', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59Z" fill="#ef4444" /></svg>, url: '/ip-blacklist' },

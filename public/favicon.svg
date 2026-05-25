@@ -1,19 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
   <defs>
-    <linearGradient id="heimdallBlue" x1="12" y1="10" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2563EB" />
-      <stop offset="1" stop-color="#0EA5E9" />
+    <linearGradient id="g1" x1="5" y1="3" x2="35" y2="38" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="5" y1="3" x2="35" y2="38" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#06b6d4" stop-opacity="0.12"/>
     </linearGradient>
   </defs>
-
-  <rect x="6" y="6" width="52" height="52" rx="16" fill="url(#heimdallBlue)" />
-
-  <path
-    d="M32 16L42 20V29C42 37.1 36.3 44.3 32 47C27.7 44.3 22 37.1 22 29V20L32 16Z"
-    fill="none"
-    stroke="#FFFFFF"
-    stroke-width="4"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
+  <!-- Shield body — gradient fill + stroke -->
+  <path d="M20 3L5 9.5V19C5 28 11.8 35.8 20 38C28.2 35.8 35 28 35 19V9.5L20 3Z"
+    fill="url(#g1)"
+    stroke="url(#g1)"
+    stroke-width="1.5"
+    stroke-linejoin="round"/>
+  <!-- Inner highlight for depth -->
+  <path d="M20 7L9 12V19C9 25.8 13.9 31.8 20 34C26.1 31.8 31 25.8 31 19V12L20 7Z"
+    fill="white"
+    fill-opacity="0.15"/>
 </svg>

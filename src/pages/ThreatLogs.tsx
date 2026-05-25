@@ -29,6 +29,7 @@ import {
   MapPin,
   Code,
   ChevronDown,
+  Plus,
 } from "lucide-react";
 
 import { apiService } from "@/services/api";
@@ -362,8 +363,8 @@ const ThreatLogs = () => {
               <Button variant="outline" size="sm" onClick={exportFilteredLogs} className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25">
                 <Download className="mr-2 h-4 w-4" /> Export Logs
               </Button>
-              <Button size="sm" onClick={() => navigate("/create-alert")} className="rounded-full bg-white px-5 py-2 text-red-600 font-medium hover:bg-white/90">
-                <Shield className="mr-2 h-4 w-4" /> Create Alert
+              <Button variant="outline" size="sm" onClick={() => navigate("/create-alert")} className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25 hover:!text-white">
+                <Plus className="mr-2 h-4 w-4" /> Create Alert
               </Button>
             </div>
           </div>

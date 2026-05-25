@@ -49,18 +49,41 @@ const APIEndpoints = () => {
       const res = await apiService.getPlatformEndpoints(platformId);
       const endpointsArr: APIEndpoint[] = Array.isArray(res) ? res : res.results || [];
       setEndpoints(endpointsArr);
+
+      // Derive healthy/warning/error from real metrics rather than the model's
+      // documentation status field ('documented'/'discovered'/'maintenance').
       setEndpointStatus(
-        endpointsArr.map((ep: any) => ({
-          endpoint: ep,
-          status: ep.status || "healthy",
-          request_count: ep.request_count || 0,
-          avg_response_time: ep.avg_response_time || 0,
-          error_rate: ep.error_rate || 0,
-          last_accessed: ep.last_accessed,
-          protection: !!ep.is_protected,
-          rules_applied: ep.rules_applied || 0,
-        }))
+        endpointsArr.map((ep: any) => {
+          const errorRate = ep.error_rate || 0;
+          const avgResp = ep.avg_response_time || 0;
+          let derivedStatus = "healthy";
+          if (errorRate > 5 || avgResp > 2000) derivedStatus = "error";
+          else if (errorRate > 1 || avgResp > 500) derivedStatus = "warning";
+          return {
+            endpoint: ep,
+            status: derivedStatus,
+            request_count: ep.request_count || 0,
+            avg_response_time: ep.avg_response_time || 0,
+            error_rate: ep.error_rate || 0,
+            last_accessed: ep.last_accessed,
+            protection: !!ep.is_protected,
+            rules_applied: ep.rules_applied || 0,
+          };
+        })
       );
+
+      // Compute endpoints added this week from the endpoint list itself
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const addedThisWeek = endpointsArr.filter((ep: any) => {
+        if (!ep.created_at) return false;
+        // created_at format from serializer: 'DD-MM-YYYY HH:MM'
+        const parts = ep.created_at.split(/[-\s:]/);
+        if (parts.length < 3) return false;
+        const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        return !isNaN(d.getTime()) && d >= oneWeekAgo;
+      }).length;
+      setEndpointsAddedThisWeek(addedThisWeek);
     } catch {
       toast({ title: "Error loading endpoints", description: "Failed to fetch API endpoints", variant: "destructive" });
     } finally {
@@ -109,11 +132,8 @@ const APIEndpoints = () => {
       }
     }).catch(() => {});
 
-    // Analytics
-    apiService.getAnalytics(platformId).then((analytics: any) => {
-      if (analytics?.endpoints_added_this_week !== undefined) setEndpointsAddedThisWeek(analytics.endpoints_added_this_week);
-      if (analytics?.response_time_change !== undefined) setResponseTimeChange(analytics.response_time_change);
-    }).catch(() => {});
+    // responseTimeChange — not available from platform analytics aggregate,
+    // leave as null so the stat card falls back to total requests.
   }, [platformId, navigate, fetchEndpoints]);
 
   // Fetch shadow endpoints when that tab is selected
@@ -148,15 +168,48 @@ const APIEndpoints = () => {
 
   const getMethodColor = (method: string) => ({ GET: "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400", POST: "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400", PUT: "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400", DELETE: "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400", PATCH: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400" }[method] || "bg-gray-100 text-gray-800");
 
-  const handleBlockEndpoint = async (ep: any) => {
+  // Parse 'DD-MM-YYYY HH:MM' → JS Date
+  const parseSerializerDate = (s: string): Date | null => {
+    if (!s) return null;
+    const parts = s.split(/[-\s:]/);
+    if (parts.length < 3) return null;
+    const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const formatDiscoveredDate = (s: string) => {
+    const d = parseSerializerDate(s);
+    if (!d) return "—";
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  };
+
+  const handleDocumentEndpoint = async (ep: any) => {
     try {
-      await apiService.request("/blacklist/", {
-        method: "POST",
-        body: JSON.stringify({ platform: platformId, ip: ep.path, reason: `Shadow endpoint blocked: ${ep.method} ${ep.path}` }),
-      });
-      toast({ title: "Endpoint blocked", description: `${ep.method} ${ep.path} added to blocklist.` });
+      await apiService.updateEndpoint(ep.id, { is_shadow: false, is_discovered: false });
+      toast({ title: "Endpoint documented", description: `${ep.method} ${ep.path} moved to documented endpoints.` });
+      fetchShadowEndpoints();
+      fetchEndpoints();
     } catch {
-      toast({ title: "Failed to block", description: "Could not block this endpoint.", variant: "destructive" });
+      toast({ title: "Failed to document", description: "Could not update endpoint.", variant: "destructive" });
+    }
+  };
+
+  const handleBlockEndpoint = (ep: any) => {
+    // Blocking a path requires a WAF rule — navigate the user there
+    navigate("/waf-rules");
+    toast({
+      title: "Create a WAF block rule",
+      description: `Add a rule to block ${ep.method} ${ep.path} on the WAF Rules page.`,
+    });
+  };
+
+  const handleToggleProtection = async (ep: any, currentProtection: boolean) => {
+    try {
+      await apiService.updateEndpoint(ep.endpoint.id, { is_protected: !currentProtection });
+      toast({ title: "Protection updated", description: `${ep.endpoint.method} ${ep.endpoint.path} is now ${!currentProtection ? "protected" : "unprotected"}.` });
+      fetchEndpoints();
+    } catch {
+      toast({ title: "Failed to update", description: "Could not update protection status.", variant: "destructive" });
     }
   };
 
@@ -369,8 +422,9 @@ const APIEndpoints = () => {
                                 <Button variant="ghost" size="sm" onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); navigate(`/endpoint-analytics/${s.endpoint.id}`); }} className="rounded-lg">
                                   <BarChart3 className="h-4 w-4 mr-1" /> Analytics
                                 </Button>
-                                <Button variant="ghost" size="sm" className="rounded-lg">
-                                  <Settings className="h-4 w-4 mr-1" /> Configure
+                                <Button variant="ghost" size="sm" className="rounded-lg"
+                                  onClick={() => handleToggleProtection(s, s.protection)}>
+                                  <Settings className="h-4 w-4 mr-1" /> {s.protection ? "Unprotect" : "Protect"}
                                 </Button>
                               </div>
                             </td>
@@ -455,7 +509,7 @@ const APIEndpoints = () => {
                               <p className="text-xs text-slate-500 pl-6">{ep.name || "Auto-discovered endpoint"}</p>
                             </td>
                             <td className="px-4 py-4">
-                              <span className="text-xs text-slate-500">{ep.created_at ? new Date(ep.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"}</span>
+                              <span className="text-xs text-slate-500">{formatDiscoveredDate(ep.created_at)}</span>
                             </td>
                             <td className="px-4 py-4">
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">
@@ -464,10 +518,13 @@ const APIEndpoints = () => {
                             </td>
                             <td className="px-4 py-4">
                               <div className="flex gap-2">
-                                <Button size="sm" variant="outline" className="rounded-lg border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 text-xs gap-1">
+                                <Button size="sm" variant="outline"
+                                  className="rounded-lg border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 text-xs gap-1"
+                                  onClick={() => handleDocumentEndpoint(ep)}>
                                   <FileText className="h-3.5 w-3.5" /> Document
                                 </Button>
-                                <Button size="sm" variant="outline" className="rounded-lg border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 text-xs gap-1"
+                                <Button size="sm" variant="outline"
+                                  className="rounded-lg border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 text-xs gap-1"
                                   onClick={() => handleBlockEndpoint(ep)}>
                                   <Ban className="h-3.5 w-3.5" /> Block
                                 </Button>

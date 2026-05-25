@@ -2,6 +2,79 @@
 // export const API_BASE_URL = 'http://165.245.211.56:8000/api/v1';
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
 
+// ── Two-layer TTL cache (L1 in-memory + L2 localStorage) ────────────────────
+// L1 lives for the lifetime of the JS module (survives navigation, dies on reload).
+// L2 lives in localStorage (survives reloads and app restarts until TTL expires).
+// Every entry is version-tagged so a code update automatically invalidates stale data.
+// Entries over 150 KB are kept in L1 only (never written to localStorage).
+// On logout every key is wiped from both layers.
+
+const CACHE_V = 2;           // bump to invalidate all persisted entries after a schema change
+const LS      = '_hc_';      // namespace prefix keeps our keys from colliding with anything else
+const MAX_LS  = 150_000;     // bytes — entries larger than this skip localStorage
+
+type CacheEntry = { value: unknown; expires: number; v: number };
+
+const _cache   = new Map<string, CacheEntry>();
+const _inflight = new Map<string, Promise<unknown>>(); // in-flight dedup table
+
+function cacheGet<T>(key: string): T | null {
+  const now = Date.now();
+
+  const mem = _cache.get(key);
+  if (mem) {
+    if (mem.v === CACHE_V && now <= mem.expires) return mem.value as T;
+    _cache.delete(key);
+  }
+
+  try {
+    const raw = localStorage.getItem(LS + key);
+    if (!raw) return null;
+    const e = JSON.parse(raw) as CacheEntry;
+    if (!e || e.v !== CACHE_V || now > e.expires || e.value == null) {
+      localStorage.removeItem(LS + key);
+      return null;
+    }
+    _cache.set(key, e);
+    return e.value as T;
+  } catch {
+    return null;
+  }
+}
+
+function cacheSet(key: string, value: unknown, ttlMs: number): void {
+  if (value == null) return;
+  const e: CacheEntry = { value, expires: Date.now() + ttlMs, v: CACHE_V };
+  _cache.set(key, e);
+  try {
+    const s = JSON.stringify(e);
+    if (s.length < MAX_LS) localStorage.setItem(LS + key, s);
+  } catch {}
+}
+
+export function cacheInvalidate(prefix: string): void {
+  [..._cache.keys()].forEach(k => { if (k.startsWith(prefix)) _cache.delete(k); });
+  try {
+    const rm: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(LS + prefix)) rm.push(k);
+    }
+    rm.forEach(k => localStorage.removeItem(k));
+  } catch {}
+}
+
+// dedup: if the same cache key is already being fetched, return the existing
+// Promise instead of firing a second network request.
+function dedup<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const p = _inflight.get(key);
+  if (p) return p as Promise<T>;
+  const req = fn().finally(() => _inflight.delete(key));
+  _inflight.set(key, req);
+  return req;
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 // Types for API responses
 export interface User {
   id: number;
@@ -218,33 +291,54 @@ class APIService {
 
   // Get platform details
   async getPlatformDetails(platformId: string): Promise<any> {
-    const token = localStorage.getItem('auth_token');
-    const res = await fetch(`${this.baseURL}/platforms/${platformId}/`, {
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    const cacheKey = `platform:${platformId}`;
+    const hit = cacheGet<any>(cacheKey);
+    if (hit) return hit;
+    return dedup(cacheKey, async () => {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${this.baseURL}/platforms/${platformId}/`, {
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+      });
+      const data = await res.json();
+      cacheSet(cacheKey, data, 300_000);
+      return data;
     });
-    return res.json();
   }
 
   // Get endpoints for a platform
   async getPlatformEndpoints(platformId: string): Promise<any> {
-    const token = localStorage.getItem('auth_token');
-    const res = await fetch(`${this.baseURL}/platforms/${platformId}/endpoints/`, {
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    const cacheKey = `endpoints:${platformId}`;
+    const hit = cacheGet<any>(cacheKey);
+    if (hit) return hit;
+    return dedup(cacheKey, async () => {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${this.baseURL}/platforms/${platformId}/endpoints/`, {
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+      });
+      const data = await res.json();
+      cacheSet(cacheKey, data, 300_000);
+      return data;
     });
-    return res.json();
   }
 
   // Get WAF rules for a platform
   async getPlatformWAFRules(platformId: string): Promise<any[]> {
-    const token = localStorage.getItem('auth_token');
-    const res = await fetch(`${this.baseURL}/waf-rules/?platform_id=${platformId}`, {
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    const cacheKey = `waf-rules:${platformId}`;
+    const hit = cacheGet<any[]>(cacheKey);
+    if (hit) return hit;
+    return dedup(cacheKey, async () => {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${this.baseURL}/waf-rules/?platform_id=${platformId}`, {
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+      });
+      const data = await res.json();
+      const result = Array.isArray(data) ? data : (data.results || []);
+      cacheSet(cacheKey, result, 300_000);
+      return result;
     });
-    const data = await res.json();
-    return Array.isArray(data) ? data : (data.results || []);
   }
 
 
@@ -291,12 +385,48 @@ class APIService {
 
   // Get analytics for a platform
   async getAnalytics(platformId: string, params?: { range?: string; start?: string; end?: string }): Promise<any> {
-    const token = localStorage.getItem('auth_token');
     const query = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
-    const res = await fetch(`${this.baseURL}/platforms/${platformId}/analytics/${query}`, {
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    const cacheKey = `analytics:${platformId}${query}`;
+    const hit = cacheGet<any>(cacheKey);
+    if (hit) return hit;
+    return dedup(cacheKey, async () => {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${this.baseURL}/platforms/${platformId}/analytics/${query}`, {
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+      });
+      const data = await res.json();
+      cacheSet(cacheKey, data, 180_000);
+      return data;
     });
+  }
+
+  // Get analytics for a specific endpoint (cached 60 s)
+  async getEndpointAnalytics(endpointId: string): Promise<any> {
+    const cacheKey = `endpoint-analytics:${endpointId}`;
+    const hit = cacheGet<any>(cacheKey);
+    if (hit) return hit;
+    return dedup(cacheKey, async () => {
+      const data = await this.request<any>(`/api-endpoints/${endpointId}/analytics/`, { method: 'GET' });
+      cacheSet(cacheKey, data, 60_000);
+      return data;
+    });
+  }
+
+  // PATCH an endpoint's fields (is_shadow, is_protected, status, etc.)
+  async updateEndpoint(endpointId: string, fields: Record<string, unknown>): Promise<any> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${this.baseURL}/api-endpoints/${endpointId}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Token ${token}` } : {}),
+      },
+      body: JSON.stringify(fields),
+    });
+    // Bust endpoint list cache so the UI reflects the change
+    cacheInvalidate('endpoints:');
     return res.json();
   }
 
@@ -417,6 +547,12 @@ class APIService {
     } finally {
       this.token = null;
       localStorage.removeItem('auth_token');
+      cacheInvalidate('user-info');
+      cacheInvalidate('platform:');
+      cacheInvalidate('endpoints:');
+      cacheInvalidate('analytics:');
+      cacheInvalidate('members:');
+      cacheInvalidate('waf-rules:');
     }
   }
 
@@ -480,7 +616,13 @@ class APIService {
   };
 
   async getUserInfo(): Promise<User> {
-    return await this.request<User>('/auth/user-info/');
+    const hit = cacheGet<User>('user-info');
+    if (hit) return hit;
+    return dedup('user-info', async () => {
+      const data = await this.request<User>('/auth/user-info/');
+      cacheSet('user-info', data, 300_000);
+      return data;
+    });
   }
   // Get current user's status
 async getUserStatus(): Promise<{ status: 'active' | 'away' }> {
@@ -923,13 +1065,21 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
 
   // Platform Member Management
   async getPlatformMembers(platformId: string): Promise<PlatformMember[]> {
-    const response = await this.request<any>(`/platforms/${platformId}/members/`);
-    if (response && typeof response === 'object' && 'results' in response) return response.results;
-    if (Array.isArray(response)) return response;
-    return [];
+    const cacheKey = `members:${platformId}`;
+    const hit = cacheGet<PlatformMember[]>(cacheKey);
+    if (hit) return hit;
+    return dedup(cacheKey, async () => {
+      const response = await this.request<any>(`/platforms/${platformId}/members/`);
+      let members: PlatformMember[];
+      if (response && typeof response === 'object' && 'results' in response) members = response.results;
+      else if (Array.isArray(response)) members = response;
+      else members = [];
+      cacheSet(cacheKey, members, 300_000);
+      return members;
+    });
   }
 
- async removeMember(platformId: string, memberId: string): Promise<void> {
+  async removeMember(platformId: string, memberId: string): Promise<void> {
     return await this.request<void>(`/platforms/${platformId}/members/${memberId}/`, { method: 'DELETE' });
 }
 

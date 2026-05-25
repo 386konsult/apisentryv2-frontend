@@ -3,7 +3,7 @@ import {
   Globe, ChevronDown, Mail, Settings, LogOut, Sun, Moon, Users, Clock,
   Search, Check, Command, ArrowUp, ArrowDown, CornerDownLeft, X, Home,
   Shield, AlertTriangle, Bell, Activity, Link, Ban, FlaskConical,
-  FileText, Timer, Briefcase, Send, Zap, Sparkles,
+  FileText, Timer, Briefcase, Send, Zap, Sparkles, MonitorDown,
 } from 'lucide-react';
 import { usePlatform } from '@/contexts/PlatformContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -268,6 +268,64 @@ const HeimdallAIButton = ({ onClick }: { onClick: () => void }) => {
   );
 };
 
+// ── PWA Install Button ─────────────────────────────────────────────────────────
+const PWAInstallButton: React.FC = () => {
+  const [hovered, setHovered] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  if (!installPrompt) return null;
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') setInstallPrompt(null);
+  };
+
+  return (
+    <motion.button
+      onClick={handleInstall}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
+      initial={false}
+      animate={{ width: hovered ? 128 : 42 }}
+      transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.7 }}
+      aria-label="Install App"
+      className={`ml-1.5 flex h-10 items-center overflow-hidden rounded-full ${
+        hovered
+          ? 'bg-white/95 dark:bg-slate-900/90 ring-1 ring-slate-200/80 dark:ring-slate-700/50 shadow-[0_8px_20px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_20px_rgba(2,6,23,0.28)]'
+          : 'bg-transparent ring-1 ring-transparent shadow-none'
+      }`}
+    >
+      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
+        <MonitorDown
+          className="h-[20px] w-[20px] text-slate-600 dark:text-slate-300"
+          strokeWidth={2.2}
+        />
+      </span>
+      <motion.span
+        initial={false}
+        animate={{ opacity: hovered ? 1 : 0, x: hovered ? 0 : -10 }}
+        transition={{ duration: 0.16, ease: 'easeOut' }}
+        className="pr-4 whitespace-nowrap text-[13px] font-semibold leading-none tracking-tight text-slate-900 dark:text-slate-100"
+      >
+        Install App
+      </motion.span>
+    </motion.button>
+  );
+};
+
 const PlatformIndicator: React.FC = () => {
   const { hasSelectedPlatform, selectedPlatformId: platformId } = usePlatform();
   const { user, logout } = useAuth();
@@ -338,12 +396,10 @@ const PlatformIndicator: React.FC = () => {
 
   useEffect(() => {
     const check = async () => {
-      if (!platformId) return;
-
       try {
-        const [received, sent] = await Promise.allSettled([
-          platformId ? apiService.getInvitations(platformId) : Promise.resolve([]),
-          apiService.getSentInvitations(),
+        const [orgReceived, orgSent] = await Promise.allSettled([
+          apiService.getMyInvitations('received'),
+          apiService.getMyInvitations('sent'),
         ]);
 
         const toArr = (r: PromiseSettledResult<any>) =>
@@ -351,11 +407,14 @@ const PlatformIndicator: React.FC = () => {
             ? (Array.isArray(r.value) ? r.value : r.value?.results ?? [])
             : [];
 
-        const all = [...toArr(received), ...toArr(sent)];
+        const received = toArr(orgReceived);
+        const sent = toArr(orgSent);
 
-        setHasPendingInvitations(
-          all.some((inv: any) => !inv.status || inv.status === 'pending' || inv.status === 'sent')
-        );
+        const hasPending =
+          received.some((inv: any) => String(inv.status).toLowerCase() === 'pending') ||
+          sent.some((inv: any) => String(inv.status).toLowerCase() === 'pending');
+
+        setHasPendingInvitations(hasPending);
       } catch {
         setHasPendingInvitations(false);
       }
@@ -648,6 +707,8 @@ const PlatformIndicator: React.FC = () => {
 
       <div className="flex-1" />
 
+      {/* <PWAInstallButton /> — Chrome shows its own install prompt via the manifest; re-enable if a custom in-app button is ever needed */}
+
       <div className="flex items-center gap-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800/40 ring-1 ring-slate-200/60 dark:ring-slate-700/30 px-1.5 py-1">
         <IconBtn
           onClick={() => navigate('/invitations')}
@@ -655,9 +716,12 @@ const PlatformIndicator: React.FC = () => {
           colorClass="text-emerald-600 dark:text-emerald-400"
           hoverClass="hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30"
           badge={
-            hasPendingInvitations
-              ? <span className="absolute bottom-0.5 right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-slate-100 dark:ring-slate-800" />
-              : undefined
+            hasPendingInvitations ? (
+              <span className="absolute top-0 right-0 flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 ring-[1.5px] ring-white dark:ring-slate-800" />
+              </span>
+            ) : undefined
           }
         >
           <Mail className="h-4 w-4" />

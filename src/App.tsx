@@ -13,6 +13,13 @@ import { PlatformProvider } from "@/contexts/PlatformContext";
 
 
 
+// Scroll to top on every route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior }); }, [pathname]);
+  return null;
+};
+
 // Auth Pages
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -160,6 +167,7 @@ const AppContent = () => {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         {/* Public Routes - Must be before protected routes */}
         <Route path="/terms" element={<TermsAndConditions />} />
@@ -182,7 +190,7 @@ const AppContent = () => {
           path="/*"
           element={
             <ProtectedRoute>
-              <SidebarProvider>
+              <SidebarProvider defaultOpen={localStorage.getItem('heimdall_sidebar_open') !== 'false'}>
                 <div className="min-h-screen flex w-full overflow-hidden bg-[#f4f8ff] dark:bg-[#0f1724]">
                   <AppSidebar isDark={isDark} />
 
@@ -389,7 +397,7 @@ const AppContent = () => {
                         />
 
                         <Route path="/platforms" element={<Platforms />} />
-                        <Route path="/platforms/:id" element={<PlatformDetails />} />
+                        <Route path="/platforms/:id" element={<ProtectedPlatformRoute><PlatformDetails /></ProtectedPlatformRoute>} />
 
                         <Route
                           path="/create-alert"

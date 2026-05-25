@@ -167,7 +167,7 @@ const EndpointAnalytics = () => {
       if (!endpointId) { setError("Endpoint ID is required"); setLoading(false); return; }
       try {
         setLoading(true);
-        const data = await apiService.request(`/api-endpoints/${endpointId}/analytics/`, { method: "GET" });
+        const data = await apiService.getEndpointAnalytics(endpointId);
         setAnalyticsData(data);
         setError("");
       } catch (err: any) {
@@ -357,14 +357,58 @@ const EndpointAnalytics = () => {
           </ResponsiveContainer>
         </ChartCard>
 
+        {/* ── Top IPs — UNCHANGED logic ────────────────────────────────────── */}
+        {topIPs.length > 0 && (
+          <ChartCard title="Top IP Addresses by Request Volume" icon={<Globe />}>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="space-y-2">
+                {topIPs.map((item, idx) => (
+                  <div key={item.ip} className={`flex items-center justify-between border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-3 py-2.5 ${Rsub}`}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">{item.flag || "🌍"}</span>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-900 dark:text-white">{item.country}</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{item.ip}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">{item.requests.toLocaleString()}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">requests</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={topIPs} cx="50%" cy="50%" labelLine={false} label={({ country, percent }: any) => `${country} ${(percent * 100).toFixed(0)}%`} outerRadius={80} dataKey="requests">
+                    {topIPs.map((_, idx) => <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '11px', color: '#e2e8f0' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
+        )}
+
         {/* ── Security & Performance Issues — UNCHANGED logic ──────────────── */}
         <div className="grid gap-5 lg:grid-cols-2">
-          <ChartCard title="Security Issues" icon={<Shield />}>
+          <ChartCard
+            title="Security Issues"
+            icon={<Shield />}
+            action={
+              securityIssues.length > 0 && (securityIssues[0] as any)?.source === 'waf' ? (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-500 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-500/20">WAF Detected</span>
+              ) : securityIssues.length > 0 ? (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-500 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-500/20">Code Review</span>
+              ) : null
+            }
+          >
             {securityIssues.length === 0 ? (
               <div className={`flex h-40 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
                 <div className="text-center">
                   <Shield className="mx-auto mb-2 h-7 w-7 text-slate-300 dark:text-slate-700" />
                   <p className="text-xs text-slate-400 dark:text-slate-500">No security issues found</p>
+                  <p className="text-[10px] text-slate-300 dark:text-slate-600 mt-1">Run a code review scan to detect vulnerabilities</p>
                 </div>
               </div>
             ) : (
@@ -420,38 +464,7 @@ const EndpointAnalytics = () => {
           </ChartCard>
         </div>
 
-        {/* ── Top IPs — UNCHANGED logic ────────────────────────────────────── */}
-        {topIPs.length > 0 && (
-          <ChartCard title="Top IP Addresses by Request Volume" icon={<Globe />}>
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="space-y-2">
-                {topIPs.map((item, idx) => (
-                  <div key={item.ip} className={`flex items-center justify-between border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-3 py-2.5 ${Rsub}`}>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{item.flag || "🌍"}</span>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-900 dark:text-white">{item.country}</p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{item.ip}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">{item.requests.toLocaleString()}</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500">requests</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={topIPs} cx="50%" cy="50%" labelLine={false} label={({ country, percent }: any) => `${country} ${(percent * 100).toFixed(0)}%`} outerRadius={80} dataKey="requests">
-                    {topIPs.map((_, idx) => <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: '#0d1829', border: '1px solid rgba(37,99,235,0.2)', borderRadius: '12px', fontSize: '11px', color: '#e2e8f0' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </ChartCard>
-        )}
+        
 
         {/* ── Request Logs — UNCHANGED logic ──────────────────────────────── */}
         <ChartCard title="Request Logs" icon={<Activity />}>

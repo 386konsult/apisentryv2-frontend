@@ -1,5 +1,6 @@
 import type { ElementType } from "react";
 import { useState, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Shield, AlertTriangle, Globe, Settings, Users, Code, LogOut,
@@ -456,20 +457,16 @@ const AppSidebar = () => {
   const { hasSelectedPlatform, selectedPlatformId } = usePlatform();
   const collapsed = state === "collapsed";
 
-  // ── Persist sidebar open/closed state across refreshes ───────────────────
-  useEffect(() => {
-    const saved = localStorage.getItem(SIDEBAR_STATE_KEY);
-    if (saved !== null) {
-      setOpen(saved === "true");
-    }
-  }, []);
-
+  // ── Persist sidebar state — initial value set via SidebarProvider defaultOpen ─
   useEffect(() => {
     localStorage.setItem(SIDEBAR_STATE_KEY, String(open));
   }, [open]);
-  // ─────────────────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────────
 
   const [animating, setAnimating] = useState<Record<string, boolean>>({});
+
+  // Collapsed-icon hover tooltip
+  const [hoveredNav, setHoveredNav] = useState<{ title: string; y: number } | null>(null);
 
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('heimdall_theme');
@@ -554,7 +551,6 @@ const AppSidebar = () => {
             to={finalUrl}
             end
             onClick={() => fire(title)}
-            title={collapsed ? title : ""}
             style={{
               display: "flex", alignItems: "center", gap: collapsed ? 0 : 10,
               justifyContent: collapsed ? "center" : "flex-start",
@@ -563,8 +559,18 @@ const AppSidebar = () => {
               background: active ? p.activeBg : "transparent",
               transition: "background 0.15s ease", width: "100%",
             }}
-            onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = p.hoverBg; }}
-            onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+            onMouseEnter={(e) => {
+              if (!active) (e.currentTarget as HTMLElement).style.background = p.hoverBg;
+              if (collapsed) {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                // Use icon center: 9px top-padding + 7.5px (half of 15px icon height)
+                setHoveredNav({ title, y: rect.top + 9 + 7.5 });
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!active) (e.currentTarget as HTMLElement).style.background = "transparent";
+              setHoveredNav(null);
+            }}
           >
             <AnimIcon Icon={Icon} active={active} title={title} />
             {!collapsed && (
@@ -604,29 +610,77 @@ const AppSidebar = () => {
     </div>
   );
 
+  // ── Hover tooltip portal (renders outside sidebar to escape overflow clipping) ─
+  const NavTooltip = collapsed && hoveredNav
+    ? createPortal(
+        <motion.div
+          key={hoveredNav.title}
+          initial={{ opacity: 0, x: -10, scale: 0.92 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          exit={{ opacity: 0, x: -10, scale: 0.92 }}
+          transition={{ type: "spring", stiffness: 460, damping: 26, mass: 0.6 }}
+          style={{
+            position: "fixed",
+            left: 58,
+            top: hoveredNav.y,
+            transform: "translateY(-50%)",
+            zIndex: 99999,
+            pointerEvents: "none",
+          }}
+        >
+          <div style={{
+            padding: "5px 10px 5px 8px",
+            borderRadius: 9,
+            fontSize: 12,
+            fontWeight: 600,
+            lineHeight: 1,
+            fontFamily: "'DM Sans', sans-serif",
+            whiteSpace: "nowrap" as const,
+            display: "flex",
+            alignItems: "center",
+            background: isDark ? "rgba(15,23,42,0.95)" : "rgba(255,255,255,0.97)",
+            border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(15,23,42,0.1)"}`,
+            color: isDark ? "#F8FAFC" : "#0F172A",
+            boxShadow: isDark
+              ? "0 8px 24px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.04) inset"
+              : "0 8px 24px rgba(15,23,42,0.12), 0 1px 0 rgba(255,255,255,0.8) inset",
+          }}>
+            {hoveredNav.title}
+          </div>
+        </motion.div>,
+        document.body
+      )
+    : null;
+
   if (!hasSelectedPlatform) {
     return (
-      <Sidebar className={`${collapsed ? "w-20" : "w-56"} transition-all duration-300`} collapsible="icon"
-        style={{ borderRight: `1px solid ${p.border}`, background: p.bg }}>
-        {brandHeader}
-        <SidebarContent style={{ padding: collapsed ? "8px 6px" : "8px 8px", overflowX: "hidden", background: p.bg, display: "flex", flexDirection: "column" }}>
-          <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>
-            <SectionLabel label="WORKSPACES" />
-            <SidebarGroupContent>
-              <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <NavItem title="Workspaces" url="/platforms" icon={Shield} />
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-          <SidebarBottom />
-        </SidebarContent>
-      </Sidebar>
+      <>
+        <Sidebar className={`${collapsed ? "w-20" : "w-56"} transition-all duration-300`} collapsible="icon"
+          style={{ borderRight: `1px solid ${p.border}`, background: p.bg }}
+          onMouseLeave={() => setHoveredNav(null)}>
+          {brandHeader}
+          <SidebarContent style={{ padding: collapsed ? "8px 6px" : "8px 8px", overflowX: "hidden", background: p.bg, display: "flex", flexDirection: "column" }}>
+            <SidebarGroup style={{ padding: 0, marginBottom: 6 }}>
+              <SectionLabel label="WORKSPACES" />
+              <SidebarGroupContent>
+                <SidebarMenu style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <NavItem title="Workspaces" url="/platforms" icon={Shield} />
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            <SidebarBottom />
+          </SidebarContent>
+        </Sidebar>
+        {NavTooltip}
+      </>
     );
   }
 
   return (
+    <>
     <Sidebar className={`${collapsed ? "w-20" : "w-56"} transition-all duration-300`} collapsible="icon"
-      style={{ borderRight: `1px solid ${p.border}`, background: p.bg }}>
+      style={{ borderRight: `1px solid ${p.border}`, background: p.bg }}
+      onMouseLeave={() => setHoveredNav(null)}>
 
       {brandHeader}
 
@@ -655,6 +709,8 @@ const AppSidebar = () => {
         <SidebarBottom />
       </SidebarContent>
     </Sidebar>
+    {NavTooltip}
+    </>
   );
 };
 

@@ -40,15 +40,15 @@ const ALERT_TYPES = [
   },
   {
     id: 'response_anomaly',
-    name: 'Response Anomaly',
-    description: 'Monitor API response times',
+    name: 'Response Time Anomaly',
+    description: 'Alert when a request exceeds a specific response time threshold',
     icon: Clock,
     color: 'text-blue-500',
   },
   {
     id: 'response_failure',
-    name: 'Response Failure',
-    description: 'Alert on 500 server errors',
+    name: 'Server Errors',
+    description: 'Generate alerts when server errors occur on monitored endpoints.',
     icon: AlertTriangle,
     color: 'text-red-500',
   },
@@ -79,6 +79,7 @@ const ALERT_TYPES = [
     description: 'Create custom access control rules',
     icon: Settings,
     color: 'text-emerald-500',
+    hidden: true,
   },
 ];
 
@@ -1015,7 +1016,7 @@ const CreateAlert = () => {
   const stats = [
     {
       label: 'Alert Types',
-      value: ALERT_TYPES.length,
+      value: ALERT_TYPES.filter(t => !t.hidden).length,
       sub: 'Detection templates',
       icon: Bell,
       iconColor: 'text-blue-500',
@@ -1172,7 +1173,7 @@ const CreateAlert = () => {
 
           <CardContent className="p-6">
             <div className="grid gap-3">
-              {ALERT_TYPES.map((type) => {
+              {ALERT_TYPES.filter(type => !type.hidden).map((type) => {
                 const isSelected = selectedAlertType === type.id;
 
                 return (

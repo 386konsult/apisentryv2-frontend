@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, Plus, Paperclip, X, Trash2, MessageSquare,
   Sparkles, Image as ImageIcon, ChevronRight, Shield,
+  ShieldCheck, BarChart2, Compass, ScanEye,
+  PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -26,8 +28,9 @@ interface Message {
   role: 'user' | 'assistant';
   content: string | ContentBlock[];
   timestamp: string;
-  imagePreview?: string;
+  imagePreviews?: string[];   // array — supports multiple pasted/uploaded images
 }
+type PendingImage = { data: string; mimeType: string; preview: string };
 interface Conversation {
   id: string;
   title: string;
@@ -126,28 +129,41 @@ const renderMarkdown = (text: string): React.ReactNode[] => {
 // ── Typing indicator ──────────────────────────────────────────────────────────
 const TypingIndicator: React.FC = () => (
   <div className="flex items-start gap-4 py-2 max-w-3xl mx-auto w-full">
-    <div className="flex-shrink-0 h-9 w-9 rounded-2xl bg-gradient-to-br from-[#2563eb] to-[#06b6d4] flex items-center justify-center shadow-md mt-0.5">
-      <HeimdallAILogo size={20} />
+    <div className="flex-shrink-0 h-9 w-9 flex items-center justify-center mt-0.5">
+      <HeimdallAILogo size={36} />
     </div>
-    <div className="rounded-3xl rounded-tl-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 px-5 py-4 shadow-sm">
-      <div className="flex items-center gap-1.5">
-        {[0, 1, 2].map(i => (
-          <motion.div
-            key={i}
-            className="h-2 w-2 rounded-full bg-blue-400 dark:bg-blue-500"
-            animate={{ y: ['0%', '-55%', '0%'], opacity: [0.6, 1, 0.6] }}
-            transition={{ duration: 0.75, repeat: Infinity, delay: i * 0.18, ease: 'easeInOut' }}
-          />
-        ))}
-      </div>
+    <div className="flex items-center gap-1.5 py-4">
+      {[0, 1, 2].map(i => (
+        <motion.div
+          key={i}
+          className="h-2 w-2 rounded-full bg-blue-400 dark:bg-blue-500"
+          animate={{ y: ['0%', '-55%', '0%'], opacity: [0.6, 1, 0.6] }}
+          transition={{ duration: 0.75, repeat: Infinity, delay: i * 0.18, ease: 'easeInOut' }}
+        />
+      ))}
     </div>
   </div>
 );
 
+// ── Blinking cursor ───────────────────────────────────────────────────────────
+const BlinkCursor: React.FC = () => (
+  <motion.span
+    className="inline-block w-[2px] h-[1em] bg-blue-500 dark:bg-blue-400 ml-0.5 align-text-bottom rounded-full"
+    animate={{ opacity: [1, 0, 1] }}
+    transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut' }}
+  />
+);
+
 // ── Message bubble ────────────────────────────────────────────────────────────
-const MessageBubble: React.FC<{ message: Message; userInitial: string }> = ({ message, userInitial }) => {
+const MessageBubble: React.FC<{
+  message: Message;
+  avatarToken: typeof AVATAR_TOKENS[0];
+  displayText?: string;   // partial text during typing animation
+  isTyping?: boolean;     // whether this message is still being typed
+}> = ({ message, avatarToken, displayText, isTyping }) => {
   const isUser = message.role === 'user';
-  const text = getMessageText(message.content);
+  const fullText = getMessageText(message.content);
+  const shownText = displayText !== undefined ? displayText : fullText;
   const time = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
@@ -159,40 +175,53 @@ const MessageBubble: React.FC<{ message: Message; userInitial: string }> = ({ me
     >
       {/* Avatar */}
       {!isUser && (
-        <div className="flex-shrink-0 h-9 w-9 rounded-2xl bg-gradient-to-br from-[#2563eb] to-[#06b6d4] flex items-center justify-center shadow-md mt-0.5">
-          <HeimdallAILogo size={20} />
+        <div className="flex-shrink-0 h-9 w-9 flex items-center justify-center mt-0.5">
+          <HeimdallAILogo size={36} />
         </div>
       )}
       {isUser && (
-        <div className="flex-shrink-0 h-9 w-9 rounded-2xl bg-gradient-to-br from-slate-500 to-slate-700 dark:from-slate-600 dark:to-slate-800 flex items-center justify-center text-white text-sm font-bold shadow-md mt-0.5 select-none">
-          {userInitial}
+        <div
+          className="flex-shrink-0 h-9 w-9 rounded-2xl flex items-center justify-center shadow-md mt-0.5 select-none"
+          style={{ background: `linear-gradient(135deg, ${avatarToken.from}, ${avatarToken.to})`, boxShadow: `0 0 0 1.5px ${avatarToken.to}30, 0 2px 6px ${avatarToken.from}55` }}
+        >
+          {avatarToken.svg}
         </div>
       )}
 
       <div className={`flex flex-col gap-1.5 min-w-0 ${isUser ? 'items-end' : 'items-start'} max-w-[calc(100%-3.5rem)]`}>
-        {/* Image preview */}
-        {message.imagePreview && (
-          <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
-            <img src={message.imagePreview} alt="Uploaded" className="max-h-56 max-w-xs w-auto object-contain" />
+        {/* Image previews */}
+        {message.imagePreviews && message.imagePreviews.length > 0 && (
+          <div className={`flex flex-wrap gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
+            {message.imagePreviews.map((src, i) => (
+              <div key={i} className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+                <img src={src} alt={`Image ${i + 1}`} className="max-h-52 max-w-[240px] w-auto object-contain" />
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Bubble */}
-        {text && (
-          <div className={`px-5 py-3.5 shadow-sm ${
-            isUser
-              ? 'rounded-3xl rounded-tr-md bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] text-white'
-              : 'rounded-3xl rounded-tl-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-100'
-          }`}>
-            {isUser
-              ? <p className="text-sm leading-relaxed whitespace-pre-wrap">{text}</p>
-              : <div className="space-y-0.5">{renderMarkdown(text)}</div>
-            }
-          </div>
+        {/* Message content */}
+        {shownText && (
+          isUser ? (
+            /* User: keep the gradient bubble */
+            <div className="px-5 py-3.5 shadow-sm rounded-3xl rounded-tr-md bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] text-white">
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{shownText}</p>
+            </div>
+          ) : (
+            /* AI: no box — render text directly with optional typing cursor */
+            <div className="text-slate-800 dark:text-slate-100 leading-relaxed">
+              <div className="space-y-0.5">
+                {renderMarkdown(shownText)}
+                {isTyping && <BlinkCursor />}
+              </div>
+            </div>
+          )
         )}
 
-        {/* Timestamp */}
-        <span className="text-[10px] text-slate-400 dark:text-slate-500 px-1">{time}</span>
+        {/* Timestamp — hide while typing so it doesn't flash prematurely */}
+        {!isTyping && (
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 px-1">{time}</span>
+        )}
       </div>
     </motion.div>
   );
@@ -210,8 +239,8 @@ const WelcomeModal: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => (
     >
       <div className="bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#06b6d4] px-8 pt-10 pb-8 text-center relative">
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 30% 20%, white 0%, transparent 60%)' }} />
-        <div className="relative mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-2xl bg-white/15 border border-white/25 shadow-lg" style={{ width: 72, height: 72 }}>
-          <HeimdallAILogo size={40} />
+        <div className="relative mx-auto mb-5 flex items-center justify-center">
+          <HeimdallAILogo size={60} inverted />
         </div>
         <h2 className="relative text-2xl font-bold text-white tracking-tight">Meet Heimdall AI</h2>
         <p className="relative mt-1.5 text-sm text-blue-100 font-medium">Your intelligent security companion</p>
@@ -219,13 +248,13 @@ const WelcomeModal: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => (
       <div className="px-8 py-7 space-y-3">
         <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">Your expert security assistant, built right into the platform.</p>
         {[
-          { icon: '🛡️', text: 'WAF rules, OWASP threats, and attack patterns' },
-          { icon: '📊', text: 'Analysing your threat logs and security events' },
-          { icon: '🗺️', text: 'Navigating the Heimdall platform' },
-          { icon: '🖼️', text: 'Reading screenshots of dashboards or logs' },
-        ].map(({ icon, text }) => (
+          { icon: <ShieldCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" strokeWidth={2} />, text: 'WAF rules, OWASP threats, and attack patterns', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+          { icon: <BarChart2 className="h-4 w-4 text-cyan-600 dark:text-cyan-400" strokeWidth={2} />, text: 'Analysing your threat logs and security events', bg: 'bg-cyan-50 dark:bg-cyan-500/10' },
+          { icon: <Compass className="h-4 w-4 text-violet-600 dark:text-violet-400" strokeWidth={2} />, text: 'Navigating the Heimdall platform', bg: 'bg-violet-50 dark:bg-violet-500/10' },
+          { icon: <ScanEye className="h-4 w-4 text-emerald-600 dark:text-emerald-400" strokeWidth={2} />, text: 'Reading screenshots of dashboards or logs', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
+        ].map(({ icon, text, bg }) => (
           <div key={text} className="flex items-center gap-3">
-            <span className="text-xl flex-shrink-0">{icon}</span>
+            <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[10px] ${bg}`}>{icon}</span>
             <span className="text-sm text-slate-600 dark:text-slate-300">{text}</span>
           </div>
         ))}
@@ -276,6 +305,40 @@ const IconLogs = () => (
   </svg>
 );
 
+// ── User avatar — identical token system as PlatformIndicator ────────────────
+const djb2 = (s: string) => {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
+  return Math.abs(h >>> 0);
+};
+
+const AVATAR_TOKENS: Array<{ from: string; to: string; svg: React.ReactNode }> = [
+  { from: "#1e3a8a", to: "#06b6d4", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><circle cx="10" cy="10" r="2.5" fill="white" fillOpacity="0.95" /><circle cx="3" cy="3" r="1.5" fill="white" fillOpacity="0.6" /><circle cx="17" cy="3" r="1.5" fill="white" fillOpacity="0.6" /><circle cx="3" cy="17" r="1.5" fill="white" fillOpacity="0.6" /><circle cx="17" cy="17" r="1.5" fill="white" fillOpacity="0.6" /><line x1="3" y1="3" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /><line x1="17" y1="3" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /><line x1="3" y1="17" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /><line x1="17" y1="17" x2="10" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" /></svg>) },
+  { from: "#312e81", to: "#6366f1", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M3 14 Q6 8 13 5" stroke="white" strokeOpacity="0.9" strokeWidth="1.6" strokeLinecap="round" /><path d="M5 16 Q9 11 15 8" stroke="white" strokeOpacity="0.55" strokeWidth="1.2" strokeLinecap="round" /><path d="M7 18 Q12 14 17 11" stroke="white" strokeOpacity="0.3" strokeWidth="0.9" strokeLinecap="round" /><circle cx="13.5" cy="4.5" r="2.5" fill="white" fillOpacity="0.9" /><circle cx="13.5" cy="4.5" r="1" fill="white" /></svg>) },
+  { from: "#be123c", to: "#f97316", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M10 3 C6.5 3 4 5.8 4 9 C4 11.5 5 13.5 6.5 15" stroke="white" strokeOpacity="0.95" strokeWidth="1.4" strokeLinecap="round" /><path d="M10 5.5 C7.5 5.5 6 7.2 6 9 C6 10.5 6.8 11.8 8 13" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><path d="M10 8 C9 8 8.5 8.6 8.5 9.2 C8.5 9.8 9 10.8 9.5 11.5" stroke="white" strokeOpacity="0.9" strokeWidth="1.2" strokeLinecap="round" /><path d="M10 5.5 C12.5 5.5 14 7.2 14 9 C14 11 12.5 13 11 14.5 C13 13.5 16 11 16 9 C16 5.8 13.5 3 10 3" stroke="white" strokeOpacity="0.5" strokeWidth="1.1" strokeLinecap="round" /></svg>) },
+  { from: "#065f46", to: "#14b8a6", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><circle cx="4" cy="5" r="1.8" fill="white" fillOpacity="0.9" /><circle cx="4" cy="10" r="1.8" fill="white" fillOpacity="0.9" /><circle cx="4" cy="15" r="1.8" fill="white" fillOpacity="0.9" /><circle cx="10" cy="7.5" r="1.8" fill="white" fillOpacity="0.75" /><circle cx="10" cy="12.5" r="1.8" fill="white" fillOpacity="0.75" /><circle cx="16" cy="10" r="1.8" fill="white" fillOpacity="0.9" /><line x1="5.8" y1="5.2" x2="8.2" y2="7.3" stroke="white" strokeOpacity="0.5" strokeWidth="1" /><line x1="5.8" y1="10" x2="8.2" y2="7.5" stroke="white" strokeOpacity="0.5" strokeWidth="1" /><line x1="5.8" y1="10" x2="8.2" y2="12.5" stroke="white" strokeOpacity="0.5" strokeWidth="1" /><line x1="5.8" y1="14.8" x2="8.2" y2="12.7" stroke="white" strokeOpacity="0.5" strokeWidth="1" /><line x1="11.8" y1="7.5" x2="14.2" y2="9.8" stroke="white" strokeOpacity="0.5" strokeWidth="1" /><line x1="11.8" y1="12.5" x2="14.2" y2="10.2" stroke="white" strokeOpacity="0.5" strokeWidth="1" /></svg>) },
+  { from: "#1e1b4b", to: "#7c3aed", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M10 2 L16 5 L16 10 C16 13.5 13 16.5 10 18 C7 16.5 4 13.5 4 10 L4 5 Z" fill="white" fillOpacity="0.15" stroke="white" strokeOpacity="0.9" strokeWidth="1.3" /><rect x="7.5" y="9" width="5" height="4" rx="1" fill="white" fillOpacity="0.9" /><path d="M8.5 9 L8.5 7.5 C8.5 6.4 11.5 6.4 11.5 7.5 L11.5 9" stroke="white" strokeOpacity="0.9" strokeWidth="1.2" strokeLinecap="round" fill="none" /><circle cx="10" cy="11" r="0.8" fill="white" fillOpacity="0.5" /></svg>) },
+  { from: "#92400e", to: "#fbbf24", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><ellipse cx="10" cy="5.5" rx="6" ry="2" fill="white" fillOpacity="0.9" /><path d="M4 5.5 L4 10 C4 11.1 6.7 12 10 12 C13.3 12 16 11.1 16 10 L16 5.5" stroke="white" strokeOpacity="0.6" strokeWidth="1.2" fill="none" /><path d="M4 10 L4 14.5 C4 15.6 6.7 16.5 10 16.5 C13.3 16.5 16 15.6 16 14.5 L16 10" stroke="white" strokeOpacity="0.4" strokeWidth="1.2" fill="none" /></svg>) },
+  { from: "#0f172a", to: "#22c55e", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="2.5" y="4" width="15" height="12" rx="2.5" fill="white" fillOpacity="0.1" stroke="white" strokeOpacity="0.8" strokeWidth="1.2" /><path d="M5.5 8 L8 10 L5.5 12" stroke="white" strokeOpacity="0.9" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /><line x1="9.5" y1="12" x2="14" y2="12" stroke="white" strokeOpacity="0.7" strokeWidth="1.3" strokeLinecap="round" /></svg>) },
+  { from: "#0c4a6e", to: "#38bdf8", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><polyline points="2,10 4,10 5,6 6,14 7.5,8 9,13 10.5,7 12,13 13.5,9 15,11 16,10 18,10" stroke="white" strokeOpacity="0.95" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>) },
+  { from: "#4338ca", to: "#ec4899", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><polygon points="10,2 13.5,4 13.5,8 10,10 6.5,8 6.5,4" fill="white" fillOpacity="0.2" stroke="white" strokeOpacity="0.9" strokeWidth="1.2" /><polygon points="10,10 13.5,12 13.5,16 10,18 6.5,16 6.5,12" fill="white" fillOpacity="0.1" stroke="white" strokeOpacity="0.55" strokeWidth="1" /><circle cx="10" cy="6" r="1.5" fill="white" fillOpacity="0.9" /></svg>) },
+  { from: "#075985", to: "#7dd3fc", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M5.5 14 C3.5 14 2 12.5 2 10.5 C2 8.8 3.2 7.4 4.9 7.1 C4.7 6.7 4.5 6.2 4.5 5.5 C4.5 3.6 6.1 2 8 2 C9.4 2 10.6 2.8 11.2 4 C11.5 3.9 11.8 3.8 12.2 3.8 C14.1 3.8 15.6 5.3 15.6 7.2 C15.6 7.3 15.6 7.4 15.6 7.5 C16.9 7.9 18 9 18 10.5 C18 12.5 16.4 14 14.5 14" stroke="white" strokeOpacity="0.9" strokeWidth="1.3" strokeLinecap="round" fill="none" /><path d="M10 17 L10 10" stroke="white" strokeOpacity="0.9" strokeWidth="1.4" strokeLinecap="round" /><path d="M7.5 12 L10 9.5 L12.5 12" stroke="white" strokeOpacity="0.9" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>) },
+  { from: "#5b21b6", to: "#d946ef", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M7 2 C7 5 13 6 13 10 C13 14 7 15 7 18" stroke="white" strokeOpacity="0.9" strokeWidth="1.5" strokeLinecap="round" fill="none" /><path d="M13 2 C13 5 7 6 7 10 C7 14 13 15 13 18" stroke="white" strokeOpacity="0.5" strokeWidth="1.5" strokeLinecap="round" fill="none" /><line x1="7.5" y1="5.5" x2="12.5" y2="5.5" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><line x1="8.5" y1="10" x2="11.5" y2="10" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><line x1="7.5" y1="14.5" x2="12.5" y2="14.5" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /></svg>) },
+  { from: "#064e3b", to: "#10b981", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><text x="2" y="8" fontSize="5" fill="white" fillOpacity="0.95" fontFamily="monospace" fontWeight="bold">10</text><text x="10" y="8" fontSize="5" fill="white" fillOpacity="0.5" fontFamily="monospace" fontWeight="bold">01</text><text x="2" y="13" fontSize="5" fill="white" fillOpacity="0.5" fontFamily="monospace" fontWeight="bold">01</text><text x="10" y="13" fontSize="5" fill="white" fillOpacity="0.95" fontFamily="monospace" fontWeight="bold">10</text><text x="2" y="18" fontSize="5" fill="white" fillOpacity="0.3" fontFamily="monospace" fontWeight="bold">11</text><text x="10" y="18" fontSize="5" fill="white" fillOpacity="0.6" fontFamily="monospace" fontWeight="bold">00</text></svg>) },
+  { from: "#1e293b", to: "#f97316", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><circle cx="10" cy="10" r="3" fill="white" fillOpacity="0.15" stroke="white" strokeOpacity="0.9" strokeWidth="1.3" /><circle cx="10" cy="10" r="1.2" fill="white" fillOpacity="0.9" /><path d="M10 2.5 L10 4.5 M10 15.5 L10 17.5 M2.5 10 L4.5 10 M15.5 10 L17.5 10 M4.4 4.4 L5.8 5.8 M14.2 14.2 L15.6 15.6 M15.6 4.4 L14.2 5.8 M5.8 14.2 L4.4 15.6" stroke="white" strokeOpacity="0.7" strokeWidth="1.4" strokeLinecap="round" /></svg>) },
+  { from: "#1d4ed8", to: "#f472b6", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="2" y="14" width="3" height="4" rx="1" fill="white" fillOpacity="0.5" /><rect x="6.5" y="11" width="3" height="7" rx="1" fill="white" fillOpacity="0.7" /><rect x="11" y="7.5" width="3" height="10.5" rx="1" fill="white" fillOpacity="0.85" /><rect x="15.5" y="4" width="3" height="14" rx="1" fill="white" fillOpacity="0.95" /></svg>) },
+  { from: "#0f766e", to: "#a7f3d0", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><ellipse cx="10" cy="10" rx="8" ry="3.2" stroke="white" strokeOpacity="0.9" strokeWidth="1.2" fill="none" /><ellipse cx="10" cy="10" rx="8" ry="3.2" stroke="white" strokeOpacity="0.6" strokeWidth="1.2" fill="none" transform="rotate(60 10 10)" /><ellipse cx="10" cy="10" rx="8" ry="3.2" stroke="white" strokeOpacity="0.4" strokeWidth="1.2" fill="none" transform="rotate(120 10 10)" /><circle cx="10" cy="10" r="1.8" fill="white" fillOpacity="0.95" /></svg>) },
+  { from: "#1a2e05", to: "#84cc16", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><circle cx="10" cy="10" r="7.5" stroke="white" strokeOpacity="0.3" strokeWidth="1" fill="none" /><circle cx="10" cy="10" r="5" stroke="white" strokeOpacity="0.4" strokeWidth="1" fill="none" /><circle cx="10" cy="10" r="2.5" stroke="white" strokeOpacity="0.55" strokeWidth="1" fill="none" /><line x1="10" y1="10" x2="10" y2="2.5" stroke="white" strokeOpacity="0.9" strokeWidth="1.3" strokeLinecap="round" /><line x1="10" y1="10" x2="16.5" y2="6.5" stroke="white" strokeOpacity="0.35" strokeWidth="1.2" strokeLinecap="round" /><circle cx="14.5" cy="5.5" r="1.2" fill="white" fillOpacity="0.9" /></svg>) },
+  { from: "#713f12", to: "#facc15", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M11.5 2 L5.5 11.5 L9.5 11.5 L8.5 18 L14.5 8.5 L10.5 8.5 Z" fill="white" fillOpacity="0.95" /></svg>) },
+  { from: "#0f2744", to: "#22d3ee", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><circle cx="10" cy="10" r="7.5" stroke="white" strokeOpacity="0.9" strokeWidth="1.2" fill="none" /><ellipse cx="10" cy="10" rx="4" ry="7.5" stroke="white" strokeOpacity="0.55" strokeWidth="1" fill="none" /><line x1="2.5" y1="10" x2="17.5" y2="10" stroke="white" strokeOpacity="0.55" strokeWidth="1" /><path d="M3.5 6.5 Q10 5 16.5 6.5" stroke="white" strokeOpacity="0.4" strokeWidth="0.9" fill="none" /><path d="M3.5 13.5 Q10 15 16.5 13.5" stroke="white" strokeOpacity="0.4" strokeWidth="0.9" fill="none" /></svg>) },
+  { from: "#18181b", to: "#818cf8", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="2" y="2" width="5" height="5" rx="1" fill="white" fillOpacity="0.9" /><rect x="3" y="3" width="3" height="3" rx="0.5" fill="white" fillOpacity="0.2" /><rect x="13" y="2" width="5" height="5" rx="1" fill="white" fillOpacity="0.9" /><rect x="14" y="3" width="3" height="3" rx="0.5" fill="white" fillOpacity="0.2" /><rect x="2" y="13" width="5" height="5" rx="1" fill="white" fillOpacity="0.9" /><rect x="3" y="14" width="3" height="3" rx="0.5" fill="white" fillOpacity="0.2" /><rect x="9" y="2" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.7" /><rect x="9" y="5.5" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.5" /><rect x="13" y="9" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.7" /><rect x="9" y="9" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.9" /><rect x="16" y="9" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.5" /><rect x="9" y="13" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.6" /><rect x="13" y="13" width="5" height="2" rx="0.5" fill="white" fillOpacity="0.4" /><rect x="13" y="16" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.7" /><rect x="16" y="16" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.4" /></svg>) },
+  { from: "#7f1d1d", to: "#fb923c", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M10 2 C10 2 14 5 14 10 L12.5 13 L7.5 13 L6 10 C6 5 10 2 10 2 Z" fill="white" fillOpacity="0.9" /><path d="M7.5 13 L6 16 L8 15 Z" fill="white" fillOpacity="0.6" /><path d="M12.5 13 L14 16 L12 15 Z" fill="white" fillOpacity="0.6" /><circle cx="10" cy="8.5" r="1.8" fill="white" fillOpacity="0.2" stroke="white" strokeOpacity="0.6" strokeWidth="1" /></svg>) },
+  { from: "#1d4ed8", to: "#a855f7", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M3.5 10 C3.5 7.5 5.2 5.5 7.5 5.5 C9 5.5 10 6.5 10 6.5 C10 6.5 11 5.5 12.5 5.5 C14.8 5.5 16.5 7.5 16.5 10 C16.5 12.5 14.8 14.5 12.5 14.5 C11 14.5 10 13.5 10 13.5 C10 13.5 9 14.5 7.5 14.5 C5.2 14.5 3.5 12.5 3.5 10 Z" stroke="white" strokeOpacity="0.95" strokeWidth="1.5" fill="none" /><circle cx="7.5" cy="10" r="1.3" fill="white" fillOpacity="0.9" /><circle cx="12.5" cy="10" r="1.3" fill="white" fillOpacity="0.5" /></svg>) },
+  { from: "#134e4a", to: "#86efac", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><rect x="2.5" y="3" width="15" height="4" rx="1.5" fill="white" fillOpacity="0.15" stroke="white" strokeOpacity="0.9" strokeWidth="1.2" /><rect x="2.5" y="8" width="15" height="4" rx="1.5" fill="white" fillOpacity="0.1" stroke="white" strokeOpacity="0.65" strokeWidth="1.2" /><rect x="2.5" y="13" width="15" height="4" rx="1.5" fill="white" fillOpacity="0.05" stroke="white" strokeOpacity="0.4" strokeWidth="1.2" /><circle cx="14.5" cy="5" r="1" fill="white" fillOpacity="0.9" /><circle cx="14.5" cy="10" r="1" fill="white" fillOpacity="0.6" /><circle cx="14.5" cy="15" r="1" fill="white" fillOpacity="0.35" /></svg>) },
+  { from: "#0f172a", to: "#60a5fa", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M7 7 L7 5 C7 3.9 7.9 3 9 3 C10.1 3 11 3.9 11 5 L11 7 L13 7 L13 5 C13 3.9 13.9 3 15 3 C16.1 3 17 3.9 17 5 C17 6.1 16.1 7 15 7 L13 7 L13 9 L15 9 C16.1 9 17 9.9 17 11 C17 12.1 16.1 13 15 13 L13 13 L13 15 C13 16.1 12.1 17 11 17 C9.9 17 9 16.1 9 15 L9 13 L7 13 L7 15 C7 16.1 6.1 17 5 17 C3.9 17 3 16.1 3 15 C3 13.9 3.9 13 5 13 L7 13 L7 11 L5 11 C3.9 11 3 10.1 3 9 C3 7.9 3.9 7 5 7 L7 7 Z M9 7 L9 9 L11 9 L11 7 Z M9 11 L9 13 L11 13 L11 11 Z" fill="white" fillOpacity="0.9" /></svg>) },
+  { from: "#831843", to: "#fb7185", svg: (<svg viewBox="0 0 20 20" fill="none" width="16" height="16"><circle cx="10" cy="10" r="7.5" stroke="white" strokeOpacity="0.25" strokeWidth="1" fill="none" /><circle cx="10" cy="10" r="5" stroke="white" strokeOpacity="0.4" strokeWidth="1.2" fill="none" /><circle cx="10" cy="10" r="2.5" fill="white" fillOpacity="0.9" /><line x1="10" y1="2.5" x2="10" y2="5" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><line x1="10" y1="15" x2="10" y2="17.5" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><line x1="2.5" y1="10" x2="5" y2="10" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /><line x1="15" y1="10" x2="17.5" y2="10" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" strokeLinecap="round" /></svg>) },
+];
+
 // ── Suggestion chips ──────────────────────────────────────────────────────────
 const SUGGESTIONS = [
   { icon: <IconOWASP />, text: 'What are the OWASP Top 10 risks I should monitor?' },
@@ -305,11 +368,11 @@ const HeimdallAI: React.FC = () => {
     } catch { return 0; }
   }, [IMAGE_DATE_KEY, IMAGE_COUNT_KEY]);
 
-  const incrementImageCount = useCallback(() => {
+  const incrementImageCount = useCallback((count = 1) => {
     try {
       const today = new Date().toISOString().slice(0, 10);
       localStorage.setItem(IMAGE_DATE_KEY, today);
-      localStorage.setItem(IMAGE_COUNT_KEY, String(getImageUsage() + 1));
+      localStorage.setItem(IMAGE_COUNT_KEY, String(getImageUsage() + count));
     } catch {}
   }, [IMAGE_DATE_KEY, IMAGE_COUNT_KEY, getImageUsage]);
 
@@ -319,8 +382,46 @@ const HeimdallAI: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
-  const [pendingImage, setPendingImage] = useState<{ data: string; mimeType: string; preview: string } | null>(null);
+  const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [remainingImages, setRemainingImages] = useState(DAILY_IMAGE_LIMIT);
+
+  // ── Typing animation ──────────────────────────────────────────────────────
+  const [typingMsgId, setTypingMsgId] = useState<string | null>(null);
+  const [typingDisplayed, setTypingDisplayed] = useState('');
+  const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopTyping = useCallback(() => {
+    if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
+    setTypingMsgId(null);
+    setTypingDisplayed('');
+  }, []);
+
+  const startTypingAnimation = useCallback((msgId: string, fullText: string) => {
+    stopTyping();
+    setTypingMsgId(msgId);
+    setTypingDisplayed('');
+    let charIdx = 0;
+    // Reveal speed: aim for ~2.5s max; faster for short texts
+    const TICK_MS = 16;
+    const charsPerTick = Math.max(1, Math.ceil(fullText.length / (2500 / TICK_MS)));
+    typingIntervalRef.current = setInterval(() => {
+      charIdx += charsPerTick;
+      if (charIdx >= fullText.length) {
+        setTypingDisplayed(fullText);
+        setTypingMsgId(null);
+        if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
+      } else {
+        setTypingDisplayed(fullText.slice(0, charIdx));
+      }
+    }, TICK_MS);
+  }, [stopTyping]);
+
+  // Stop typing when switching conversations
+  useEffect(() => { stopTyping(); }, [currentId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cleanup on unmount
+  useEffect(() => () => { if (typingIntervalRef.current) clearInterval(typingIntervalRef.current); }, []);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -329,10 +430,35 @@ const HeimdallAI: React.FC = () => {
   const currentConv = conversations.find(c => c.id === currentId) || null;
   const messages = currentConv?.messages || [];
 
-  const userInitial = useMemo(() => {
-    const name = user?.username || user?.email || 'U';
-    return name.charAt(0).toUpperCase();
-  }, [user]);
+  // Unique avatar token — same djb2 + AVATAR_TOKENS as PlatformIndicator, seeded by email
+  const avatarToken = useMemo(
+    () => AVATAR_TOKENS[djb2(user?.email || '') % AVATAR_TOKENS.length],
+    [user?.email]
+  );
+
+  // ── Service health check ───────────────────────────────────────────────────
+  const [serviceStatus, setServiceStatus] = useState<'active' | 'down' | 'checking'>('checking');
+  const [statusDotHovered, setStatusDotHovered] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await fetch(`${API_BASE.replace('/api/v1', '')}/api/v1/platforms/`, {
+          method: 'HEAD',
+          headers: { Authorization: `Token ${localStorage.getItem('auth_token')}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        // 200/401/403/404 all mean the server is reachable — it's active
+        if (!cancelled) setServiceStatus(res.status < 500 ? 'active' : 'down');
+      } catch {
+        if (!cancelled) setServiceStatus('down');
+      }
+    };
+    check();
+    const interval = setInterval(check, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load on mount (once userId is known) ──────────────────────────────────
   useEffect(() => {
@@ -397,28 +523,76 @@ const HeimdallAI: React.FC = () => {
   }, [currentId, saveConversations]);
 
   // ── Image handling ─────────────────────────────────────────────────────────
-  const handleFileSelect = (file: File) => {
+  const addImageToQueue = useCallback((file: File, currentQueue: PendingImage[]) => {
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      toast({ title: 'Unsupported file type', description: 'Please upload PNG, JPG, WEBP, or GIF.', variant: 'destructive' }); return;
+      toast({ title: 'Unsupported file type', description: 'Please use PNG, JPG, WEBP, or GIF.', variant: 'destructive' }); return;
     }
     if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
-      toast({ title: 'File too large', description: `Max file size is ${MAX_IMAGE_MB}MB.`, variant: 'destructive' }); return;
+      toast({ title: 'File too large', description: `Max size is ${MAX_IMAGE_MB} MB per image.`, variant: 'destructive' }); return;
     }
-    if (getImageUsage() >= DAILY_IMAGE_LIMIT) {
-      toast({ title: 'Daily limit reached', description: 'You can upload 50 images per day.', variant: 'destructive' }); return;
+    if (getImageUsage() + currentQueue.length >= DAILY_IMAGE_LIMIT) {
+      toast({ title: 'Daily limit reached', description: `You can upload up to ${DAILY_IMAGE_LIMIT} images per day.`, variant: 'destructive' }); return;
     }
     const reader = new FileReader();
     reader.onload = e => {
       const dataUrl = e.target?.result as string;
-      setPendingImage({ data: dataUrl.split(',')[1], mimeType: file.type, preview: dataUrl });
+      setPendingImages(prev => [...prev, { data: dataUrl.split(',')[1], mimeType: file.type, preview: dataUrl }]);
     };
     reader.readAsDataURL(file);
-  };
+  }, [getImageUsage, toast]);
+
+  const handleFilesSelect = useCallback((files: File[]) => {
+    // snapshot queue length before any async reads so limit checks are consistent
+    setPendingImages(current => {
+      files.forEach(f => addImageToQueue(f, current));
+      return current; // actual updates happen via setPendingImages inside addImageToQueue
+    });
+  }, [addImageToQueue]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageItems = Array.from(e.clipboardData.items).filter(item => item.type.startsWith('image/'));
+    if (imageItems.length === 0) return;
+    // Don't preventDefault — let normal text paste still work
+    setPendingImages(current => {
+      const available = DAILY_IMAGE_LIMIT - getImageUsage() - current.length;
+      if (available <= 0) {
+        toast({ title: 'Daily limit reached', description: `Up to ${DAILY_IMAGE_LIMIT} images per day.`, variant: 'destructive' });
+        return current;
+      }
+      imageItems.slice(0, available).forEach(item => {
+        const file = item.getAsFile();
+        if (file) addImageToQueue(file, current);
+      });
+      return current;
+    });
+  }, [getImageUsage, addImageToQueue, toast]);
+
+  // ── AI conversation title generation ─────────────────────────────────────
+  const generateTitle = useCallback(async (convId: string, userText: string, aiText: string) => {
+    try {
+      const prompt = `Generate a concise, professional 3–6 word title for this API security conversation. No quotes, no punctuation at the end, just the title.\n\nUser: "${userText.slice(0, 250)}"\nAssistant: "${aiText.slice(0, 250)}"`;
+      const res = await fetch(`${API_BASE}/heimdall-ai/chat/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Token ${localStorage.getItem('auth_token')}` },
+        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const title = (data.response || '').trim().replace(/^["'`]+|["'`]+$/g, '').split('\n')[0].slice(0, 60);
+      if (title.length > 2) {
+        setConversations(prev => {
+          const updated = prev.map(c => c.id === convId ? { ...c, title } : c);
+          saveConversations(updated);
+          return updated;
+        });
+      }
+    } catch {}
+  }, [saveConversations]);
 
   // ── Send ───────────────────────────────────────────────────────────────────
   const sendMessage = useCallback(async () => {
     const text = input.trim();
-    if (!text && !pendingImage) return;
+    if (!text && pendingImages.length === 0) return;
     if (isLoading) return;
 
     let convId = currentId;
@@ -430,25 +604,32 @@ const HeimdallAI: React.FC = () => {
     }
 
     let content: string | ContentBlock[];
-    let imagePreview: string | undefined;
+    let imagePreviews: string[] | undefined;
 
-    if (pendingImage) {
+    if (pendingImages.length > 0) {
       content = [
-        { type: 'image', source: { type: 'base64', media_type: pendingImage.mimeType, data: pendingImage.data } },
-        ...(text ? [{ type: 'text' as const, text }] : [{ type: 'text' as const, text: 'Please analyse this image from a security perspective.' }]),
+        ...pendingImages.map(img => ({
+          type: 'image' as const,
+          source: { type: 'base64' as const, media_type: img.mimeType, data: img.data },
+        })),
+        ...(text
+          ? [{ type: 'text' as const, text }]
+          : [{ type: 'text' as const, text: `Please analyse ${pendingImages.length > 1 ? 'these images' : 'this image'} from a security perspective.` }]
+        ),
       ];
-      imagePreview = pendingImage.preview;
-      incrementImageCount();
+      imagePreviews = pendingImages.map(img => img.preview);
+      incrementImageCount(pendingImages.length);
       setRemainingImages(DAILY_IMAGE_LIMIT - getImageUsage());
-      setPendingImage(null);
+      setPendingImages([]);
     } else {
       content = text;
     }
 
-    const userMsg: Message = { id: uid(), role: 'user', content, timestamp: new Date().toISOString(), imagePreview };
+    const userMsg: Message = { id: uid(), role: 'user', content, timestamp: new Date().toISOString(), imagePreviews };
     const isFirstMessage = currentMessages.length === 0;
     const newMessages = [...currentMessages, userMsg];
-    updateConversation(convId, newMessages, isFirstMessage ? text || 'Image analysis' : undefined);
+    // Use a placeholder title until AI renames it
+    updateConversation(convId, newMessages, isFirstMessage ? '…' : undefined);
     setInput('');
     setIsLoading(true);
 
@@ -460,14 +641,20 @@ const HeimdallAI: React.FC = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Request failed');
-      updateConversation(convId, [...newMessages, { id: uid(), role: 'assistant', content: data.response, timestamp: new Date().toISOString() }]);
+      const aiText: string = data.response || '';
+      const aiMsgId = uid();
+      updateConversation(convId, [...newMessages, { id: aiMsgId, role: 'assistant', content: aiText, timestamp: new Date().toISOString() }]);
+      // Start typing animation for the AI response
+      startTypingAnimation(aiMsgId, aiText);
+      // Fire title generation after first exchange — non-blocking
+      if (isFirstMessage) generateTitle(convId, text || 'image analysis request', aiText);
     } catch (err: any) {
       toast({ title: 'Failed to get response', description: err?.message || 'Please try again.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
       setTimeout(() => textareaRef.current?.focus(), 50);
     }
-  }, [input, pendingImage, currentId, messages, isLoading, createNewConversation, updateConversation, incrementImageCount, getImageUsage, toast]);
+  }, [input, pendingImages, currentId, messages, isLoading, createNewConversation, updateConversation, generateTitle, startTypingAnimation, incrementImageCount, getImageUsage, toast]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -482,17 +669,24 @@ const HeimdallAI: React.FC = () => {
         {showWelcome && <WelcomeModal onDismiss={() => { localStorage.setItem(WELCOMED_KEY, 'true'); setShowWelcome(false); }} />}
       </AnimatePresence>
 
-      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-      <div className="w-72 flex-shrink-0 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-[#080e1a]">
+      {/* ── Conversation Sidebar ────────────────────────────────────────────── */}
+      <AnimatePresence initial={false}>
+      {chatSidebarOpen && (
+      <motion.div
+        key="chat-sidebar"
+        initial={{ width: 0, opacity: 0 }}
+        animate={{ width: 288, opacity: 1 }}
+        exit={{ width: 0, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 380, damping: 36, mass: 0.8 }}
+        className="flex-shrink-0 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-[#080e1a] overflow-hidden">
 
-        {/* Logo + title */}
-        <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-200 dark:border-slate-800">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2563eb] to-[#06b6d4] shadow-md flex-shrink-0">
-            <HeimdallAILogo size={22} />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Heimdall AI</p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Security Assistant</p>
+        {/* Logo with version tooltip */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+          <div className="relative group flex h-10 w-10 items-center justify-center flex-shrink-0 cursor-default">
+            <HeimdallAILogo size={36} />
+            <div className="absolute left-full ml-2.5 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-slate-900 dark:bg-slate-700 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-lg z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+              Heimdall AI v0.1.0
+            </div>
           </div>
         </div>
 
@@ -551,8 +745,8 @@ const HeimdallAI: React.FC = () => {
         {user && (
           <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
-              <div className="flex-shrink-0 h-7 w-7 rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 dark:from-slate-600 dark:to-slate-800 flex items-center justify-center text-white text-xs font-bold">
-                {userInitial}
+              <div className="flex-shrink-0 h-7 w-7 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${avatarToken.from}, ${avatarToken.to})`, boxShadow: `0 0 0 1.5px ${avatarToken.to}30` }}>
+                {avatarToken.svg}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">{user.username || user.email}</p>
@@ -567,7 +761,9 @@ const HeimdallAI: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
+      </motion.div>
+      )}
+      </AnimatePresence>
 
       {/* ── Main chat area ───────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0d1829]">
@@ -575,15 +771,30 @@ const HeimdallAI: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2563eb] to-[#06b6d4] shadow-md">
-              <HeimdallAILogo size={22} />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Heimdall AI</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <p className="text-[11px] text-slate-400 dark:text-slate-500">Powered by Claude · Security Expert</p>
-              </div>
+            {/* Sidebar toggle */}
+            <button
+              onClick={() => setChatSidebarOpen(v => !v)}
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300 transition-all duration-150 flex-shrink-0"
+              title={chatSidebarOpen ? "Close conversation list" : "Open conversation list"}
+            >
+              {chatSidebarOpen
+                ? <PanelLeftClose className="h-4 w-4" />
+                : <PanelLeftOpen className="h-4 w-4" />
+              }
+            </button>
+            <p className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Heimdall AI</p>
+            {/* Live status dot with tooltip */}
+            <div className="relative flex items-center" onMouseEnter={() => setStatusDotHovered(true)} onMouseLeave={() => setStatusDotHovered(false)}>
+              <span className={`h-2 w-2 rounded-full cursor-default ${
+                serviceStatus === 'active' ? 'bg-emerald-500 animate-pulse' :
+                serviceStatus === 'down'   ? 'bg-red-500 animate-pulse' :
+                'bg-slate-400 animate-pulse'
+              }`} />
+              {statusDotHovered && (
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 whitespace-nowrap rounded-lg bg-slate-900 dark:bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-white shadow-lg z-50 pointer-events-none">
+                  {serviceStatus === 'active' ? '● Active' : serviceStatus === 'down' ? '● Service unavailable' : '● Checking…'}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -594,19 +805,70 @@ const HeimdallAI: React.FC = () => {
           </div>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
-          {/* Empty state */}
-          {messages.length === 0 && !isLoading && (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto">
-              <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-[#2563eb]/10 to-[#06b6d4]/10 border border-blue-100 dark:border-blue-900/40 shadow-sm">
-                <HeimdallAILogo size={40} />
+        {/* ── Empty state: centered ChatGPT-style layout ───────────────── */}
+        {messages.length === 0 && !isLoading ? (
+          <div className="flex-1 flex flex-col items-center justify-center px-6 pb-4 overflow-y-auto">
+            <div className="w-full max-w-2xl flex flex-col items-center gap-7">
+
+              {/* Hero */}
+              <div className="flex flex-col items-center gap-3 text-center">
+                <HeimdallAILogo size={72} />
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Ask Heimdall AI anything</h3>
+                <p className="text-sm text-slate-400 dark:text-slate-500 leading-relaxed">
+                  Security expert. Platform guide. Threat analyst.
+                </p>
               </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">Ask Heimdall AI anything</h3>
-              <p className="text-sm text-slate-400 dark:text-slate-500 max-w-sm mb-10 leading-relaxed">
-                Security expert. Platform guide. Threat analyst.<br />Just start typing below.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl">
+
+              {/* Pending images above input */}
+              <AnimatePresence>
+                {pendingImages.length > 0 && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="w-full">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                      {pendingImages.map((img, i) => (
+                        <div key={i} className="relative flex-shrink-0 group">
+                          <img src={img.preview} alt={`Image ${i + 1}`} className="h-20 w-auto rounded-2xl border border-slate-200 dark:border-slate-700 object-cover shadow-sm" />
+                          <button onClick={() => setPendingImages(prev => prev.filter((_, j) => j !== i))} className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:bg-red-600 transition-colors">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="flex-shrink-0 ml-1 text-[11px] text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap">
+                        {pendingImages.length} image{pendingImages.length > 1 ? 's' : ''} queued
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Centered pill input */}
+              <div className="w-full">
+                <div className="flex items-end gap-3 rounded-[28px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-5 py-3.5 focus-within:border-blue-400 dark:focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/10 transition-all shadow-md">
+                  <button onClick={() => fileInputRef.current?.click()} title={`Upload image (${remainingImages} remaining)`} className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
+                    <Paperclip style={{ width: 18, height: 18 }} />
+                  </button>
+                  <input ref={fileInputRef} type="file" accept={ACCEPTED_IMAGE_TYPES.join(',')} multiple className="hidden" onChange={e => { const files = Array.from(e.target.files || []); if (files.length) handleFilesSelect(files); e.target.value = ''; }} />
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    placeholder="Ask anything about your API security…"
+                    rows={1}
+                    className="flex-1 resize-none bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none leading-relaxed min-h-[36px] max-h-[140px] py-1.5"
+                    style={{ height: 'auto' }}
+                  />
+                  <button onClick={sendMessage} disabled={isLoading || (!input.trim() && pendingImages.length === 0)} className="flex-shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-gradient-to-br from-[#2563eb] to-[#06b6d4] text-white shadow-md hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none">
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="text-center text-[10px] text-slate-400 dark:text-slate-600 mt-2.5">
+                  Enter to send · Shift+Enter for new line · Paste screenshot with Ctrl+V
+                </p>
+              </div>
+
+              {/* Suggestion chips */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                 {SUGGESTIONS.map(s => (
                   <button
                     key={s.text}
@@ -619,87 +881,79 @@ const HeimdallAI: React.FC = () => {
                 ))}
               </div>
             </div>
-          )}
-
-          {/* Message list */}
-          <div className="space-y-1">
-            {messages.map(msg => (
-              <MessageBubble key={msg.id} message={msg} userInitial={userInitial} />
-            ))}
           </div>
 
-          {isLoading && <TypingIndicator />}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Image pending preview */}
-        <AnimatePresence>
-          {pendingImage && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="px-6 py-3 border-t border-slate-100 dark:border-slate-800/60"
-            >
-              <div className="relative inline-block">
-                <img src={pendingImage.preview} alt="Preview" className="h-20 w-auto rounded-2xl border border-slate-200 dark:border-slate-700 object-cover shadow-sm" />
-                <button
-                  onClick={() => setPendingImage(null)}
-                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:bg-red-600 transition-colors"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+        ) : (
+          /* ── Active chat: messages + bottom input ────────────────────── */
+          <>
+            {/* Message list */}
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              <div className="space-y-1 max-w-3xl mx-auto w-full">
+                {messages.map(msg => (
+                  <MessageBubble
+                    key={msg.id}
+                    message={msg}
+                    avatarToken={avatarToken}
+                    displayText={typingMsgId === msg.id ? typingDisplayed : undefined}
+                    isTyping={typingMsgId === msg.id}
+                  />
+                ))}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Input area */}
-        <div className="flex-shrink-0 px-6 pb-5 pt-3 border-t border-slate-200 dark:border-slate-800">
-          <div className="max-w-3xl mx-auto">
-            <div className="flex items-end gap-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3.5 focus-within:border-blue-400 dark:focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/10 transition-all shadow-sm">
-              {/* Attach */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                title={`Upload image (${remainingImages} remaining)`}
-                className="flex-shrink-0 h-8 w-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
-              >
-                <Paperclip className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={ACCEPTED_IMAGE_TYPES.join(',')}
-                className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); e.target.value = ''; }}
-              />
-
-              {/* Textarea */}
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask Heimdall AI about your security posture…"
-                rows={1}
-                className="flex-1 resize-none bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none leading-relaxed min-h-[36px] max-h-[140px] py-1.5"
-                style={{ height: 'auto' }}
-              />
-
-              {/* Send */}
-              <button
-                onClick={sendMessage}
-                disabled={isLoading || (!input.trim() && !pendingImage)}
-                className="flex-shrink-0 h-9 w-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-[#2563eb] to-[#06b6d4] text-white shadow-md hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
-              >
-                <Send className="h-4 w-4" />
-              </button>
+              {isLoading && <TypingIndicator />}
+              <div ref={messagesEndRef} />
             </div>
-            <p className="text-center text-[10px] text-slate-400 dark:text-slate-600 mt-2.5">
-              Enter to send · Shift+Enter for new line · {remainingImages} image uploads remaining today
-            </p>
-          </div>
-        </div>
+
+            {/* Pending images strip */}
+            <AnimatePresence>
+              {pendingImages.length > 0 && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="px-6 py-3 border-t border-slate-100 dark:border-slate-800/60">
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-3xl mx-auto">
+                    {pendingImages.map((img, i) => (
+                      <div key={i} className="relative flex-shrink-0 group">
+                        <img src={img.preview} alt={`Image ${i + 1}`} className="h-20 w-auto rounded-2xl border border-slate-200 dark:border-slate-700 object-cover shadow-sm" />
+                        <button onClick={() => setPendingImages(prev => prev.filter((_, j) => j !== i))} className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:bg-red-600 transition-colors">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex-shrink-0 ml-1 text-[11px] text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap">
+                      {pendingImages.length} image{pendingImages.length > 1 ? 's' : ''} queued
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Bottom pill input */}
+            <div className="flex-shrink-0 px-6 pb-5 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="max-w-3xl mx-auto">
+                <div className="flex items-end gap-3 rounded-[28px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-5 py-3.5 focus-within:border-blue-400 dark:focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/10 transition-all shadow-sm">
+                  <button onClick={() => fileInputRef.current?.click()} title={`Upload image (${remainingImages} remaining)`} className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
+                    <Paperclip style={{ width: 18, height: 18 }} />
+                  </button>
+                  <input ref={fileInputRef} type="file" accept={ACCEPTED_IMAGE_TYPES.join(',')} multiple className="hidden" onChange={e => { const files = Array.from(e.target.files || []); if (files.length) handleFilesSelect(files); e.target.value = ''; }} />
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    placeholder="Ask Heimdall AI… or paste a screenshot (Ctrl+V / ⌘+V)"
+                    rows={1}
+                    className="flex-1 resize-none bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none leading-relaxed min-h-[36px] max-h-[140px] py-1.5"
+                    style={{ height: 'auto' }}
+                  />
+                  <button onClick={sendMessage} disabled={isLoading || (!input.trim() && pendingImages.length === 0)} className="flex-shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-gradient-to-br from-[#2563eb] to-[#06b6d4] text-white shadow-md hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none">
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="text-center text-[10px] text-slate-400 dark:text-slate-600 mt-2.5">
+                  Enter to send · Shift+Enter for new line · Paste screenshot with Ctrl+V · {remainingImages} image{remainingImages !== 1 ? 's' : ''} remaining today
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

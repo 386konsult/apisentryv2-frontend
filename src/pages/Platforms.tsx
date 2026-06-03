@@ -5,6 +5,7 @@ import {
   Shield, Plus, Activity, Globe, Settings, Eye,
   Server, Zap, AlertTriangle, Trash2, X,
 } from 'lucide-react';
+import HeimdallAILogo from '@/components/HeimdallAILogo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -255,8 +256,8 @@ const Platforms = () => {
         {platforms.length === 0 ? (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             className="rounded-3xl bg-white dark:bg-[#111c2e] border border-slate-200/60 dark:border-blue-900/20 p-16 text-center shadow-sm">
-            <div className="mx-auto mb-5 h-16 w-16 flex items-center justify-center rounded-3xl bg-gradient-to-br from-blue-600 to-cyan-500 shadow-lg shadow-blue-500/20">
-              <Shield className="h-8 w-8 text-white" />
+            <div className="mx-auto mb-5 flex items-center justify-center">
+              <HeimdallAILogo size={64} />
             </div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">No workspaces yet</h3>
             <p className="mx-auto mt-2 max-w-xs text-sm text-slate-400 dark:text-slate-500">

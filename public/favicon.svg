@@ -5,18 +5,29 @@
       <stop offset="1" stop-color="#06b6d4"/>
     </linearGradient>
     <linearGradient id="g2" x1="5" y1="3" x2="35" y2="38" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2563eb" stop-opacity="0.18"/>
-      <stop offset="1" stop-color="#06b6d4" stop-opacity="0.12"/>
+      <stop stop-color="#2563eb" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#06b6d4" stop-opacity="0.08"/>
     </linearGradient>
   </defs>
-  <!-- Shield body — gradient fill + stroke -->
+  <!-- Shield body -->
   <path d="M20 3L5 9.5V19C5 28 11.8 35.8 20 38C28.2 35.8 35 28 35 19V9.5L20 3Z"
-    fill="url(#g1)"
-    stroke="url(#g1)"
-    stroke-width="1.5"
-    stroke-linejoin="round"/>
-  <!-- Inner highlight for depth -->
-  <path d="M20 7L9 12V19C9 25.8 13.9 31.8 20 34C26.1 31.8 31 25.8 31 19V12L20 7Z"
-    fill="white"
-    fill-opacity="0.15"/>
+    fill="url(#g2)" stroke="url(#g1)" stroke-width="2" stroke-linejoin="round"/>
+  <!-- Sparkle vertical arm -->
+  <path d="M20 12 C20 12 21 17.5 21 20 C21 22.5 20 28 20 28 C20 28 19 22.5 19 20 C19 17.5 20 12 20 12Z"
+    fill="url(#g1)" fill-opacity="0.95"/>
+  <!-- Sparkle horizontal arm -->
+  <path d="M12 20 C12 20 17.5 19 20 19 C22.5 19 28 20 28 20 C28 20 22.5 21 20 21 C17.5 21 12 20 12 20Z"
+    fill="url(#g1)" fill-opacity="0.95"/>
+  <!-- Small sparkle top-right vertical -->
+  <path d="M27.5 12.5 C27.5 12.5 28 14.3 28 15 C28 15.7 27.5 17.5 27.5 17.5 C27.5 17.5 27 15.7 27 15 C27 14.3 27.5 12.5 27.5 12.5Z"
+    fill="url(#g1)" fill-opacity="0.7"/>
+  <!-- Small sparkle top-right horizontal -->
+  <path d="M24.5 15 C24.5 15 26.3 14.5 27 14.5 C27.7 14.5 29.5 15 29.5 15 C29.5 15 27.7 15.5 27 15.5 C26.3 15.5 24.5 15 24.5 15Z"
+    fill="url(#g1)" fill-opacity="0.7"/>
+  <!-- Tiny sparkle bottom-left vertical -->
+  <path d="M13 24 C13 24 13.4 25.2 13.4 25.6 C13.4 26 13 27.2 13 27.2 C13 27.2 12.6 26 12.6 25.6 C12.6 25.2 13 24 13 24Z"
+    fill="url(#g1)" fill-opacity="0.55"/>
+  <!-- Tiny sparkle bottom-left horizontal -->
+  <path d="M11 25.6 C11 25.6 12.2 25.2 12.6 25.2 C13 25.2 14.2 25.6 14.2 25.6 C14.2 25.6 13 26 12.6 26 C12.2 26 11 25.6 11 25.6Z"
+    fill="url(#g1)" fill-opacity="0.55"/>
 </svg>

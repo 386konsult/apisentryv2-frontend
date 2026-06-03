@@ -91,7 +91,7 @@ const LiveFeedCard: React.FC<LiveFeedCardProps> = ({ platformId }) => {
     };
 
     poll();
-    const timer = setInterval(poll, 3000);
+    const timer = setInterval(poll, 5000);
     return () => clearInterval(timer);
   }, [platformId, running]);
 

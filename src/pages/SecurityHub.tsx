@@ -22,6 +22,7 @@ import {
   Building2, Server, Network, X, CheckCircle2, AlertOctagon,
   Wifi, WifiOff, ExternalLink,
 } from "lucide-react";
+import HeimdallAILogo from '@/components/HeimdallAILogo';
 import { apiService } from "@/services/api";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -365,8 +366,8 @@ const LogDetailModal = ({
           </button>
 
           <div className="relative flex items-start gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/15">
-              <Shield className="h-5 w-5 text-white" />
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
+              <HeimdallAILogo size={36} inverted />
             </div>
             <div className="min-w-0 flex-1 pr-8">
               <div className="flex flex-wrap items-center gap-2 mb-1.5">

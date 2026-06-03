@@ -68,7 +68,7 @@ const HeatmapCard: React.FC<HeatmapCardProps> = ({ platformId }) => {
         </div>
       </CardHeader>
 
-      <CardContent className="p-6 pt-5 overflow-x-auto">
+      <CardContent className="p-6 pt-5">
         {heatmapData.length === 0 ? (
           <div className="flex h-40 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 rounded-[14px]">
             <div className="text-center">
@@ -77,7 +77,7 @@ const HeatmapCard: React.FC<HeatmapCardProps> = ({ platformId }) => {
             </div>
           </div>
         ) : (
-          <div className="min-w-[600px]">
+          <div className="w-full">
 
             {/* Hour axis */}
             <div className="flex gap-1 mb-3 pl-12">

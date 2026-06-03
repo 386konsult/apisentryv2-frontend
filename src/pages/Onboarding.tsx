@@ -17,6 +17,7 @@ import {
   Download,
   CheckCircle2,
 } from 'lucide-react';
+import HeimdallAILogo from '@/components/HeimdallAILogo';
 
 const platforms = [
   // { id: 'aws', name: 'Amazon Web Services', icon: Cloud, color: 'from-orange-500 to-yellow-500' },
@@ -233,9 +234,7 @@ const Onboarding = () => {
             <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="inline-flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                  <div className="rounded-xl bg-white/15 p-2.5">
-                    <Shield className="h-5 w-5 text-white" />
-                  </div>
+                  <HeimdallAILogo size={28} inverted />
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-blue-100">Smartcomply Heimdall</p>
                     <p className="text-sm font-medium text-white">Guided platform onboarding</p>

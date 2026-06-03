@@ -4,127 +4,129 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { PlatformProvider } from "@/contexts/PlatformContext";
+import { motion } from "framer-motion";
+import { Sparkles } from "lucide-react";
+
+// Eagerly loaded — always needed immediately
 import AppSidebar from "./components/AppSidebar";
 import ProtectedPlatformRoute from "./components/ProtectedPlatformRoute";
 import PlatformIndicator from "./components/PlatformIndicator";
-import { useEffect, useState } from "react";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { PlatformProvider } from "@/contexts/PlatformContext";
-
-
-
-// Scroll to top on every route change
-const ScrollToTop = () => {
-  const { pathname } = useLocation();
-  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior }); }, [pathname]);
-  return null;
-};
-
-// Auth Pages
 import Login from "./pages/Login";
-import Register from "./pages/Register";
-import OTPVerification from "./pages/OTPVerification";
-import Onboarding from "./pages/Onboarding";
-import ForgotPassword from "./pages/ForgotPassword";
-import PasswordReset from "./pages/PasswordReset";
-import TermsAndConditions from "./pages/TermsAndConditions";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
 
-// Main Pages
-import WAFRules from "./pages/WAFRules";
-import ThreatLogs from "./pages/ThreatLogs";
-import APIEndpoints from "./pages/APIEndpoints";
-import EndpointAnalytics from "./pages/EndpointAnalytics";
-import Integrations from "./pages/Integrations";
-import Users from "./pages/Users";
-import Settings from "./pages/Settings";
-import Playground from "./pages/Playground";
-import VulnerabilityDashboard from "./pages/VulnerabilityDashboard";
-import VulnerabilityScan from "./pages/VulnerabilityScan";
-import VulnerabilitySettings from "./pages/VulnerabilitySettings";
-import VulnerabilityReports from "./pages/VulnerabilityReports";
-import NotFound from "./pages/NotFound";
-import CodeReviewDashboard from "./pages/CodeReviewDashboard";
-import CodeReviewConnect from "./pages/CodeReviewConnect";
-import CodeReviewRepos from "./pages/CodeReviewRepos";
-import CodeReviewTeam from "./pages/CodeReviewTeam";
-import SecurityDashboard from "./pages/CodeReviewRepoDetails2";
-import CodeReviewScanReports from "./pages/CodeReviewScanReports";
-import CodeReviewReport from "./pages/CodeReviewReport";
-import GitAutomatedScan from "./pages/GitAutomatedScan";
-import AutomatedScanDetails from "./pages/AutomatedScanDetails";
-import Platforms from "./pages/Platforms";
-import PlatformDetails from "./pages/PlatformDetails";
-import CreateAlert from "./pages/CreateAlert";
-import SecurityAlerts from "./pages/SecurityAlerts";
-import GitHubCallback from "./pages/GitHubCallback";
-import BitbucketCallback from "./pages/BitbucketCallback";
-import CISOReports from "./pages/CISOReports";
-// import ForcePasswordReset from "./pages/ForcePasswordReset";
-import IPBlacklist from "./pages/IPBlacklist";
-import SecurityHub from "./pages/SecurityHub";
-import Incidents from "./pages/Incidents";
-import AuditLogs from "./pages/AuditLogs";
-import AcceptInvitation from "./pages/AcceptInvitation";
-import Invitations from "./components/Invitations"; // Import the Invitations component
-import VerifyEmail from './pages/VerifyEmail';
-import RateLimiting from "@/pages/RateLimiting";
-import HeimdallAI from "./pages/HeimdallAI";
-import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
-const queryClient = new QueryClient();
+// Lazy-loaded — only downloaded when the user navigates to that route
+const Register            = lazy(() => import("./pages/Register"));
+const OTPVerification     = lazy(() => import("./pages/OTPVerification"));
+const Onboarding          = lazy(() => import("./pages/Onboarding"));
+const ForgotPassword      = lazy(() => import("./pages/ForgotPassword"));
+const PasswordReset       = lazy(() => import("./pages/PasswordReset"));
+const TermsAndConditions  = lazy(() => import("./pages/TermsAndConditions"));
+const PrivacyPolicy       = lazy(() => import("./pages/PrivacyPolicy"));
+const AcceptInvitation    = lazy(() => import("./pages/AcceptInvitation"));
+const VerifyEmail         = lazy(() => import("./pages/VerifyEmail"));
+const GitHubCallback      = lazy(() => import("./pages/GitHubCallback"));
+const BitbucketCallback   = lazy(() => import("./pages/BitbucketCallback"));
+
+const Platforms           = lazy(() => import("./pages/Platforms"));
+const PlatformDetails     = lazy(() => import("./pages/PlatformDetails"));
+const WAFRules            = lazy(() => import("./pages/WAFRules"));
+const ThreatLogs          = lazy(() => import("./pages/ThreatLogs"));
+const APIEndpoints        = lazy(() => import("./pages/APIEndpoints"));
+const EndpointAnalytics   = lazy(() => import("./pages/EndpointAnalytics"));
+const Integrations        = lazy(() => import("./pages/Integrations"));
+const Users               = lazy(() => import("./pages/Users"));
+const Settings            = lazy(() => import("./pages/Settings"));
+const Playground          = lazy(() => import("./pages/Playground"));
+const CISOReports         = lazy(() => import("./pages/CISOReports"));
+const SecurityHub         = lazy(() => import("./pages/SecurityHub"));
+const SecurityAlerts      = lazy(() => import("./pages/SecurityAlerts"));
+const CreateAlert         = lazy(() => import("./pages/CreateAlert"));
+const Incidents           = lazy(() => import("./pages/Incidents"));
+const IPBlacklist         = lazy(() => import("./pages/IPBlacklist"));
+const AuditLogs           = lazy(() => import("./pages/AuditLogs"));
+const RateLimiting        = lazy(() => import("./pages/RateLimiting"));
+const HeimdallAI          = lazy(() => import("./pages/HeimdallAI"));
+
+const VulnerabilityDashboard  = lazy(() => import("./pages/VulnerabilityDashboard"));
+const VulnerabilityScan       = lazy(() => import("./pages/VulnerabilityScan"));
+const VulnerabilitySettings   = lazy(() => import("./pages/VulnerabilitySettings"));
+const VulnerabilityReports    = lazy(() => import("./pages/VulnerabilityReports"));
+
+const CodeReviewDashboard     = lazy(() => import("./pages/CodeReviewDashboard"));
+const CodeReviewConnect       = lazy(() => import("./pages/CodeReviewConnect"));
+const CodeReviewRepos         = lazy(() => import("./pages/CodeReviewRepos"));
+const CodeReviewTeam          = lazy(() => import("./pages/CodeReviewTeam"));
+const SecurityDashboard       = lazy(() => import("./pages/CodeReviewRepoDetails2"));
+const CodeReviewScanReports   = lazy(() => import("./pages/CodeReviewScanReports"));
+const CodeReviewReport        = lazy(() => import("./pages/CodeReviewReport"));
+const GitAutomatedScan        = lazy(() => import("./pages/GitAutomatedScan"));
+const AutomatedScanDetails    = lazy(() => import("./pages/AutomatedScanDetails"));
+
+const Invitations             = lazy(() => import("./components/Invitations"));
+const NotFound                = lazy(() => import("./pages/NotFound"));
+
+// ── QueryClient — aggressive caching so navigating back never re-fetches ──────
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,          // data stays fresh for 30s
+      gcTime:    5 * 60_000,      // unused cache lives for 5 min
+      retry: 1,
+      refetchOnWindowFocus: false, // don't slam the API when the user alt-tabs back
+    },
+  },
+});
 
 const THEME_STORAGE_KEY = "app-theme";
-
-const getStoredTheme = () => {
-  if (typeof window === "undefined") return false;
-  return localStorage.getItem(THEME_STORAGE_KEY) === "dark";
-};
-
+const getStoredTheme = () => typeof window !== "undefined" && localStorage.getItem(THEME_STORAGE_KEY) === "dark";
 const applyTheme = (isDark: boolean) => {
   if (typeof document === "undefined") return;
-
   document.documentElement.classList.toggle("dark", isDark);
   document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
   localStorage.setItem(THEME_STORAGE_KEY, isDark ? "dark" : "light");
 };
 
-if (typeof document !== "undefined") {
-  applyTheme(getStoredTheme());
-}
+if (typeof document !== "undefined") applyTheme(getStoredTheme());
 
-// Protected Route Component
+// Scroll to top on route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior }); }, [pathname]);
+  return null;
+};
+
+// Minimal spinner shown during lazy-load transitions
+const PageLoader = () => (
+  <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
+    <div className="h-7 w-7 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+  </div>
+);
+
+// Protected route — redirects to login if not authenticated
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f4f8ff]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-slate-500 text-sm">Loading...</p>
-        </div>
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent mx-auto" />
       </div>
     );
   }
-
-  if (!isAuthenticated) {
-    return <Login />;
-  }
-
+  if (!isAuthenticated) return <Login />;
   return <>{children}</>;
 };
 
-// ── Heimdall AI floating action button ───────────────────────────────────────
-// Hidden on the /heimdall-ai page itself. Must be rendered inside <BrowserRouter>.
+// Heimdall AI floating action button
 const HeimdallFAB: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [hovered, setHovered] = useState(false);
-  if (location.pathname === '/heimdall-ai') return null;
+  if (location.pathname === "/heimdall-ai") return null;
   return (
     <motion.button
-      onClick={() => navigate('/heimdall-ai')}
+      onClick={() => navigate("/heimdall-ai")}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}
@@ -135,8 +137,8 @@ const HeimdallFAB: React.FC = () => {
       aria-label="Heimdall AI"
       className={`fixed bottom-6 right-6 z-50 flex h-10 items-center overflow-hidden rounded-full ${
         hovered
-          ? 'bg-white/95 dark:bg-slate-900/90 ring-1 ring-slate-200/80 dark:ring-slate-700/50 shadow-[0_8px_20px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_20px_rgba(2,6,23,0.28)]'
-          : 'bg-transparent ring-1 ring-transparent shadow-none'
+          ? "bg-white/95 dark:bg-slate-900/90 ring-1 ring-slate-200/80 dark:ring-slate-700/50 shadow-[0_8px_20px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_20px_rgba(2,6,23,0.28)]"
+          : "bg-transparent ring-1 ring-transparent shadow-none"
       }`}
     >
       <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
@@ -145,7 +147,7 @@ const HeimdallFAB: React.FC = () => {
       <motion.span
         initial={false}
         animate={{ opacity: hovered ? 1 : 0, x: hovered ? 0 : -10 }}
-        transition={{ duration: 0.16, ease: 'easeOut' }}
+        transition={{ duration: 0.16, ease: "easeOut" }}
         className="pr-4 whitespace-nowrap text-[13px] font-semibold leading-none tracking-tight text-slate-900 dark:text-slate-100"
       >
         Heimdall AI
@@ -156,325 +158,112 @@ const HeimdallFAB: React.FC = () => {
 
 const AppContent = () => {
   const [isDark, setIsDark] = useState(getStoredTheme);
-
-  useEffect(() => {
-    applyTheme(isDark);
-  }, [isDark]);
-
-  const toggleDarkMode = () => {
-    setIsDark((prev) => !prev);
-  };
+  useEffect(() => { applyTheme(isDark); }, [isDark]);
 
   return (
     <BrowserRouter>
       <ScrollToTop />
-      <Routes>
-        {/* Public Routes - Must be before protected routes */}
-        <Route path="/terms" element={<TermsAndConditions />} />
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/invitations/accept/:token" element={<AcceptInvitation />} />
+      <Suspense fallback={null}>
+        <Routes>
+          {/* Public */}
+          <Route path="/terms"                              element={<TermsAndConditions />} />
+          <Route path="/privacy"                            element={<PrivacyPolicy />} />
+          <Route path="/invitations/accept/:token"          element={<AcceptInvitation />} />
+          <Route path="/login"                              element={<Login />} />
+          <Route path="/register"                           element={<Register />} />
+          <Route path="/forgot-password"                    element={<ForgotPassword />} />
+          <Route path="/password-reset-confirm/:uid/:token" element={<PasswordReset />} />
+          <Route path="/otp-verification"                   element={<OTPVerification />} />
+          <Route path="/onboarding"                         element={<Onboarding />} />
+          <Route path="/auth/github/callback"               element={<GitHubCallback />} />
+          <Route path="/auth/bitbucket/callback"            element={<BitbucketCallback />} />
+          <Route path="/verify-email"                       element={<VerifyEmail />} />
 
-        {/* Auth Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/password-reset-confirm/:uid/:token" element={<PasswordReset />} />
-        <Route path="/otp-verification" element={<OTPVerification />} />
-        <Route path="/onboarding" element={<Onboarding />} />
-        <Route path="/auth/github/callback" element={<GitHubCallback />} />
-        <Route path="/auth/bitbucket/callback" element={<BitbucketCallback />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />        {/* <Route path="/force-password-reset" element={<ForcePasswordReset />} /> */}
+          {/* Protected app shell */}
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <SidebarProvider defaultOpen={localStorage.getItem("heimdall_sidebar_open") !== "false"}>
+                  <div className="min-h-screen flex w-full overflow-hidden bg-[#f4f8ff] dark:bg-[#0f1724]">
+                    <AppSidebar isDark={isDark} />
+                    <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
+                      <header className="h-16 border-b border-slate-200/70 bg-[#f4f8ff] flex items-center px-6 flex-shrink-0 dark:border-slate-800/80 dark:bg-[#0f1724]">
+                        <div className="flex-1 min-w-0">
+                          <PlatformIndicator />
+                        </div>
+                      </header>
+                      <main className="p-6 overflow-x-hidden overflow-y-auto flex-1 min-w-0 relative">
+                        <HeimdallFAB />
+                        <Suspense fallback={<PageLoader />}>
+                          <Routes>
+                            <Route path="/"                    element={<Platforms />} />
+                            <Route path="/platforms"           element={<Platforms />} />
+                            <Route path="/platforms/:id"       element={<ProtectedPlatformRoute><PlatformDetails /></ProtectedPlatformRoute>} />
 
-        {/* Main App Routes */}
-        <Route
-          path="/*"
-          element={
-            <ProtectedRoute>
-              <SidebarProvider defaultOpen={localStorage.getItem('heimdall_sidebar_open') !== 'false'}>
-                <div className="min-h-screen flex w-full overflow-hidden bg-[#f4f8ff] dark:bg-[#0f1724]">
-                  <AppSidebar isDark={isDark} />
+                            <Route path="/waf-rules"           element={<ProtectedPlatformRoute><WAFRules /></ProtectedPlatformRoute>} />
+                            <Route path="/threat-logs"         element={<ProtectedPlatformRoute><ThreatLogs /></ProtectedPlatformRoute>} />
+                            <Route path="/api-endpoints"       element={<ProtectedPlatformRoute><APIEndpoints /></ProtectedPlatformRoute>} />
+                            <Route path="/api-endpoints/:endpointId/analytics" element={<ProtectedPlatformRoute><EndpointAnalytics /></ProtectedPlatformRoute>} />
+                            <Route path="/endpoint-analytics/:endpointId"      element={<EndpointAnalytics />} />
+                            <Route path="/integrations"        element={<ProtectedPlatformRoute><Integrations /></ProtectedPlatformRoute>} />
+                            <Route path="/settings"            element={<ProtectedPlatformRoute><Settings /></ProtectedPlatformRoute>} />
+                            <Route path="/playground"          element={<ProtectedPlatformRoute><Playground /></ProtectedPlatformRoute>} />
+                            <Route path="/ciso-reports"        element={<ProtectedPlatformRoute><CISOReports /></ProtectedPlatformRoute>} />
+                            <Route path="/security-hub"        element={<ProtectedPlatformRoute><SecurityHub /></ProtectedPlatformRoute>} />
+                            <Route path="/security-alerts"     element={<ProtectedPlatformRoute><SecurityAlerts /></ProtectedPlatformRoute>} />
+                            <Route path="/create-alert"        element={<ProtectedPlatformRoute><CreateAlert /></ProtectedPlatformRoute>} />
+                            <Route path="/incidents"           element={<ProtectedPlatformRoute><Incidents /></ProtectedPlatformRoute>} />
+                            <Route path="/ip-blacklist"        element={<ProtectedPlatformRoute><IPBlacklist /></ProtectedPlatformRoute>} />
+                            <Route path="/workspace/:id/rate-limiting" element={<RateLimiting />} />
 
-                  <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
-                    <header className="h-16 border-b border-slate-200/70 bg-[#f4f8ff] flex items-center px-6 flex-shrink-0 dark:border-slate-800/80 dark:bg-[#0f1724]">
-  <div className="flex-1 min-w-0">
-    <PlatformIndicator />
-  </div>
-</header>
+                            <Route path="/vulnerability-dashboard" element={<ProtectedPlatformRoute><VulnerabilityDashboard /></ProtectedPlatformRoute>} />
+                            <Route path="/vulnerability-scan"      element={<ProtectedPlatformRoute><VulnerabilityScan /></ProtectedPlatformRoute>} />
+                            <Route path="/vulnerability-reports"   element={<ProtectedPlatformRoute><VulnerabilityReports /></ProtectedPlatformRoute>} />
+                            <Route path="/vulnerability-settings"  element={<ProtectedPlatformRoute><VulnerabilitySettings /></ProtectedPlatformRoute>} />
 
-                    <main className="p-6 overflow-x-hidden overflow-y-auto flex-1 min-w-0 relative">
-                      <HeimdallFAB />
-                      <Routes>
-                        <Route path="/" element={<Platforms />} />
+                            <Route path="/code-review-dashboard"   element={<ProtectedPlatformRoute><CodeReviewDashboard /></ProtectedPlatformRoute>} />
+                            <Route path="/code-review-connect"     element={<ProtectedPlatformRoute><CodeReviewConnect /></ProtectedPlatformRoute>} />
+                            <Route path="/code-review-repos"       element={<ProtectedPlatformRoute><CodeReviewRepos /></ProtectedPlatformRoute>} />
+                            <Route path="/code-review-team"        element={<ProtectedPlatformRoute><CodeReviewTeam /></ProtectedPlatformRoute>} />
+                            <Route path="/code-review-repos/:repoName" element={<ProtectedPlatformRoute><SecurityDashboard /></ProtectedPlatformRoute>} />
+                            <Route path="/code-review-scan-reports"    element={<ProtectedPlatformRoute><CodeReviewScanReports /></ProtectedPlatformRoute>} />
+                            <Route path="/code-review-report/:reportId" element={<ProtectedPlatformRoute><CodeReviewReport /></ProtectedPlatformRoute>} />
+                            <Route path="/git-automated-scan"      element={<ProtectedPlatformRoute><GitAutomatedScan /></ProtectedPlatformRoute>} />
+                            <Route path="/automated-scan-details/:id" element={<ProtectedPlatformRoute><AutomatedScanDetails /></ProtectedPlatformRoute>} />
 
-                        <Route
-                          path="/waf-rules"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <WAFRules />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/threat-logs"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <ThreatLogs />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/api-endpoints"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <APIEndpoints />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/api-endpoints/:endpointId/analytics"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <EndpointAnalytics />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/integrations"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <Integrations />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route path="/users" element={<Users />} />
-
-                        <Route path="/invitations" element={<Invitations />} />
-
-                        <Route
-                          path="/settings"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <Settings />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/playground"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <Playground />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-                        <Route path="/ciso-reports" element={
-                            <ProtectedPlatformRoute>
-                              <CISOReports />
-                            </ProtectedPlatformRoute>
-                          } />
-
-                        <Route
-                          path="/vulnerability-dashboard"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <VulnerabilityDashboard />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/vulnerability-scan"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <VulnerabilityScan />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/vulnerability-reports"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <VulnerabilityReports />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/vulnerability-settings"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <VulnerabilitySettings />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/code-review-dashboard"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <CodeReviewDashboard />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/code-review-connect"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <CodeReviewConnect />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/code-review-repos"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <CodeReviewRepos />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-                        <Route path="/endpoint-analytics/:endpointId" element={<EndpointAnalytics />} />
-
-                        <Route
-                          path="/code-review-team"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <CodeReviewTeam />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/code-review-repos/:repoName"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <SecurityDashboard />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/code-review-scan-reports"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <CodeReviewScanReports />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/code-review-report/:reportId"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <CodeReviewReport />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/git-automated-scan"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <GitAutomatedScan />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/automated-scan-details/:id"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <AutomatedScanDetails />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route path="/platforms" element={<Platforms />} />
-                        <Route path="/platforms/:id" element={<ProtectedPlatformRoute><PlatformDetails /></ProtectedPlatformRoute>} />
-
-                        <Route
-                          path="/create-alert"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <CreateAlert />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/security-alerts"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <SecurityAlerts />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/security-hub"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <SecurityHub />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/ip-blacklist"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <IPBlacklist />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-
-                        <Route
-                          path="/incidents"
-                          element={
-                            <ProtectedPlatformRoute>
-                              <Incidents />
-                            </ProtectedPlatformRoute>
-                          }
-                        />
-                        <Route path="/workspace/:id/rate-limiting" element={<RateLimiting />} />
-
-                        <Route path="/audit-logs" element={<AuditLogs />} />
-                        <Route path="/heimdall-ai" element={<HeimdallAI />} />
-                        <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </main>
+                            <Route path="/users"       element={<Users />} />
+                            <Route path="/invitations" element={<Invitations />} />
+                            <Route path="/audit-logs"  element={<AuditLogs />} />
+                            <Route path="/heimdall-ai" element={<HeimdallAI />} />
+                            <Route path="*"            element={<NotFound />} />
+                          </Routes>
+                        </Suspense>
+                      </main>
+                    </div>
                   </div>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+                </SidebarProvider>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 };
 
-const App = () => {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <PlatformProvider>
-            <Toaster />
-            <Sonner />
-            <AppContent />
-          </PlatformProvider>
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-};
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <AuthProvider>
+        <PlatformProvider>
+          <Toaster />
+          <Sonner />
+          <AppContent />
+        </PlatformProvider>
+      </AuthProvider>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;

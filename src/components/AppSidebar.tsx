@@ -6,6 +6,7 @@ import {
   Shield, AlertTriangle, Globe, Settings, Users, Code, LogOut,
   Search, Clock, FileText, LayoutDashboard, Link2, BookOpen, Bell, BarChart3, Mail, Gauge, Sparkles,
 } from "lucide-react";
+import HeimdallAILogo from "@/components/HeimdallAILogo";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -600,13 +601,20 @@ const AppSidebar = () => {
 
   const brandHeader = (
     <div style={{ padding: collapsed ? "12px 0" : "14px 14px", borderBottom: `1px solid ${p.topBorder}`, display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", gap: 10, minHeight: 60, background: p.bg }}>
-      {!collapsed && (
-        <div style={{ lineHeight: 1.2, flex: 1 }}>
-          <div style={{ fontFamily: "'Sora', sans-serif", fontSize: 17, fontWeight: 700, color: p.text, letterSpacing: "-0.01em" }}>Heimdall</div>
-          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600, color: p.accent, marginTop: 2, letterSpacing: "0.45px" }}>by Smartcomply</div>
-        </div>
+      {collapsed ? (
+        <SidebarTrigger style={{ color: p.muted }} />
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, opacity: collapsed ? 0 : 1, transition: "opacity 0.2s ease" }}>
+            <HeimdallAILogo size={32} />
+            <div style={{ lineHeight: 1.2 }}>
+              <div style={{ fontFamily: "'Sora', sans-serif", fontSize: 17, fontWeight: 700, color: p.text, letterSpacing: "-0.01em" }}>Heimdall</div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600, color: p.accent, marginTop: 2, letterSpacing: "0.45px" }}>by Smartcomply</div>
+            </div>
+          </div>
+          <SidebarTrigger style={{ color: p.muted, flexShrink: 0 }} />
+        </>
       )}
-      <SidebarTrigger style={{ color: p.muted, flexShrink: 0 }} />
     </div>
   );
 

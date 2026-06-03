@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Shield, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
+import HeimdallAILogo from '@/components/HeimdallAILogo';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { apiService } from '@/services/api';
@@ -210,9 +211,7 @@ const Register = () => {
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8">
         <div className="w-full max-w-[480px]">
           <div className="mb-4 flex items-center justify-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-sky-500 shadow-lg shadow-blue-500/30">
-              <Shield className="h-5 w-5 text-white" />
-            </div>
+            <HeimdallAILogo size={44} />
 
             <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
               Heimdall <span className="text-slate-900 dark:text-white">by </span>

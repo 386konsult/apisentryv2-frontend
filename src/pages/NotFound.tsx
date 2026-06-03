@@ -2,7 +2,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Home } from 'lucide-react';
+import { Home } from 'lucide-react';
+import HeimdallAILogo from '@/components/HeimdallAILogo';
 import { useNavigate } from 'react-router-dom';
 
 const NotFound = () => {
@@ -13,9 +14,7 @@ const NotFound = () => {
       <Card className="w-full max-w-md text-center">
         <CardHeader>
           <div className="flex justify-center mb-4">
-            <div className="p-3 rounded-full bg-gradient-to-r from-red-500 to-orange-500">
-              <Shield className="h-6 w-6 text-white" />
-            </div>
+            <HeimdallAILogo size={44} />
           </div>
           <CardTitle className="text-2xl font-bold">404 - Page Not Found</CardTitle>
           <CardDescription>

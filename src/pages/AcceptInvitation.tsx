@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, AlertCircle, Loader2, Shield, Mail, Calendar, User, XCircle } from 'lucide-react';
+import HeimdallAILogo from '@/components/HeimdallAILogo';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePlatform } from '@/contexts/PlatformContext';
@@ -203,9 +204,7 @@ const AcceptInvitation = () => {
       <Card className="w-full max-w-md">
         <CardHeader>
           <div className="flex items-center justify-center mb-4">
-            <div className="p-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-500">
-              <Shield className="h-6 w-6 text-white" />
-            </div>
+            <HeimdallAILogo size={44} />
           </div>
           <CardTitle className="text-center">Workspace Invitation</CardTitle>
           <CardDescription className="text-center">

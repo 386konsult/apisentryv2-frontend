@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, useRef, useCallback } from "react";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PlatformProvider } from "@/contexts/PlatformContext";
 import { motion } from "framer-motion";
@@ -122,33 +122,57 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const HeimdallFAB: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [hovered, setHovered] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetTimer = useCallback(() => {
+    setExpanded(true);
+    if (collapseTimer.current) clearTimeout(collapseTimer.current);
+    collapseTimer.current = setTimeout(() => setExpanded(false), 3000);
+  }, []);
+
+  useEffect(() => {
+    // Start collapsed after 3s on mount
+    collapseTimer.current = setTimeout(() => setExpanded(false), 3000);
+
+    const main = document.querySelector("main");
+    const onActivity = () => resetTimer();
+
+    main?.addEventListener("scroll", onActivity, { passive: true });
+    window.addEventListener("mousemove", onActivity, { passive: true });
+
+    return () => {
+      if (collapseTimer.current) clearTimeout(collapseTimer.current);
+      main?.removeEventListener("scroll", onActivity);
+      window.removeEventListener("mousemove", onActivity);
+    };
+  }, [resetTimer]);
+
   if (location.pathname === "/heimdall-ai") return null;
+
   return (
     <motion.button
       onClick={() => navigate("/heimdall-ai")}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
-      initial={false}
-      animate={{ width: hovered ? 132 : 42 }}
-      transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.7 }}
+      onMouseEnter={() => { if (collapseTimer.current) clearTimeout(collapseTimer.current); setExpanded(true); }}
+      onMouseLeave={() => resetTimer()}
+      whileTap={{ scale: 0.96 }}
+      animate={{ width: expanded ? 136 : 44 }}
+      transition={{ type: "spring", stiffness: 400, damping: 28, mass: 0.6 }}
       aria-label="Heimdall AI"
-      className={`fixed bottom-6 right-6 z-50 flex h-10 items-center overflow-hidden rounded-full ${
-        hovered
-          ? "bg-white/95 dark:bg-slate-900/90 ring-1 ring-slate-200/80 dark:ring-slate-700/50 shadow-[0_8px_20px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_20px_rgba(2,6,23,0.28)]"
-          : "bg-transparent ring-1 ring-transparent shadow-none"
-      }`}
+      className="fixed bottom-6 right-6 z-50 flex h-11 items-center overflow-hidden rounded-full
+        bg-gradient-to-r from-blue-600 to-cyan-500
+        shadow-[0_4px_24px_rgba(37,99,235,0.45)]
+        hover:shadow-[0_6px_28px_rgba(37,99,235,0.6)]
+        hover:brightness-110
+        transition-shadow transition-filter duration-200"
     >
-      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
-        <Sparkles className="h-[22px] w-[22px] text-blue-600 dark:text-blue-400" strokeWidth={2.2} />
+      <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center">
+        <Sparkles className="h-[18px] w-[18px] text-white" strokeWidth={2.2} />
       </span>
       <motion.span
-        initial={false}
-        animate={{ opacity: hovered ? 1 : 0, x: hovered ? 0 : -10 }}
-        transition={{ duration: 0.16, ease: "easeOut" }}
-        className="pr-4 whitespace-nowrap text-[13px] font-semibold leading-none tracking-tight text-slate-900 dark:text-slate-100"
+        animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -6 }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
+        className="pr-4 whitespace-nowrap text-[13px] font-semibold leading-none tracking-tight text-white pointer-events-none"
       >
         Heimdall AI
       </motion.span>

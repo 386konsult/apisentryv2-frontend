@@ -79,7 +79,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const THEME_STORAGE_KEY = "app-theme";
+const THEME_STORAGE_KEY = "heimdall_theme";
 const getStoredTheme = () => typeof window !== "undefined" && localStorage.getItem(THEME_STORAGE_KEY) === "dark";
 const applyTheme = (isDark: boolean) => {
   if (typeof document === "undefined") return;

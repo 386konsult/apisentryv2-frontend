@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Eye, EyeOff, Sun, Moon } from 'lucide-react';
 import HeimdallAILogo from '@/components/HeimdallAILogo';
@@ -10,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiService } from '@/services/api';
 
-const THEME_STORAGE_KEY = 'app-theme';
+const THEME_STORAGE_KEY = 'heimdall_theme';
 
 const getStoredTheme = () => {
   if (typeof window === 'undefined') return false;
@@ -49,7 +47,6 @@ const Login = () => {
     try {
       const response = await apiService.login({ email, password });
 
-      // Store token and user (apiService.login already does this, but we also need to set rememberMe)
       localStorage.setItem('auth_token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
 
@@ -77,7 +74,6 @@ const Login = () => {
       console.error('Login error:', error);
       let errorMessage = 'Invalid credentials';
       if (error.body) {
-        // Handle different error structures
         if (typeof error.body === 'object') {
           if (error.body.error) {
             errorMessage = error.body.error;
@@ -86,7 +82,6 @@ const Login = () => {
           } else if (error.body.message) {
             errorMessage = error.body.message;
           } else {
-            // Try to get first field error (e.g., non_field_errors)
             const firstKey = Object.keys(error.body)[0];
             if (firstKey && error.body[firstKey] && error.body[firstKey][0]) {
               errorMessage = error.body[firstKey][0];
@@ -109,160 +104,190 @@ const Login = () => {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950">
-      <div className="absolute inset-0 bg-gradient-to-br from-sky-100 via-blue-100 to-cyan-100 dark:from-[#081224] dark:via-[#0B1B34] dark:to-[#102848]" />
+    <div className="flex min-h-screen">
 
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-24 -top-24 h-[26rem] w-[26rem] rounded-full bg-sky-300/40 blur-3xl dark:bg-blue-500/20" />
-        <div className="absolute -bottom-24 -right-16 h-[24rem] w-[24rem] rounded-full bg-blue-300/30 blur-3xl dark:bg-sky-500/15" />
-        <div className="absolute left-1/2 top-1/2 h-[20rem] w-[20rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-400/10" />
-      </div>
+      {/* ── LEFT BRANDING PANEL ── */}
+      <div
+        className="hidden lg:flex lg:w-[46%] relative flex-col overflow-hidden select-none"
+        style={{
+          background: 'linear-gradient(160deg, #1e3f7a 0%, #0d2347 40%, #091b38 75%, #0b2040 100%)',
+        }}
+      >
+        {/* Decorative concentric rings */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {[640, 510, 390, 275, 165].map((size, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full border"
+              style={{
+                width: size,
+                height: size,
+                borderColor: `rgba(255,255,255,${0.04 + i * 0.012})`,
+              }}
+            />
+          ))}
+        </div>
 
-      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
-        <button
-          type="button"
-          onClick={() => setIsDarkMode((prev) => !prev)}
-          aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          className={`flex h-11 w-11 items-center justify-center rounded-2xl border shadow-[0_10px_24px_rgba(37,99,235,0.14)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 ${
-            isDarkMode
-              ? 'border-white/10 bg-[#111c2d] text-white hover:bg-[#162338]'
-              : 'border-blue-200/60 bg-white/85 text-slate-900 hover:bg-white'
-          }`}
-        >
-          {isDarkMode ? (
-            <Sun className="h-4 w-4" strokeWidth={2.2} />
-          ) : (
-            <Moon className="h-4 w-4" strokeWidth={2.2} />
-          )}
-        </button>
-      </div>
+        {/* Glow blobs */}
+        <div className="absolute top-1/4 right-0 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/3 left-0 w-60 h-60 rounded-full bg-sky-400/8 blur-3xl pointer-events-none" />
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8">
-        <div className="w-full max-w-[440px]">
-          <div className="mb-7 flex items-center justify-center gap-3">
-            <HeimdallAILogo size={44} />
-
-            <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-              Heimdall <span className="text-slate-900 dark:text-white">by </span>
-              <a
-                href="https://www.Smartcomplyapp.com/"
-                target="_blank"
-                rel="noreferrer"
-                className="font-bold text-blue-600 no-underline transition-colors hover:text-sky-500 dark:text-sky-400 dark:hover:text-cyan-300"
-              >
-                Smartcomply
-              </a>
-            </div>
+        {/* Logo — top left */}
+        <div className="absolute top-8 left-8 flex items-center gap-2.5">
+          <HeimdallAILogo size={30} />
+          <div className="leading-tight">
+            <span className="text-white font-bold text-sm tracking-tight block">Heimdall</span>
+            <span className="text-white/40 text-[10px] tracking-wide">by Smartcomply</span>
           </div>
+        </div>
 
-          <Card className="overflow-hidden rounded-[28px] border border-blue-200/40 bg-white/65 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/70">
-            <CardHeader className="space-y-2 px-8 pt-8">
-              <CardTitle className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                Welcome back
-              </CardTitle>
-              <CardDescription className="text-sm leading-6 text-slate-600 dark:text-slate-400">
-                Sign in to your security dashboard to monitor and protect your APIs
-              </CardDescription>
-            </CardHeader>
+        {/* Main headline */}
+        <div className="relative z-10 flex flex-col items-center justify-center h-full px-10">
+          <h1 className="text-white text-[2.1rem] font-bold text-center leading-snug mb-8 max-w-[290px]">
+            Smarter API Security for Modern Teams
+          </h1>
+          <div className="flex items-center gap-2.5 flex-wrap justify-center">
+            {[
+              { label: 'AI-Powered', filled: false },
+              { label: 'Real-Time', filled: true },
+              { label: 'Zero-Trust', filled: true },
+            ].map(({ label, filled }) => (
+              <span
+                key={label}
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide border ${
+                  filled
+                    ? 'bg-blue-600/70 border-blue-500/40 text-white'
+                    : 'bg-transparent border-white/25 text-white/75'
+                }`}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
 
-            <CardContent className="px-8 pb-8">
-              <form onSubmit={handleLogin} className="space-y-5">
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="email"
-                    className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400"
-                  >
-                    Email address
-                  </Label>
+        {/* Bottom tagline */}
+        <p className="absolute bottom-8 left-0 right-0 text-center text-white/25 text-xs tracking-wide">
+          Trusted by engineering teams worldwide
+        </p>
+      </div>
+
+      {/* ── RIGHT FORM PANEL ── */}
+      <div className="flex-1 flex flex-col bg-white dark:bg-slate-950">
+
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-6 pt-6">
+          {/* Mobile-only logo */}
+          <div className="flex lg:hidden items-center gap-2">
+            <HeimdallAILogo size={26} />
+            <span className="font-bold text-slate-900 dark:text-white text-sm">Heimdall</span>
+          </div>
+          <div className="lg:ml-auto ml-auto">
+            <button
+              type="button"
+              onClick={() => setIsDarkMode((prev) => !prev)}
+              aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
+            >
+              {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Form — vertically centered */}
+        <div className="flex-1 flex items-center justify-center px-8 py-10">
+          <div className="w-full max-w-[380px]">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">Sign in</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
+              Enter your credentials to access your dashboard
+            </p>
+
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div className="space-y-1.5">
+                <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  required
+                  className="h-11 rounded-lg border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:border-blue-500 focus-visible:ring-1 focus-visible:ring-blue-500/30"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Password
+                </Label>
+                <div className="relative">
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
                     required
-                    className="h-12 rounded-xl border-blue-200/60 bg-white/70 px-4 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:border-blue-400 focus-visible:ring-2 focus-visible:ring-blue-500/30 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500"
+                    className="h-11 rounded-lg border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:border-blue-500 focus-visible:ring-1 focus-visible:ring-blue-500/30 pr-10"
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="password"
-                    className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400"
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                   >
-                    Password
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete="current-password"
-                      required
-                      className="h-12 rounded-xl border-blue-200/60 bg-white/70 px-4 pr-12 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:border-blue-400 focus-visible:ring-2 focus-visible:ring-blue-500/30 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full text-slate-500 hover:bg-blue-50 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
+              </div>
 
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    Remember me
-                  </label>
-
-                  <Link
-                    to="/forgot-password"
-                    className="font-medium text-blue-600 transition hover:text-sky-500 dark:text-sky-400 dark:hover:text-cyan-300"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-500 hover:to-sky-400"
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex items-center gap-2 text-slate-500 dark:text-slate-400 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 dark:border-white/20 accent-blue-600"
+                  />
+                  Remember me
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-blue-600 dark:text-blue-400 font-medium hover:underline"
                 >
-                  {isLoading ? 'Signing in...' : 'Sign in to dashboard'}
-                </Button>
+                  Forgot password?
+                </Link>
+              </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="h-px flex-1 bg-blue-100 dark:bg-white/10" />
-                  <span className="text-xs uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-                    or
-                  </span>
-                  <div className="h-px flex-1 bg-blue-100 dark:bg-white/10" />
-                </div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-11 rounded-lg font-semibold text-sm text-white bg-[#1B2B5E] hover:bg-[#1e3370] dark:bg-blue-600 dark:hover:bg-blue-500 transition-colors disabled:opacity-60"
+              >
+                {isLoading ? 'Signing in...' : 'Sign in'}
+              </button>
+            </form>
 
-                <Button
-                  asChild
-                  type="button"
-                  variant="outline"
-                  className="h-12 w-full rounded-xl border border-blue-200/60 bg-white/50 !text-slate-900 text-sm font-medium backdrop-blur-sm transition hover:bg-white/80 hover:!text-slate-900 dark:border-white/10 dark:bg-white/5 dark:!text-slate-200 dark:hover:bg-white/10 dark:hover:!text-slate-200"
-                >
-                  <Link to="/register">Sign up</Link>
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+            <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+              Don't have an account?{' '}
+              <Link to="/register" className="text-blue-600 dark:text-blue-400 font-semibold hover:underline">
+                Create account
+              </Link>
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-4 px-6 pb-6 text-xs text-slate-400 dark:text-slate-500">
+          <Link to="/privacy" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+            Privacy notice
+          </Link>
+          <Link to="/terms" className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+            Cookie notice
+          </Link>
         </div>
       </div>
     </div>

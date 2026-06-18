@@ -564,6 +564,7 @@ class APIService {
     last_name: string;
     phone_number?: string;
     company_name?: string;
+    subdomain?: string;
   }): Promise<{ message: string; user: User }> {
     const csrfToken = this.getCSRFToken();
     return await this.request('/auth/register/', {
@@ -1146,13 +1147,15 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
     });
     return res.json();
   }
-  async getPlatformRequestLogs(platformId: string, params?: { 
-  range?: string; 
-  start?: string; 
-  end?: string; 
+  async getPlatformRequestLogs(platformId: string, params?: {
+  range?: string;
+  start?: string;
+  end?: string;
   num?: string;
   page?: number;
   page_size?: number;
+  start_date?: string;
+  end_date?: string;
 }): Promise<any> {
   const token = localStorage.getItem('auth_token');
   const query = params ? '?' + new URLSearchParams(params as Record<string, any>).toString() : '';

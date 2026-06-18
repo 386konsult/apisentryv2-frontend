@@ -85,6 +85,7 @@ export interface User {
   phone_number?: string;
   company?: string | null;
   company_display_name?: string | null;
+  company_subdomain?: string | null;
   is_verified: boolean;
   role: 'admin' | 'user' | 'viewer';
   status?: 'active' | 'away';   // ← add this line
@@ -295,10 +296,9 @@ class APIService {
     const hit = cacheGet<any>(cacheKey);
     if (hit) return hit;
     return dedup(cacheKey, async () => {
-      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${this.baseURL}/platforms/${platformId}/`, {
         credentials: 'include',
-        headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+        headers: this.authHeaders(),
       });
       const data = await res.json();
       cacheSet(cacheKey, data, 300_000);
@@ -312,10 +312,9 @@ class APIService {
     const hit = cacheGet<any>(cacheKey);
     if (hit) return hit;
     return dedup(cacheKey, async () => {
-      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${this.baseURL}/platforms/${platformId}/endpoints/`, {
         credentials: 'include',
-        headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+        headers: this.authHeaders(),
       });
       const data = await res.json();
       cacheSet(cacheKey, data, 300_000);
@@ -329,10 +328,9 @@ class APIService {
     const hit = cacheGet<any[]>(cacheKey);
     if (hit) return hit;
     return dedup(cacheKey, async () => {
-      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${this.baseURL}/waf-rules/?platform_id=${platformId}`, {
         credentials: 'include',
-        headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+        headers: this.authHeaders(),
       });
       const data = await res.json();
       const result = Array.isArray(data) ? data : (data.results || []);
@@ -344,12 +342,11 @@ class APIService {
 
   // Get threat (blocked) request logs for a platform
   async getPlatformThreatLogs(platformId: string, params?: { range?: string; page?: string; start?: string; end?: string; path?: string }): Promise<any> {
-    const token = localStorage.getItem('auth_token');
     const query = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;
     const res = await fetch(fullUrl, {
       credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+      headers: this.authHeaders(),
     });
     return res.json();
   }
@@ -363,22 +360,20 @@ class APIService {
     } else {
       formData.append('collection_data', JSON.stringify(fileOrData));
     }
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/platforms/${platformId}/upload-collection/`, {
       method: 'POST',
       body: formData,
       credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+      headers: this.authHeaders(),
     });
     return res.json();
   }
 
   // List collections for a platform
   async getCollections(platformId: string): Promise<any> {
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/platforms/${platformId}/collections/`, {
       credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+      headers: this.authHeaders(),
     });
     return res.json();
   }
@@ -390,10 +385,9 @@ class APIService {
     const hit = cacheGet<any>(cacheKey);
     if (hit) return hit;
     return dedup(cacheKey, async () => {
-      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${this.baseURL}/platforms/${platformId}/analytics/${query}`, {
         credentials: 'include',
-        headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+        headers: this.authHeaders(),
       });
       const data = await res.json();
       cacheSet(cacheKey, data, 180_000);
@@ -415,14 +409,10 @@ class APIService {
 
   // PATCH an endpoint's fields (is_shadow, is_protected, status, etc.)
   async updateEndpoint(endpointId: string, fields: Record<string, unknown>): Promise<any> {
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/api-endpoints/${endpointId}/`, {
       method: 'PATCH',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Token ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
       body: JSON.stringify(fields),
     });
     // Bust endpoint list cache so the UI reflects the change
@@ -486,7 +476,20 @@ class APIService {
     if (this.token) {
       headers['Authorization'] = `Token ${this.token}`;
     }
+    const subdomain = localStorage.getItem('tenant_subdomain');
+    if (subdomain) {
+      headers['X-Tenant-Subdomain'] = subdomain;
+    }
     return headers;
+  }
+
+  private authHeaders(): Record<string, string> {
+    const token = localStorage.getItem('auth_token');
+    const subdomain = localStorage.getItem('tenant_subdomain');
+    const h: Record<string, string> = {};
+    if (token) h['Authorization'] = `Token ${token}`;
+    if (subdomain) h['X-Tenant-Subdomain'] = subdomain;
+    return h;
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -538,6 +541,9 @@ class APIService {
     });
     this.token = response.token;
     localStorage.setItem('auth_token', response.token);
+    if (response.user?.company_subdomain) {
+      localStorage.setItem('tenant_subdomain', response.user.company_subdomain);
+    }
     return response;
   }
 
@@ -547,6 +553,7 @@ class APIService {
     } finally {
       this.token = null;
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('tenant_subdomain');
       cacheInvalidate('user-info');
       cacheInvalidate('platform:');
       cacheInvalidate('endpoints:');
@@ -806,14 +813,10 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
   }
 
   async removeFromBlacklist(id: string): Promise<void> {
-  const token = localStorage.getItem('auth_token');
   const res = await fetch(`${this.baseURL}/blacklist/${id}/`, {
     method: 'DELETE',
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Token ${token}` } : {}),
-    },
+    headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
   });
   if (!res.ok && res.status !== 204) {
     const errorText = await res.text().catch(() => '');
@@ -823,13 +826,9 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
 
   // Update platform details
   async updatePlatform(platformId: string, data: { application_url?: string; listening_port?: string; forwarded_port?: string; name?: string }): Promise<any> {
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/platforms/${platformId}/`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Token ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
       body: JSON.stringify(data),
     });
     if (!res.ok) {
@@ -856,7 +855,6 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
 
   // Get alert triggers
   async getAlertTriggers(platformId?: string, params?: { page?: string; page_size?: string; range?: string; start?: string; end?: string }): Promise<any> {
-    const token = localStorage.getItem('auth_token');
     const baseQuery: Record<string, string> = {};
     if (platformId) baseQuery.platform_uuid = platformId;
     if (params) Object.assign(baseQuery, params);
@@ -864,7 +862,7 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
     const fullUrl = `${this.baseURL}/alerts/triggers/${query}`;
     const res = await fetch(fullUrl, {
       credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+      headers: this.authHeaders(),
     });
     return res.json();
   }
@@ -1003,25 +1001,17 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
 
   // Organisation‑level invitations (for user's own pending invites)
   async getMyInvitations(type: 'received' | 'sent' = 'received'): Promise<OrganisationInvitation[]> {
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/auth/invitations/?type=${type}`, {
-      headers: {
-        Authorization: `Token ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
     });
     if (!res.ok) throw new Error('Failed to fetch invitations');
     return res.json();
   }
 
   async acceptOrganisationInvitation(token: string): Promise<any> {
-    const authToken = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/auth/invitations/accept/${token}/`, {
       method: 'POST',
-      headers: {
-        Authorization: `Token ${authToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
     });
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
@@ -1032,10 +1022,9 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
 
   // Get all workspaces (platforms) for the current organisation
   async getWorkspaces(): Promise<any[]> {
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/platforms/`, {
       credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+      headers: this.authHeaders(),
     });
     if (!res.ok) throw new Error('Failed to fetch workspaces');
     const data = await res.json();
@@ -1048,13 +1037,9 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
     role: 'org_admin' | 'org_member';
     workspace_ids?: string[];
   }): Promise<any> {
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/auth/invitations/create/`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Token ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
       body: JSON.stringify(data),
     });
     if (!res.ok) {
@@ -1140,10 +1125,9 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
     if (params.page) queryParams.page = String(params.page);
     if (params.page_size) queryParams.page_size = String(params.page_size);
     const query = '?' + new URLSearchParams(queryParams).toString();
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/automated-runs/${query}`, {
       credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+      headers: this.authHeaders(),
     });
     return res.json();
   }
@@ -1157,12 +1141,11 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
   start_date?: string;
   end_date?: string;
 }): Promise<any> {
-  const token = localStorage.getItem('auth_token');
   const query = params ? '?' + new URLSearchParams(params as Record<string, any>).toString() : '';
   const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;
   const res = await fetch(fullUrl, {
     credentials: 'include',
-    headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+    headers: this.authHeaders(),
   });
   const data = await res.json();
   
@@ -1179,10 +1162,9 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
 }
 
   async getAutomatedRunDetails(automatedRunId: string): Promise<any> {
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`${this.baseURL}/automated-runs/${automatedRunId}/`, {
       credentials: 'include',
-      headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+      headers: this.authHeaders(),
     });
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));

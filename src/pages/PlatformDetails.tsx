@@ -388,6 +388,7 @@ const CountryDetailPanel = ({
   detail: any; loading: boolean; countryName: string; countryCode: string;
   totalRequests: number; blockedFallback: number; totalCountryRequests: number; onBack: () => void;
 }) => {
+  const navigate = useNavigate();
   const Rsub = 'rounded-[12px]';
   const requestCount = detail?.request_count ?? detail?.total_requests ?? totalRequests ?? 0;
   const blockedCount = detail?.blocked_count ?? detail?.blocked_requests ?? blockedFallback ?? 0;
@@ -418,11 +419,16 @@ const CountryDetailPanel = ({
 
       <div className="grid grid-cols-3 gap-1.5">
         {[
-          { label: 'Requests', value: requestCount.toLocaleString(), col: 'text-blue-600 dark:text-blue-400' },
-          { label: 'Blocked',  value: blockedCount.toLocaleString(), col: 'text-red-500 dark:text-red-400' },
-          { label: 'Block %',  value: `${blockRate}%`, col: 'text-amber-600 dark:text-amber-400' },
-        ].map(({ label, value, col }) => (
-          <div key={label} className={`text-center px-2 py-2 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 ${Rsub}`}>
+          { label: 'Requests', value: requestCount.toLocaleString(), col: 'text-blue-600 dark:text-blue-400', clickable: false },
+          { label: 'Blocked',  value: blockedCount.toLocaleString(), col: 'text-red-500 dark:text-red-400', clickable: true },
+          { label: 'Block %',  value: `${blockRate}%`, col: 'text-amber-600 dark:text-amber-400', clickable: false },
+        ].map(({ label, value, col, clickable }) => (
+          <div
+            key={label}
+            onClick={clickable ? () => navigate(`/threat-logs?blocked=blocked&country=${encodeURIComponent(countryCode)}`) : undefined}
+            className={`text-center px-2 py-2 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 ${Rsub} ${clickable ? 'cursor-pointer hover:border-red-300 dark:hover:border-red-500/40 hover:bg-red-50/60 dark:hover:bg-red-500/5 transition-colors' : ''}`}
+            title={clickable ? 'View blocked requests in Threat Logs' : undefined}
+          >
             <p className={`font-mono text-sm font-bold ${col}`}>{value}</p>
             <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
           </div>
@@ -514,6 +520,17 @@ const CountryDetailPanel = ({
           No threat or IP data for this country in this period.
         </p>
       )}
+
+      <button
+        onClick={() => {
+          const question = `Tell me more about the security threats from ${countryName}. What attack patterns are most common, and how should I protect my API against traffic from this region?`;
+          navigate('/heimdall-ai', { state: { prefillMessage: question } });
+        }}
+        className="mt-1 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-[12px] border border-blue-200 dark:border-blue-500/30 bg-blue-50/60 dark:bg-blue-500/5 hover:bg-blue-100/60 dark:hover:bg-blue-500/10 transition-colors group"
+      >
+        <Sparkles className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+        <span className="text-[12px] font-semibold text-blue-600 dark:text-blue-400">Ask Heimdall AI about {countryName}</span>
+      </button>
     </motion.div>
   );
 };
@@ -780,7 +797,7 @@ const PlatformDetails: React.FC = () => {
   const R = 'rounded-[22px]';
   const Rsub = 'rounded-[14px]';
   const cardClass = `bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 ${R}`;
-  const headerClass = `border-b border-slate-100 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]`;
+  const headerClass = `bg-white dark:bg-[#0d1829]`;
   const controlClass = 'rounded-full border border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0a1220] px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 outline-none transition-all hover:border-blue-300 dark:hover:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 cursor-pointer';
   const metricNumberClass = 'font-mono tabular-nums text-[2.25rem] font-bold leading-none tracking-[-0.04em] text-slate-900 dark:text-white';
 
@@ -1048,9 +1065,8 @@ const PlatformDetails: React.FC = () => {
             { label: 'blocked_rate', icon: <AlertTriangle className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />, iconBg: 'bg-cyan-50 dark:bg-cyan-500/10', accent: 'from-cyan-500 to-teal-500', accentBg: 'bg-cyan-50 dark:bg-slate-800/80', value: <AnimatedNumber value={blockedRate} decimals={2} suffix="%" className={metricNumberClass} />, sub: null, subClass: '', barWidth: `${Math.min(100, Math.max(0, blockedRate ?? 0))}%` },
             { label: 'active_endpoints', icon: <Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />, iconBg: 'bg-emerald-50 dark:bg-emerald-500/10', accent: 'from-emerald-500 to-green-600', accentBg: 'bg-emerald-50 dark:bg-slate-800/80', value: <AnimatedNumber value={activeEndpointCount} className={metricNumberClass} />, sub: activeEndpointCount > 0 ? 'Monitoring active' : 'No endpoints yet', subClass: 'text-emerald-600 dark:text-emerald-400 font-semibold', barWidth: activeEndpointCount > 0 ? '100%' : '0%' },
           ].map(({ label, icon, iconBg, accent, accentBg, value, sub, subClass, barWidth }) => (
-            <Card key={label} className={`relative overflow-hidden border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829] ${R}`}>
-              <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l-[22px] bg-gradient-to-b ${accent}`} />
-              <CardContent className="p-6 pl-7">
+            <Card key={label} className={`border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829] ${R}`}>
+              <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{label}</span>
                   <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconBg}`}>{icon}</div>
@@ -1061,9 +1077,6 @@ const PlatformDetails: React.FC = () => {
                 ) : (
                   <p className={`mt-2 text-xs ${subClass}`}>{sub}</p>
                 )}
-                <div className={`mt-4 h-1 rounded-full ${accentBg}`}>
-                  <div className={`h-1 rounded-full bg-gradient-to-r ${accent} transition-all duration-700`} style={{ width: barWidth }} />
-                </div>
               </CardContent>
             </Card>
           ))}
@@ -1259,7 +1272,7 @@ const PlatformDetails: React.FC = () => {
 
         {/* ── AI Security Insights ── */}
         <Card className={`border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm ${R}`}>
-          <CardHeader className={`border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-5 py-4 ${Rsub}`}>
+          <CardHeader className={`bg-slate-50 dark:bg-slate-800/60 px-5 py-4 ${Rsub}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <HeimdallAILogo size={22} />
@@ -1412,4 +1425,4 @@ const PlatformDetails: React.FC = () => {
   );
 };
 
-export default PlatformDetails;
+export default PlatformDetails;                                                                                                                                                                                                                                                                                                                                                                                                                                                    

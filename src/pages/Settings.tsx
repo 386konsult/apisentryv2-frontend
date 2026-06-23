@@ -247,7 +247,7 @@ const Settings = () => {
             className="grid gap-6 md:grid-cols-2"
           >
             <Card className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
-              <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
                 <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
                   <div className="rounded-xl bg-blue-50 dark:bg-blue-500/10 p-2">
                     <Globe className="h-4 w-4 text-blue-500" />
@@ -354,7 +354,7 @@ const Settings = () => {
             </Card>
 
             <Card className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
-              <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
                 <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
                   <div className="rounded-xl bg-violet-50 dark:bg-violet-500/10 p-2">
                     <Terminal className="h-4 w-4 text-violet-500" />
@@ -454,7 +454,7 @@ const Settings = () => {
             transition={{ duration: 0.4 }}
           >
             <Card className="max-w-2xl rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
-              <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
                 <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
                   <div className="rounded-xl bg-red-50 dark:bg-red-500/10 p-2">
                     <Lock className="h-4 w-4 text-red-500" />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -477,7 +477,6 @@ const SecurityHub = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [allLogs, setAllLogs]             = useState<RequestLog[]>([]);
   const [tableLogs, setTableLogs]         = useState<RequestLog[]>([]);
   const [loading, setLoading]             = useState(true);
   const [statsLoading, setStatsLoading]   = useState(true);
@@ -485,6 +484,13 @@ const SecurityHub = () => {
   const [hasMore, setHasMore]             = useState(true);
   const [page, setPage]                   = useState(1);
   const PAGE_SIZE = 20;
+
+  // Stats driven by backend aggregates — not client-side filtering of a capped list
+  const [statsData, setStatsData] = useState({
+    totalLogs: 0, blockedLogs: 0, uniqueIPs: 0,
+    errorLogs: 0, avgResponseTime: 0, botRequests: 0,
+    suspiciousIPs: 0, uniqueCountries: 0,
+  });
 
   const [statsRange, setStatsRange]       = useState<TimeRangeKey>("today");
   const [selectedLog, setSelectedLog]     = useState<RequestLog | null>(null);
@@ -506,18 +512,44 @@ const SecurityHub = () => {
   const [wafBlockedFilter, setWafBlockedFilter]   = useState("all");
   const [platformName, setPlatformName]           = useState<string>("");
 
-  // ── Fetch logic — UNCHANGED ───────────────────────────────────────────────
-  const fetchAllLogsForStats = async (platformId: string) => {
+  // Endpoint autocomplete
+  const [endpointSearch, setEndpointSearch]       = useState("");
+  const [endpointFilter, setEndpointFilter]       = useState("");
+  const [showEndpointDropdown, setShowEndpointDropdown] = useState(false);
+  const endpointRef = React.useRef<HTMLDivElement>(null);
+
+  const endpointSuggestions = useMemo(() => {
+    if (!endpointSearch.trim()) return [];
+    const lower = endpointSearch.toLowerCase();
+    const paths = [...new Set(tableLogs.map(l => l.path).filter(Boolean))];
+    return paths.filter(p => p.toLowerCase().includes(lower)).slice(0, 10);
+  }, [endpointSearch, tableLogs]);
+
+  // ── Stats fetch — uses start_date so backend filters on full dataset ────────
+  const fetchStatsForRange = async (platformId: string, range: TimeRangeKey) => {
     setStatsLoading(true);
     try {
-      const response = await apiService.getPlatformRequestLogs(platformId, { page_size: 10000, page: 1 });
-      let all: RequestLog[] = [];
-      if (response.results)         all = response.results;
-      else if (Array.isArray(response)) all = response;
-      else if (response.logs)       all = response.logs;
-      setAllLogs(all);
-    } catch (error) {
-      console.error("Stats fetch error:", error);
+      const startDate = getRangeStart(range).toISOString().split("T")[0];
+      // page_size:100 gives a sample for secondary stats; total_count/blocked_count come from backend aggregate
+      const response = await apiService.getPlatformRequestLogs(platformId, { page_size: 100, page: 1, start_date: startDate });
+      const sample: RequestLog[] = response.logs ?? response.results ?? (Array.isArray(response) ? response : []);
+      const totalLogs   = response.total_count  ?? sample.length;
+      const blockedLogs = response.blocked_count ?? sample.filter((l: RequestLog) => l.waf_blocked).length;
+      const botPatterns = [/bot/i, /crawler/i, /spider/i, /scraper/i, /curl/i, /wget/i, /python/i, /postman/i];
+      const ipFreq: Record<string, number> = {};
+      sample.forEach((l: RequestLog) => { ipFreq[l.client_ip] = (ipFreq[l.client_ip] || 0) + 1; });
+      setStatsData({
+        totalLogs,
+        blockedLogs,
+        uniqueIPs:       new Set(sample.map((l: RequestLog) => l.client_ip)).size,
+        errorLogs:       sample.filter((l: RequestLog) => l.status_code >= 400).length,
+        avgResponseTime: sample.length ? sample.reduce((s: number, l: RequestLog) => s + (l.response_time_ms ?? 0), 0) / sample.length : 0,
+        botRequests:     sample.filter((l: RequestLog) => botPatterns.some(p => p.test(l.user_agent || ""))).length,
+        suspiciousIPs:   Object.values(ipFreq).filter(c => c > 10).length,
+        uniqueCountries: new Set(sample.map((l: RequestLog) => (l as any).country || (l as any).country_code).filter(Boolean)).size,
+      });
+    } catch (err) {
+      console.error("Stats fetch error:", err);
     } finally {
       setStatsLoading(false);
     }
@@ -554,9 +586,15 @@ const SecurityHub = () => {
       } catch {}
     }
     setLoading(true); setPage(1); setHasMore(true);
-    fetchAllLogsForStats(platformId);
+    fetchStatsForRange(platformId, statsRange);
     fetchTablePage(platformId, 1, false);
   }, [navigate]);
+
+  // Re-fetch stats whenever the time range changes
+  useEffect(() => {
+    const platformId = localStorage.getItem("selected_platform_id");
+    if (platformId) fetchStatsForRange(platformId, statsRange);
+  }, [statsRange]);
 
   useEffect(() => {
     setMethodFilter(searchParams.get("method") || "all");
@@ -605,30 +643,7 @@ const SecurityHub = () => {
     return () => controller.abort();
   }, [selectedLog, isDetailsOpen]);
 
-  // ── Analytics ─────────────────────────────────────────────────────────────
-  const rangeFilteredLogs = useMemo(() => {
-    const rangeStart = getRangeStart(statsRange);
-    return allLogs.filter(log => {
-      const ts = parseTimestamp(log.timestamp);
-      return !isNaN(ts.getTime()) && ts >= rangeStart;
-    });
-  }, [allLogs, statsRange]);
-
-  const analytics = useMemo(() => {
-    const src = rangeFilteredLogs;
-    const totalLogs       = src.length;
-    const blockedLogs     = src.filter(l => l.waf_blocked).length;
-    const uniqueIPs       = new Set(src.map(l => l.client_ip)).size;
-    const errorLogs       = src.filter(l => l.status_code >= 400).length;
-    const avgResponseTime = src.length ? src.reduce((s, l) => s + (l.response_time_ms ?? 0), 0) / src.length : 0;
-    const botPatterns     = [/bot/i, /crawler/i, /spider/i, /scraper/i, /curl/i, /wget/i, /python/i, /postman/i];
-    const botRequests     = src.filter(l => botPatterns.some(p => p.test(l.user_agent || ""))).length;
-    const ipFreq: Record<string, number> = {};
-    src.forEach(l => { ipFreq[l.client_ip] = (ipFreq[l.client_ip] || 0) + 1; });
-    const suspiciousIPs   = Object.values(ipFreq).filter(c => c > 10).length;
-    const uniqueCountries = new Set(src.map(l => (l as any).country || (l as any).country_code).filter(Boolean)).size;
-    return { totalLogs, blockedLogs, uniqueIPs, errorLogs, avgResponseTime, botRequests, suspiciousIPs, uniqueCountries };
-  }, [rangeFilteredLogs]);
+  const analytics = statsData;
 
   // ── Table filtering ───────────────────────────────────────────────────────
   const filteredTableLogs = useMemo(() => {
@@ -643,6 +658,7 @@ const SecurityHub = () => {
         log.method?.toLowerCase().includes(lower)
       );
     }
+    if (endpointFilter) filtered = filtered.filter(log => log.path?.toLowerCase().includes(endpointFilter.toLowerCase()));
     if (ipFilter) filtered = filtered.filter(log => log.client_ip?.toLowerCase().includes(ipFilter.toLowerCase()));
     if (countryFilter) {
       filtered = filtered.filter(log => {
@@ -657,7 +673,7 @@ const SecurityHub = () => {
     if (threatLevelFilter !== "all") filtered = filtered.filter(log => log.threat_level === threatLevelFilter);
     if (wafBlockedFilter !== "all")  filtered = filtered.filter(log => log.waf_blocked === (wafBlockedFilter === "blocked"));
     return filtered;
-  }, [tableLogs, searchTerm, ipFilter, countryFilter, methodFilter, statusCodeFilter, threatLevelFilter, wafBlockedFilter]);
+  }, [tableLogs, searchTerm, endpointFilter, ipFilter, countryFilter, methodFilter, statusCodeFilter, threatLevelFilter, wafBlockedFilter]);
 
   const updateQueryParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams);
@@ -689,12 +705,12 @@ const SecurityHub = () => {
     const platformId = localStorage.getItem("selected_platform_id");
     if (!platformId) return;
     setLoading(true); setPage(1); setHasMore(true);
-    fetchAllLogsForStats(platformId);
+    fetchStatsForRange(platformId, statsRange);
     fetchTablePage(platformId, 1, false);
   };
 
   const exportLogs = () => {
-    const src = rangeFilteredLogs.length > 0 ? rangeFilteredLogs : filteredTableLogs;
+    const src = filteredTableLogs;
     const rangeLabel = TIME_RANGE_OPTIONS.find(o => o.value === statsRange)?.label ?? "today";
     const csv = [
       ["Timestamp","Method","Path","Status Code","IP","User Agent","WAF Blocked","Threat Level"],
@@ -723,20 +739,13 @@ const SecurityHub = () => {
 
   const handleBlockEndpoint = async (endpointString: string) => {
     try {
-      const platformId = localStorage.getItem("selected_platform_id");
-      if (!platformId) throw new Error("No platform selected");
-      const [method, ...pathParts] = endpointString.split(" ");
-      const path = pathParts.join(" ");
-      const res  = await apiService.getPlatformEndpoints(platformId);
-      const endpointsArr = Array.isArray(res) ? res : res.results || [];
-      const endpoint = endpointsArr.find((ep: any) => ep.method === method && ep.path === path);
-      if (endpoint?.id) {
-        await apiService.updateEndpoint(endpoint.id, { is_protected: true });
-        toast({ title: "Endpoint Protected", description: `${endpointString} is now protected.` });
-      } else throw new Error("Endpoint not found");
+      const { endpointId } = blockEndpointDialog;
+      if (!endpointId) throw new Error("Endpoint ID not found");
+      await apiService.updateEndpoint(endpointId, { is_protected: true });
+      toast({ title: "Endpoint Protected", description: `${endpointString} is now protected.` });
       setBlockEndpointDialog({ open: false, endpoint: "", endpointId: "" });
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to block endpoint.", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to protect endpoint.", variant: "destructive" });
     }
   };
 
@@ -798,7 +807,7 @@ const SecurityHub = () => {
               {statsLoading && <span className="ml-2 text-xs font-normal text-slate-400">(loading…)</span>}
             </p>
             <p className="text-xs text-slate-400 dark:text-slate-500">
-              {allLogs.length.toLocaleString()} total logs · {rangeFilteredLogs.length.toLocaleString()} in range
+              {statsData.totalLogs.toLocaleString()} total requests in range
             </p>
           </div>
           <div className="flex gap-1.5 flex-wrap">
@@ -876,6 +885,35 @@ const SecurityHub = () => {
             <Input placeholder="Search logs by IP, path, endpoint, user agent..."
               value={searchTerm} onChange={e => { setSearchTerm(e.target.value); updateQueryParam("search", e.target.value); }}
               className="pl-10 rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50" />
+          </div>
+
+          {/* Endpoint autocomplete search */}
+          <div className="relative w-full" ref={endpointRef}>
+            <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+            <Input
+              placeholder="Filter by endpoint path (e.g. /api/users)…"
+              value={endpointSearch}
+              onChange={e => { setEndpointSearch(e.target.value); setShowEndpointDropdown(true); if (!e.target.value) setEndpointFilter(""); }}
+              onFocus={() => setShowEndpointDropdown(true)}
+              onBlur={() => setTimeout(() => setShowEndpointDropdown(false), 150)}
+              className="pl-10 rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
+            />
+            {endpointFilter && (
+              <button onClick={() => { setEndpointFilter(""); setEndpointSearch(""); }}
+                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            {showEndpointDropdown && endpointSuggestions.length > 0 && (
+              <div className="absolute z-50 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg overflow-hidden">
+                {endpointSuggestions.map(path => (
+                  <button key={path} onMouseDown={() => { setEndpointFilter(path); setEndpointSearch(path); setShowEndpointDropdown(false); }}
+                    className="w-full text-left px-4 py-2.5 text-xs font-mono text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/10 truncate">
+                    {path}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <Select value={methodFilter}      onValueChange={v => handleFilterChange("method", v)}>

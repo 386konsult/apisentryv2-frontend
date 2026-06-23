@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 
 import { apiService } from "@/services/api";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 const TIME_RANGES = [
@@ -97,7 +97,11 @@ const ThreatLogs = () => {
   const [stats, setStats] = useState({ total: 0, blocked: 0, rate: 0 });
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [platformName, setPlatformName] = useState<string>("");
+
+  // Country filter from URL param (e.g. ?country=US from the map BLOCKED click)
+  const [countryFilter, setCountryFilter] = useState<string>(() => searchParams.get("country") || "");
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -120,7 +124,9 @@ const ThreatLogs = () => {
         const res = await fetch(url);
         data = await res.json();
       } else {
-        data = await apiService.getPlatformThreatLogs(platformId, { blocked: true, page_size: 20 });
+        const apiParams: any = { blocked: 'true', page_size: 20 };
+        if (countryFilter) apiParams.country = countryFilter;
+        data = await apiService.getPlatformThreatLogs(platformId, apiParams);
       }
       // New response shape: { logs, total_count, blocked_count, blocked_rate, next, ... }
       return {
@@ -134,7 +140,7 @@ const ThreatLogs = () => {
       console.error("Failed to fetch threat logs:", error);
       return { logs: [], total: 0, blocked: 0, rate: 0, next: null };
     }
-  }, [navigate]);
+  }, [navigate, countryFilter]);
 
   const loadInitial = async () => {
     setLoading(true);
@@ -177,7 +183,7 @@ const ThreatLogs = () => {
     }
     loadInitial();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [countryFilter]);
 
   // Helper: client‑side time range filter (used for display/export only)
   const filterByTime = (logsArr: any[], range: string) => {
@@ -277,6 +283,7 @@ const ThreatLogs = () => {
     setIpFilter("all");
     setEndpointFilter("");
     setTimeRange("all");
+    setCountryFilter("");
   };
 
   const exportFilteredLogs = () => {
@@ -397,7 +404,7 @@ const ThreatLogs = () => {
               <h3 className="text-lg font-semibold">Filters</h3>
               <p className="text-sm text-slate-500">Refine your threat log results</p>
             </div>
-            {(searchTerm || severityFilter !== "all" || threatType !== "all" || ipFilter !== "all" || endpointFilter.trim() || timeRange !== "all") && (
+            {(searchTerm || severityFilter !== "all" || threatType !== "all" || ipFilter !== "all" || endpointFilter.trim() || timeRange !== "all" || countryFilter) && (
               <button onClick={clearAllFilters} className="text-xs text-red-600 dark:text-red-400 hover:underline font-medium">Clear All</button>
             )}
           </div>
@@ -450,6 +457,12 @@ const ThreatLogs = () => {
           {(searchTerm || severityFilter !== "all" || threatType !== "all" || ipFilter !== "all" || endpointFilter.trim() || timeRange !== "all") && (
             <div className="flex flex-wrap items-center gap-2 pt-3 border-t">
               <span className="text-xs font-medium text-slate-500">Active:</span>
+              {countryFilter && (
+                <Badge className="cursor-pointer bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-500/40 hover:bg-blue-200 dark:hover:bg-blue-500/30" onClick={() => setCountryFilter("")}>
+                  <MapPin className="h-3 w-3 mr-1 inline-block" />
+                  Country: {countryFilter} &nbsp;✕
+                </Badge>
+              )}
               {searchTerm && <Badge className="cursor-pointer" onClick={() => setSearchTerm("")}>✕ Search: {searchTerm}</Badge>}
               {timeRange !== "all" && <Badge className="cursor-pointer" onClick={() => setTimeRange("all")}>✕ Time: {TIME_RANGES.find(r => r.value === timeRange)?.label}</Badge>}
               {severityFilter !== "all" && <Badge className="cursor-pointer" onClick={() => setSeverityFilter("all")}>✕ Severity: {severityFilter}</Badge>}

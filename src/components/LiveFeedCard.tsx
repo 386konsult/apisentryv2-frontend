@@ -97,7 +97,7 @@ const LiveFeedCard: React.FC<LiveFeedCardProps> = ({ platformId }) => {
 
   return (
     <Card className="bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-[22px] overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 p-5 pb-4 border-b border-slate-100 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 p-5 pb-4 bg-white dark:bg-[#0d1829]">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 dark:bg-red-500/10 ring-1 ring-red-100 dark:ring-red-500/20">
             <Activity className="h-5 w-5 text-red-500 dark:text-red-400" />

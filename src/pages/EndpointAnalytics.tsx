@@ -64,7 +64,7 @@ interface AnalyticsData {
 const R    = 'rounded-[22px]';
 const Rsub = 'rounded-[14px]';
 const cardClass  = `bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 ${R}`;
-const headerLine = `border-b border-slate-100 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]`;
+const headerLine = `bg-white dark:bg-[#0d1829]`;
 
 // ── AnimatedNumber — UNCHANGED logic ─────────────────────────────────────────
 const AnimatedNumber = ({ value, decimals = 0, suffix = "", className = "" }: any) => {

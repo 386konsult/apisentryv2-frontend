@@ -288,7 +288,7 @@ const IPBlacklist = () => {
           transition={{ duration: 0.3, delay: 0.05 }}
         >
           <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-            <CardHeader className="border-b border-slate-200/70 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
               <CardTitle className="text-slate-900 dark:text-white">Block an IP Address</CardTitle>
               <CardDescription>Enter an IP address to immediately deny all requests originating from it</CardDescription>
             </CardHeader>
@@ -324,7 +324,7 @@ const IPBlacklist = () => {
           transition={{ duration: 0.3, delay: 0.1 }}
         >
           <Card className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-            <CardHeader className="border-b border-slate-200/70 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="min-w-0">
                   <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">

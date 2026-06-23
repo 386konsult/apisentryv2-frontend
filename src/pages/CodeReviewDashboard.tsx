@@ -478,7 +478,7 @@ const CodeReviewDashboard = () => {
       >
         <HoverCard>
           <Card className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md h-full">
-            <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
               <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white text-sm">
                 <div className="rounded-xl bg-purple-50 dark:bg-purple-500/10 p-2">
                   <BarChart3 className="h-4 w-4 text-purple-500" />
@@ -512,7 +512,7 @@ const CodeReviewDashboard = () => {
 
         <HoverCard>
           <Card className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md h-full">
-            <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
               <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white text-sm">
                 <div className="rounded-xl bg-blue-50 dark:bg-blue-500/10 p-2">
                   <GitBranch className="h-4 w-4 text-blue-500" />
@@ -556,7 +556,7 @@ const CodeReviewDashboard = () => {
         ].map(({ title, icon: Icon, iconClass, data, barColor }) => (
           <HoverCard key={title}>
             <Card className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
-              <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
                 <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white text-sm">
                   <div className={`rounded-xl p-2 ${iconClass}`}>
                     <Icon className="h-4 w-4" />
@@ -599,7 +599,7 @@ const CodeReviewDashboard = () => {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.4 }}>
         <HoverCard>
           <Card className="rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
-            <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
               <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white text-sm">
                 <div className="rounded-xl bg-orange-50 dark:bg-orange-500/10 p-2">
                   <Target className="h-4 w-4 text-orange-500" />
@@ -636,7 +636,7 @@ const CodeReviewDashboard = () => {
       {/* ── Top API Endpoints ── */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.5 }}>
         <Card className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
-          <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
             <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white text-sm">
               <div className="rounded-xl bg-indigo-50 dark:bg-indigo-500/10 p-2">
                 <Activity className="h-4 w-4 text-indigo-500" />

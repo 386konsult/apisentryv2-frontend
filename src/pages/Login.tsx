@@ -68,7 +68,7 @@ const Login = () => {
       if (returnUrl) {
         window.location.href = returnUrl;
       } else {
-        window.location.href = '/';
+        window.location.href = '/platforms';
       }
     } catch (error: any) {
       console.error('Login error:', error);
@@ -110,7 +110,7 @@ const Login = () => {
       <div
         className="hidden lg:flex lg:w-[46%] relative flex-col overflow-hidden select-none"
         style={{
-          background: 'linear-gradient(160deg, #1e3f7a 0%, #0d2347 40%, #091b38 75%, #0b2040 100%)',
+          background: 'linear-gradient(160deg, #2563EB 0%, #1d4ed8 40%, #0ea5e9 80%, #06b6d4 100%)',
         }}
       >
         {/* Decorative concentric rings */}
@@ -132,14 +132,14 @@ const Login = () => {
         <div className="absolute top-1/4 right-0 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
         <div className="absolute bottom-1/3 left-0 w-60 h-60 rounded-full bg-sky-400/8 blur-3xl pointer-events-none" />
 
-        {/* Logo — top left */}
-        <div className="absolute top-8 left-8 flex items-center gap-2.5">
+        {/* Logo — top left — links back to landing page */}
+        <Link to="/" className="absolute top-8 left-8 flex items-center gap-2.5 no-underline hover:opacity-80 transition-opacity">
           <HeimdallAILogo size={30} />
           <div className="leading-tight">
             <span className="text-white font-bold text-sm tracking-tight block">Heimdall</span>
             <span className="text-white/40 text-[10px] tracking-wide">by Smartcomply</span>
           </div>
-        </div>
+        </Link>
 
         {/* Main headline */}
         <div className="relative z-10 flex flex-col items-center justify-center h-full px-10">
@@ -265,7 +265,7 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-11 rounded-lg font-semibold text-sm text-white bg-[#1B2B5E] hover:bg-[#1e3370] dark:bg-blue-600 dark:hover:bg-blue-500 transition-colors disabled:opacity-60"
+                className="w-full h-11 rounded-lg font-semibold text-sm text-white transition-colors disabled:opacity-60" style={{ background: 'linear-gradient(135deg, #2563EB, #0EA5E9)', boxShadow: '0 4px 14px rgba(37,99,235,0.3)' }}
               >
                 {isLoading ? 'Signing in...' : 'Sign in'}
               </button>

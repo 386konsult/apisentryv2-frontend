@@ -331,7 +331,7 @@ const Playground = () => {
           <div className="lg:col-span-2 space-y-6">
             {/* Request Configuration Card */}
             <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-              <CardHeader className="border-b border-slate-200/70 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
                 <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
                   <div className="rounded-xl bg-blue-50 p-2 dark:bg-blue-500/10">
                     <Code className="h-4 w-4 text-blue-500" />
@@ -423,7 +423,7 @@ const Playground = () => {
             {/* Test Results */}
             {testAttempted && !isLoading && (
               <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900 overflow-hidden">
-                <CardHeader className="border-b border-slate-200/70 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
+                <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
                   <div className="flex items-center gap-2">
                     <div className="rounded-xl bg-blue-50 p-2 dark:bg-blue-500/10">
                       <Shield className="h-4 w-4 text-blue-500" />
@@ -604,7 +604,7 @@ const Playground = () => {
           <div className="space-y-6">
             {/* Testing Scope Card */}
             <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-              <CardHeader className="border-b border-slate-200/70 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
                 <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white text-base">
                   <div className="rounded-xl bg-cyan-50 p-2 dark:bg-cyan-500/10">
                     <Globe className="h-4 w-4 text-cyan-500" />
@@ -647,7 +647,7 @@ const Playground = () => {
 
             {/* Example Attacks Card */}
             <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-              <CardHeader className="border-b border-slate-200/70 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
                 <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white text-base">
                   <div className="rounded-xl bg-orange-50 p-2 dark:bg-orange-500/10">
                     <FlaskConical className="h-4 w-4 text-orange-500" />
@@ -675,7 +675,7 @@ const Playground = () => {
 
             {/* Testing Tips Card */}
             <Card className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900">
-              <CardHeader className="border-b border-slate-200/70 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/80 dark:from-slate-800/30">
                 <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white text-base">
                   <div className="rounded-xl bg-violet-50 p-2 dark:bg-violet-500/10">
                     <Terminal className="h-4 w-4 text-violet-500" />

@@ -51,7 +51,7 @@ const HeatmapCard: React.FC<HeatmapCardProps> = ({ platformId }) => {
 
   return (
     <Card className="bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-[22px] overflow-hidden">
-      <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4 border-b border-slate-100 dark:border-blue-900/20 bg-white dark:bg-[#0d1829]">
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6 pb-4 bg-white dark:bg-[#0d1829]">
         <div>
           <CardTitle className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Attack Heatmap</CardTitle>
           <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">

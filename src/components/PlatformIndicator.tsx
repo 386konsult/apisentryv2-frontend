@@ -228,6 +228,22 @@ const IconBtn = ({
 
 const HeimdallAIButton = ({ onClick }: { onClick: () => void }) => {
   const [hovered, setHovered] = useState(false);
+  const glowRef = useRef<HTMLSpanElement>(null);
+
+  // Rotate the conic gradient via a JS animation for smooth looping
+  useEffect(() => {
+    let angle = 0;
+    let raf: number;
+    const tick = () => {
+      angle = (angle + 1.2) % 360;
+      if (glowRef.current) {
+        glowRef.current.style.background = `conic-gradient(from ${angle}deg, #6366f1, #3b82f6, #06b6d4, #8b5cf6, #ec4899, #6366f1)`;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   return (
     <motion.button
@@ -240,15 +256,20 @@ const HeimdallAIButton = ({ onClick }: { onClick: () => void }) => {
       animate={{ width: hovered ? 132 : 42 }}
       transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.7 }}
       aria-label="Heimdall AI"
-      className={`ml-1.5 flex h-10 items-center overflow-hidden rounded-full ${
-        hovered
-          ? 'bg-white/95 dark:bg-slate-900/90 ring-1 ring-slate-200/80 dark:ring-slate-700/50 shadow-[0_8px_20px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_20px_rgba(2,6,23,0.28)]'
-          : 'bg-transparent ring-1 ring-transparent shadow-none'
-      }`}
+      className="ml-1.5 flex h-10 items-center overflow-hidden rounded-full backdrop-blur-md bg-white/10 dark:bg-white/5 ring-1 ring-white/20 dark:ring-white/10 shadow-sm"
     >
-      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
+      <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center">
+        {/* Rotating glow ring */}
+        <motion.span
+          ref={glowRef}
+          animate={{ opacity: hovered ? 0.42 : 0.7 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="absolute inset-0 rounded-full blur-[6px] scale-110"
+          style={{ background: 'conic-gradient(from 0deg, #6366f1, #3b82f6, #06b6d4, #8b5cf6, #ec4899, #6366f1)' }}
+        />
+        {/* Icon sits above the glow */}
         <Sparkles
-          className="h-[22px] w-[22px] text-blue-600 dark:text-blue-400"
+          className="relative z-10 h-[22px] w-[22px] text-blue-600 dark:text-blue-400"
           strokeWidth={2.2}
         />
       </span>
@@ -302,11 +323,7 @@ const PWAInstallButton: React.FC = () => {
       animate={{ width: hovered ? 128 : 42 }}
       transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.7 }}
       aria-label="Install App"
-      className={`ml-1.5 flex h-10 items-center overflow-hidden rounded-full ${
-        hovered
-          ? 'bg-white/95 dark:bg-slate-900/90 ring-1 ring-slate-200/80 dark:ring-slate-700/50 shadow-[0_8px_20px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_20px_rgba(2,6,23,0.28)]'
-          : 'bg-transparent ring-1 ring-transparent shadow-none'
-      }`}
+      className="ml-1.5 flex h-10 items-center overflow-hidden rounded-full bg-transparent"
     >
       <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
         <MonitorDown

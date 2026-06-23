@@ -598,7 +598,7 @@ const Users = () => {
       {activeTab === "members" && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <Card className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
-            <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
               <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
                 <div className="rounded-xl bg-blue-50 dark:bg-blue-500/10 p-2"><UsersIcon className="h-4 w-4 text-blue-500" /></div>
                 Platform Members
@@ -676,7 +676,7 @@ const Users = () => {
       {activeTab === "invitations" && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <Card className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
-            <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
               <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
                 <div className="rounded-xl bg-cyan-50 dark:bg-cyan-500/10 p-2"><Mail className="h-4 w-4 text-cyan-500" /></div>
                 Sent Invitations
@@ -745,7 +745,7 @@ const Users = () => {
       {activeTab === "tokens" && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <Card className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-white dark:border-slate-800/50 dark:bg-slate-900/50 shadow-md">
-            <CardHeader className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/50 dark:from-slate-800/30">
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">

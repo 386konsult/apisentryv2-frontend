@@ -322,8 +322,6 @@ const ReportCard = ({ report, onView, onDownload, downloading }: {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
       className={`relative overflow-hidden bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 ${R} group hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-200`}>
-      {/* Left accent bar */}
-      <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${acc.left}`} />
 
       {/* PDF icon area */}
       <div className="pl-5 pr-5 pt-5 pb-4">

@@ -341,7 +341,7 @@ class APIService {
 
 
   // Get threat (blocked) request logs for a platform
-  async getPlatformThreatLogs(platformId: string, params?: { range?: string; page?: string; start?: string; end?: string; path?: string }): Promise<any> {
+  async getPlatformThreatLogs(platformId: string, params?: { range?: string; page?: string; start?: string; end?: string; path?: string; blocked?: string; country?: string; page_size?: number }): Promise<any> {
     const query = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;
     const res = await fetch(fullUrl, {

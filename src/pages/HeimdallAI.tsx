@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, Plus, Paperclip, X, Trash2, MessageSquare,
@@ -49,17 +50,49 @@ const getMessageText = (content: string | ContentBlock[]): string => {
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
 const inlineMarkdown = (text: string): React.ReactNode => {
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g);
-  return parts.map((part, i) => {
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*|\[([^\]]+)\]\((https?:\/\/[^)]+)\))/g);
+  const result: React.ReactNode[] = [];
+  let k = 0;
+  while (k < parts.length) {
+    const part = parts[k];
+    if (!part) { k++; continue; }
     if (part.startsWith('**') && part.endsWith('**'))
-      return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
-    if (part.startsWith('`') && part.endsWith('`'))
-      return <code key={i} className="rounded-md bg-slate-100 dark:bg-slate-700/80 px-1.5 py-0.5 text-xs font-mono text-blue-600 dark:text-blue-400">{part.slice(1, -1)}</code>;
-    if (part.startsWith('*') && part.endsWith('*'))
-      return <em key={i}>{part.slice(1, -1)}</em>;
-    return part;
-  });
+      result.push(<strong key={k} className="font-semibold">{part.slice(2, -2)}</strong>);
+    else if (part.startsWith('`') && part.endsWith('`'))
+      result.push(<code key={k} className="rounded-md bg-slate-100 dark:bg-slate-700/80 px-1.5 py-0.5 text-xs font-mono text-blue-600 dark:text-blue-400">{part.slice(1, -1)}</code>);
+    else if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**'))
+      result.push(<em key={k}>{part.slice(1, -1)}</em>);
+    else if (/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/.test(part)) {
+      const m = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+      if (m) result.push(
+        <a key={k} href={m[2]} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 underline underline-offset-2 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
+          {m[1]}
+          <svg className="h-3 w-3 flex-shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 10L10 2M10 2H5M10 2v5"/></svg>
+        </a>
+      );
+    } else {
+      // also auto-link bare URLs
+      const urlParts = part.split(/(https?:\/\/[^\s]+)/g);
+      urlParts.forEach((up, ui) => {
+        if (/^https?:\/\//.test(up))
+          result.push(
+            <a key={`${k}-${ui}`} href={up} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 underline underline-offset-2 hover:text-blue-700 dark:hover:text-blue-300 transition-colors break-all">
+              {up}
+              <svg className="h-3 w-3 flex-shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 10L10 2M10 2H5M10 2v5"/></svg>
+            </a>
+          );
+        else result.push(up);
+      });
+    }
+    k++;
+  }
+  return result;
 };
+
+const isTableLine = (line: string) => line.trim().startsWith('|') && line.trim().endsWith('|');
+const isSeparatorLine = (line: string) => /^\|[\s\-:|]+\|$/.test(line.trim());
 
 const renderMarkdown = (text: string): React.ReactNode[] => {
   const lines = text.split('\n');
@@ -79,6 +112,42 @@ const renderMarkdown = (text: string): React.ReactNode[] => {
         </pre>
       );
       i++; continue;
+    }
+    // ── Table detection ──────────────────────────────────────────────────────
+    if (isTableLine(line)) {
+      const tableLines: string[] = [line];
+      let j = i + 1;
+      while (j < lines.length && isTableLine(lines[j])) { tableLines.push(lines[j]); j++; }
+      const parseRow = (r: string) => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      const headerRow = parseRow(tableLines[0]);
+      const dataRows = tableLines.slice(2).filter(r => !isSeparatorLine(r)).map(parseRow);
+      elements.push(
+        <div key={`table-${i}`} className="my-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800/60">
+                {headerRow.map((h, hi) => (
+                  <th key={hi} className="px-4 py-2.5 text-left text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                    {inlineMarkdown(h)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dataRows.map((row, ri) => (
+                <tr key={ri} className={ri % 2 === 0 ? 'bg-white dark:bg-transparent' : 'bg-slate-50/60 dark:bg-slate-800/20'}>
+                  {row.map((cell, ci) => (
+                    <td key={ci} className="px-4 py-2.5 text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800/60 text-sm leading-relaxed">
+                      {inlineMarkdown(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      i = j; continue;
     }
     if (line.startsWith('### ')) {
       elements.push(<h3 key={i} className="text-sm font-bold text-slate-900 dark:text-white mt-4 mb-1.5">{inlineMarkdown(line.slice(4))}</h3>);
@@ -158,9 +227,10 @@ const BlinkCursor: React.FC = () => (
 const MessageBubble: React.FC<{
   message: Message;
   avatarToken: typeof AVATAR_TOKENS[0];
-  displayText?: string;   // partial text during typing animation
-  isTyping?: boolean;     // whether this message is still being typed
-}> = ({ message, avatarToken, displayText, isTyping }) => {
+  displayText?: string;
+  isTyping?: boolean;
+  onRetry?: () => void;
+}> = ({ message, avatarToken, displayText, isTyping, onRetry }) => {
   const isUser = message.role === 'user';
   const fullText = getMessageText(message.content);
   const shownText = displayText !== undefined ? displayText : fullText;
@@ -221,6 +291,20 @@ const MessageBubble: React.FC<{
         {/* Timestamp — hide while typing so it doesn't flash prematurely */}
         {!isTyping && (
           <span className="text-[10px] text-slate-400 dark:text-slate-500 px-1">{time}</span>
+        )}
+
+        {/* Retry button — only for user messages */}
+        {isUser && onRetry && !isTyping && (
+          <button
+            onClick={onRetry}
+            className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors px-1"
+          >
+            <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1.5 8A6.5 6.5 0 1 0 4 3.5" />
+              <path d="M1.5 3.5v4h4" />
+            </svg>
+            Retry
+          </button>
         )}
       </div>
     </motion.div>
@@ -376,6 +460,9 @@ const HeimdallAI: React.FC = () => {
     } catch {}
   }, [IMAGE_DATE_KEY, IMAGE_COUNT_KEY, getImageUsage]);
 
+  // ── Router state (prefill from navigation) ────────────────────────────────
+  const location = useLocation();
+
   // ── State ──────────────────────────────────────────────────────────────────
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -390,6 +477,17 @@ const HeimdallAI: React.FC = () => {
   const [typingMsgId, setTypingMsgId] = useState<string | null>(null);
   const [typingDisplayed, setTypingDisplayed] = useState('');
   const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Prefill input from navigation state (e.g. "Ask Heimdall AI about X") ──
+  useEffect(() => {
+    const prefill = (location.state as any)?.prefillMessage;
+    if (prefill) {
+      setInput(prefill);
+      setTimeout(() => textareaRef.current?.focus(), 100);
+      // Clear state so back-navigation doesn't re-trigger
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
 
   const stopTyping = useCallback(() => {
     if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
@@ -656,6 +754,37 @@ const HeimdallAI: React.FC = () => {
     }
   }, [input, pendingImages, currentId, messages, isLoading, createNewConversation, updateConversation, generateTitle, startTypingAnimation, incrementImageCount, getImageUsage, toast]);
 
+  // ── Retry a specific user message ─────────────────────────────────────────
+  const retryMessage = useCallback(async (msgIndex: number) => {
+    if (isLoading || !currentId) return;
+    const msg = messages[msgIndex];
+    if (!msg || msg.role !== 'user') return;
+    // Trim everything from this message onward, then resend it
+    const priorMessages = messages.slice(0, msgIndex);
+    const text = typeof msg.content === 'string' ? msg.content : getMessageText(msg.content);
+    const newMessages = [...priorMessages, { ...msg, id: uid(), timestamp: new Date().toISOString() }];
+    updateConversation(currentId, newMessages);
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/heimdall-ai/chat/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Token ${localStorage.getItem('auth_token')}` },
+        body: JSON.stringify({ messages: newMessages.slice(-20).map(m => ({ role: m.role, content: m.content })) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      const aiText: string = data.response || '';
+      const aiMsgId = uid();
+      updateConversation(currentId, [...newMessages, { id: aiMsgId, role: 'assistant', content: aiText, timestamp: new Date().toISOString() }]);
+      startTypingAnimation(aiMsgId, aiText);
+    } catch (err: any) {
+      toast({ title: 'Failed to get response', description: err?.message || 'Please try again.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => textareaRef.current?.focus(), 50);
+    }
+  }, [isLoading, currentId, messages, updateConversation, startTypingAnimation, toast]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
@@ -889,13 +1018,14 @@ const HeimdallAI: React.FC = () => {
             {/* Message list */}
             <div className="flex-1 overflow-y-auto px-6 py-6">
               <div className="space-y-1 max-w-3xl mx-auto w-full">
-                {messages.map(msg => (
+                {messages.map((msg, idx) => (
                   <MessageBubble
                     key={msg.id}
                     message={msg}
                     avatarToken={avatarToken}
                     displayText={typingMsgId === msg.id ? typingDisplayed : undefined}
                     isTyping={typingMsgId === msg.id}
+                    onRetry={msg.role === 'user' ? () => retryMessage(idx) : undefined}
                   />
                 ))}
               </div>

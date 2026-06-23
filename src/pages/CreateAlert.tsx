@@ -1161,7 +1161,7 @@ const CreateAlert = () => {
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr_1.2fr]">
         <Card className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md dark:border-slate-800/60 dark:bg-slate-900/60">
-          <CardHeader className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/60 dark:from-slate-800/30">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/60 dark:from-slate-800/30">
             <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-white">
               <Bell className="h-5 w-5 text-blue-500" />
               Alert Type
@@ -1216,7 +1216,7 @@ const CreateAlert = () => {
         </Card>
 
         <Card className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md dark:border-slate-800/60 dark:bg-slate-900/60">
-          <CardHeader className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/60 dark:from-slate-800/30">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/60 dark:from-slate-800/30">
             <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-white">
               <Settings className="h-5 w-5 text-emerald-500" />
               Alert Configuration
@@ -1248,7 +1248,7 @@ const CreateAlert = () => {
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md dark:border-slate-800/60 dark:bg-slate-900/60">
-          <CardHeader className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/60 dark:from-slate-800/30">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/60 dark:from-slate-800/30">
             <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-white">
               <Mail className="h-5 w-5 text-emerald-500" />
               Notification Settings
@@ -1278,7 +1278,7 @@ const CreateAlert = () => {
         </Card>
 
         <Card className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md dark:border-slate-800/60 dark:bg-slate-900/60">
-          <CardHeader className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/60 dark:from-slate-800/30">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-transparent dark:border-slate-800/60 dark:from-slate-800/30">
             <CardTitle className="flex items-center gap-2 text-base text-slate-900 dark:text-white">
               <Shield className="h-5 w-5 text-cyan-500" />
               Alert Summary

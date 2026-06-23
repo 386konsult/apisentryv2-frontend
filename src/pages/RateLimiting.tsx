@@ -249,7 +249,7 @@ export default function RateLimiting() {
         )}
 
         <Card className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className="border-b border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900">
+          <CardHeader className="bg-white dark:bg-slate-900">
             <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
               <Gauge className="h-5 w-5 text-blue-500" />
               Rate Limit Rules

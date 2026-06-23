@@ -57,7 +57,7 @@ const monitorItems = [
 const securityItems = [
   { title: "API Endpoints", url: "/api-endpoints", icon: Globe },
   { title: "IP Blacklist", url: "/ip-blacklist", icon: Shield },
-  { title: "Playground", url: "/playground", icon: Code },
+  // { title: "Playground", url: "/playground", icon: Code },
   { title: "CISO Reports", url: "/ciso-reports", icon: FileText },
   { title: "Rate Limiting", url: null, icon: Gauge, isDynamic: true },
   //{ title: "Heimdall AI", url: "/heimdall-ai", icon: Sparkles },
@@ -605,13 +605,13 @@ const AppSidebar = () => {
         <SidebarTrigger style={{ color: p.muted }} />
       ) : (
         <>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, opacity: collapsed ? 0 : 1, transition: "opacity 0.2s ease" }}>
+          <NavLink to="/" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, opacity: collapsed ? 0 : 1, transition: "opacity 0.2s ease", textDecoration: "none" }}>
             <HeimdallAILogo size={32} />
             <div style={{ lineHeight: 1.2 }}>
               <div style={{ fontFamily: "'Sora', sans-serif", fontSize: 17, fontWeight: 700, color: p.text, letterSpacing: "-0.01em" }}>Heimdall</div>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600, color: p.accent, marginTop: 2, letterSpacing: "0.45px" }}>by Smartcomply</div>
             </div>
-          </div>
+          </NavLink>
           <SidebarTrigger style={{ color: p.muted, flexShrink: 0 }} />
         </>
       )}

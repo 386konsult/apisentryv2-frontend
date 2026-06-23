@@ -15,6 +15,7 @@ import AppSidebar from "./components/AppSidebar";
 import ProtectedPlatformRoute from "./components/ProtectedPlatformRoute";
 import PlatformIndicator from "./components/PlatformIndicator";
 import Login from "./pages/Login";
+import LandingPage from "./pages/LandingPage";
 
 // Lazy-loaded — only downloaded when the user navigates to that route
 const Register            = lazy(() => import("./pages/Register"));
@@ -159,20 +160,36 @@ const HeimdallFAB: React.FC = () => {
       animate={{ width: expanded ? 136 : 44 }}
       transition={{ type: "spring", stiffness: 400, damping: 28, mass: 0.6 }}
       aria-label="Heimdall AI"
-      className="fixed bottom-6 right-6 z-50 flex h-11 items-center overflow-hidden rounded-full
-        bg-gradient-to-r from-blue-600 to-cyan-500
-        shadow-[0_4px_24px_rgba(37,99,235,0.45)]
-        hover:shadow-[0_6px_28px_rgba(37,99,235,0.6)]
-        hover:brightness-110
-        transition-shadow transition-filter duration-200"
+      className="fixed bottom-6 right-6 z-50 flex h-11 items-center overflow-hidden rounded-full bg-transparent transition-opacity duration-200"
     >
       <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center">
-        <Sparkles className="h-[18px] w-[18px] text-white" strokeWidth={2.2} />
+        <motion.span
+          className="flex items-center justify-center"
+          animate={!expanded ? {
+            rotate: [0, 0, 360, 360, 720, 720],
+          } : { rotate: 0 }}
+          transition={!expanded ? {
+            duration: 4.8,
+            repeat: Infinity,
+            repeatDelay: 1.2,
+            times: [0, 0.08, 0.38, 0.54, 0.84, 1],
+            ease: ["easeIn", "easeOut", "easeIn", "easeOut", "easeIn", "easeOut"],
+          } : { duration: 0.3 }}
+        >
+          <motion.span
+            className="flex items-center justify-center"
+            animate={{ color: ["#818cf8","#3b82f6","#06b6d4","#a855f7","#ec4899","#f97316","#818cf8"] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+            style={{ display: "flex" }}
+          >
+            <Sparkles className="h-[18px] w-[18px]" strokeWidth={2.2} style={{ color: "inherit" }} />
+          </motion.span>
+        </motion.span>
       </span>
       <motion.span
         animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -6 }}
         transition={{ duration: 0.15, ease: "easeOut" }}
-        className="pr-4 whitespace-nowrap text-[13px] font-semibold leading-none tracking-tight text-white pointer-events-none"
+        className="pr-4 whitespace-nowrap text-[13px] font-semibold leading-none tracking-tight text-blue-600 dark:text-blue-400 pointer-events-none"
       >
         Heimdall AI
       </motion.span>
@@ -189,6 +206,9 @@ const AppContent = () => {
       <ScrollToTop />
       <Suspense fallback={null}>
         <Routes>
+          {/* Landing page — public, no auth required */}
+          <Route path="/"                                   element={<LandingPage />} />
+
           {/* Public */}
           <Route path="/terms"                              element={<TermsAndConditions />} />
           <Route path="/privacy"                            element={<PrivacyPolicy />} />

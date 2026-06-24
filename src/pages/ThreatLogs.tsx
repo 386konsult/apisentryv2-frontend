@@ -95,7 +95,7 @@ const ThreatLogs = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [nextPageUrl, setNextPageUrl] = useState<string | null>(null);
-  const [stats, setStats] = useState({ total: 0, blocked: 0, rate: 0 });
+  const [stats, setStats] = useState({ total: 0, blocked: 0, rate: 0, uniqueIPs: 0 });
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -143,27 +143,28 @@ const ThreatLogs = () => {
         }
         data = await apiService.getPlatformThreatLogs(platformId, apiParams);
       }
-      // New response shape: { logs, total_count, blocked_count, blocked_rate, next, ... }
+      // New response shape: { logs, total_count, blocked_count, blocked_rate, unique_ips, next, ... }
       return {
         logs: data.logs || [],
         total: data.total_count || 0,
         blocked: data.blocked_count || 0,
         rate: data.blocked_rate || 0,
+        uniqueIPs: data.unique_ips || 0,
         next: data.next || null,
       };
     } catch (error) {
       console.error("Failed to fetch threat logs:", error);
-      return { logs: [], total: 0, blocked: 0, rate: 0, next: null };
+      return { logs: [], total: 0, blocked: 0, rate: 0, uniqueIPs: 0, next: null };
     }
   }, [navigate, countryFilter, searchTerm, severityFilter, ipFilter, endpointFilter, timeRange]);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
-    const { logs: initialLogs, total, blocked, rate, next } = await fetchLogs();
+    const { logs: initialLogs, total, blocked, rate, uniqueIPs, next } = await fetchLogs();
     setLogs(initialLogs);
     setNextPageUrl(next);
     setHasMore(!!next);
-    setStats({ total, blocked, rate });
+    setStats({ total, blocked, rate, uniqueIPs });
     setLoading(false);
   }, [fetchLogs]);
 
@@ -228,7 +229,8 @@ const ThreatLogs = () => {
   });
   const highCount = logs.filter(l => l.threat_level === "high").length;
   const mediumCount = logs.filter(l => l.threat_level === "medium").length;
-  const uniqueIPs = new Set(logs.map(l => l.client_ip)).size;
+  // uniqueIPs comes from backend (full dataset), not client-side page slice
+  const uniqueIPs = stats.uniqueIPs;
 
   // Stat cards – using backend stats for Total Blocked and Blocked Rate
   const statsData = [
@@ -559,4 +561,4 @@ const ThreatLogs = () => {
   );
 };
 
-export default ThreatLogs;
+export default ThreatLogs;                                                                                               

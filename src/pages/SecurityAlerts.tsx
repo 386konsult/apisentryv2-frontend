@@ -580,9 +580,15 @@ const SecurityAlerts = () => {
                         <div className="font-medium text-slate-900 dark:text-white truncate max-w-[180px]" title={alert.name}>{alert.name}</div>
                         {alert.alert_type === 'signature_attack' ? (() => {
                           // Find the most recent trigger for this alert
-                          const lastTrigger = triggers
-                            .filter(t => t.alert === alert.id || t.alert_id === alert.id)
-                            .sort((a, b) => new Date(b.occurred_at || b.created_at).getTime() - new Date(a.occurred_at || a.created_at).getTime())[0];
+                          // Try ID match first (with string coercion), then fall back to alert_type match
+                          const sortByTime = (a: any, b: any) => new Date(b.occurred_at || b.created_at).getTime() - new Date(a.occurred_at || a.created_at).getTime();
+                          const byId = triggers
+                            .filter(t => String(t.alert) === String(alert.id) || String(t.alert_id) === String(alert.id))
+                            .sort(sortByTime);
+                          const byType = triggers
+                            .filter(t => t.alert_type === 'signature_attack')
+                            .sort(sortByTime);
+                          const lastTrigger = byId[0] || byType[0] || null;
                           const triggeredSig = lastTrigger ? extractSignaturePattern(lastTrigger) : null;
                           if (triggeredSig) {
                             return (

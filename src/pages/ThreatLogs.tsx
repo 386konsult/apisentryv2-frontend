@@ -561,4 +561,4 @@ const ThreatLogs = () => {
   );
 };
 
-export default ThreatLogs;                                                                                               
+export default ThreatLogs;

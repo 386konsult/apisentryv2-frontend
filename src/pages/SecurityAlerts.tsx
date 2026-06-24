@@ -81,6 +81,27 @@ const NOTIFICATION_ICONS: Record<string, any> = {
   sms: MessageSquare,
 };
 
+// Extract the specific attack pattern that fired from a signature_attack trigger.
+// Checks trigger.extra.waf_rule_triggered first, then parses evidence text.
+function extractSignaturePattern(trigger: any): string | null {
+  if (trigger?.alert_type !== 'signature_attack') return null;
+  if (trigger?.extra?.waf_rule_triggered) return trigger.extra.waf_rule_triggered;
+  const ev: string = trigger?.evidence || '';
+  if (!ev) return null;
+  const patterns = [
+    'SQL Injection', 'XSS', 'CSRF', 'Path Traversal', 'Command Injection',
+    'LDAP Injection', 'NoSQL Injection', 'XML External Entity', 'XXE',
+    'SSRF', 'Server-Side Request Forgery', 'RCE', 'Remote Code Execution',
+    'LFI', 'Local File Inclusion', 'RFI', 'Remote File Inclusion',
+  ];
+  for (const p of patterns) {
+    if (ev.toLowerCase().includes(p.toLowerCase())) return p;
+  }
+  // Fallback: first meaningful phrase before colon or period
+  const match = ev.match(/^([^:.]{3,40})/);
+  return match ? match[1].trim() : null;
+}
+
 const SecurityAlerts = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -138,6 +159,7 @@ const SecurityAlerts = () => {
         last_triggered: alert.last_triggered,
         trigger_count: alert.trigger_count,
         configuration: alert.configuration,
+        attack_signatures: alert.attack_signatures || alert.configuration?.attack_signatures || [],
         notification_channels: alert.notification_channels || [],
         acknowledged: alert.acknowledged,
         incident_id: alert.incident_id,
@@ -556,7 +578,30 @@ const SecurityAlerts = () => {
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-900 dark:text-white truncate max-w-[180px]" title={alert.name}>{alert.name}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px]" title={alert.description}>{alert.description}</div>
+                        {alert.alert_type === 'signature_attack' ? (() => {
+                          // Find the most recent trigger for this alert
+                          const lastTrigger = triggers
+                            .filter(t => t.alert === alert.id || t.alert_id === alert.id)
+                            .sort((a, b) => new Date(b.occurred_at || b.created_at).getTime() - new Date(a.occurred_at || a.created_at).getTime())[0];
+                          const triggeredSig = lastTrigger ? extractSignaturePattern(lastTrigger) : null;
+                          if (triggeredSig) {
+                            return (
+                              <div className="text-xs text-purple-600 dark:text-purple-400 truncate max-w-[180px]" title={`Last triggered: ${triggeredSig}`}>
+                                Last triggered: <span className="font-semibold">{triggeredSig}</span>
+                              </div>
+                            );
+                          }
+                          if (alert.attack_signatures?.length > 0) {
+                            return (
+                              <div className="text-xs text-purple-500 dark:text-purple-400 truncate max-w-[180px]" title={alert.attack_signatures.join(', ')}>
+                                {alert.attack_signatures.slice(0, 2).join(', ')}{alert.attack_signatures.length > 2 ? ` +${alert.attack_signatures.length - 2} more` : ''}
+                              </div>
+                            );
+                          }
+                          return <div className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px]">{alert.description}</div>;
+                        })() : (
+                          <div className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px]" title={alert.description}>{alert.description}</div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
@@ -734,7 +779,12 @@ const SecurityAlerts = () => {
                         <td className="px-4 py-3 text-xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">{triggerTime ? formatDate(triggerTime) : '-'}</td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-slate-900 dark:text-white text-xs truncate max-w-[180px]">{relatedAlert?.name || trigger.alert_name || ALERT_TYPES[trigger.alert_type]?.name || trigger.alert_type || 'Unknown Alert'}</div>
-                          {(trigger.evidence || relatedAlert?.description) && <div className="text-xs text-slate-400 truncate max-w-[180px]">{trigger.evidence || relatedAlert?.description}</div>}
+                          {(() => {
+                            const sig = extractSignaturePattern(trigger);
+                            if (sig) return <div className="text-xs text-purple-500 dark:text-purple-400 truncate max-w-[180px]">{sig}</div>;
+                            if (trigger.evidence || relatedAlert?.description) return <div className="text-xs text-slate-400 truncate max-w-[180px]">{trigger.evidence || relatedAlert?.description}</div>;
+                            return null;
+                          })()}
                         </td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sevCfg.cls}`}>
@@ -771,6 +821,12 @@ const SecurityAlerts = () => {
                                 <div className="grid grid-cols-2 gap-4">
                                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Timestamp</Label><p className="text-sm font-mono mt-1">{trigger.occurred_at ? formatDate(trigger.occurred_at) : trigger.timestamp ? formatDate(trigger.timestamp) : trigger.created_at ? formatDate(trigger.created_at) : '-'}</p></div>
                                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Alert Name</Label><p className="text-sm font-medium mt-1">{relatedAlert?.name || trigger.alert_name || ALERT_TYPES[trigger.alert_type]?.name || trigger.alert_type || 'Unknown'}</p></div>
+                                  {extractSignaturePattern(trigger) && (
+                                    <div className="col-span-2 rounded-xl bg-purple-50 dark:bg-purple-900/20 p-3 border border-purple-200/70 dark:border-purple-700/70">
+                                      <Label className="text-xs text-purple-600 dark:text-purple-400">Attack Pattern Detected</Label>
+                                      <p className="text-sm font-semibold text-purple-700 dark:text-purple-300 mt-1">{extractSignaturePattern(trigger)}</p>
+                                    </div>
+                                  )}
                                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Threat Level</Label><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${getSeverityConfig(trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium').cls}`}>{trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium'}</span></div>
                                   {trigger.status_code && <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Status Code</Label><p className="text-sm mt-1">{trigger.status_code}</p></div>}
                                 </div>

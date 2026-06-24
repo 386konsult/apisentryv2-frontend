@@ -112,6 +112,7 @@ const CreateAlert = () => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedAlertType, setSelectedAlertType] = useState<string>('');
+  const [alertName, setAlertName] = useState<string>('');
   const [notificationChannels, setNotificationChannels] = useState<string[]>([]);
   const [selectedAttacks, setSelectedAttacks] = useState<string[]>([]);
   const [allowedIPs, setAllowedIPs] = useState<string[]>(['']);
@@ -260,7 +261,7 @@ const CreateAlert = () => {
         platform_uuid: platformId,
         auto_incident: formData.autoIncident,
         alert_type: selectedAlertType,
-        name: `${ALERT_TYPES.find((t) => t.id === selectedAlertType)?.name} Alert`,
+        name: alertName.trim() || `${ALERT_TYPES.find((t) => t.id === selectedAlertType)?.name} Alert`,
         description: `Alert for ${ALERT_TYPES.find((t) => t.id === selectedAlertType)?.description}`,
         severity: 'medium',
         configuration: {
@@ -1295,6 +1296,21 @@ const CreateAlert = () => {
           </CardHeader>
 
           <CardContent className="space-y-5 p-6">
+            {/* Alert Name Input */}
+            <div>
+              <Label htmlFor="alert-name" className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                Alert Name <span className="text-red-400">*</span>
+              </Label>
+              <Input
+                id="alert-name"
+                placeholder="e.g. SQL Injection Monitor, Login Brute Force..."
+                value={alertName}
+                onChange={(e) => setAlertName(e.target.value)}
+                className={`mt-2 rounded-xl border-slate-200/70 bg-white/90 shadow-sm placeholder:text-slate-400 focus-visible:border-cyan-400 focus-visible:ring-cyan-400/20 dark:border-slate-700/70 dark:bg-slate-900/80`}
+              />
+              <p className="mt-1 text-xs text-slate-400">Give this alert a memorable name — it will appear in the Security Alerts list.</p>
+            </div>
+
             <div className="rounded-2xl bg-slate-950 p-5 text-white">
               <div className="flex items-start gap-3">
                 <div className="rounded-xl bg-white/10 p-3">
@@ -1303,7 +1319,7 @@ const CreateAlert = () => {
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-300">Preview</p>
                   <h3 className="mt-2 text-lg font-semibold">
-                    {selectedAlert ? `${selectedAlert.name} Alert` : 'No alert type selected'}
+                    {alertName.trim() ? alertName.trim() : selectedAlert ? `${selectedAlert.name} Alert` : 'No alert type selected'}
                   </h3>
                   <p className="mt-1 text-sm text-slate-300">
                     {selectedAlert
@@ -1347,6 +1363,10 @@ const CreateAlert = () => {
 
             <div className="space-y-2">
               <div className="flex items-center gap-3 text-sm">
+                <CheckCircle2 className={`h-4 w-4 ${alertName.trim() ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-600'}`} />
+                <span className="text-slate-700 dark:text-slate-300">Alert name entered</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
                 <CheckCircle2 className={`h-4 w-4 ${selectedAlertType ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-600'}`} />
                 <span className="text-slate-700 dark:text-slate-300">Alert type selected</span>
               </div>
@@ -1371,45 +1391,4 @@ const CreateAlert = () => {
                 {!selectedAlertType || notificationChannels.length === 0 ? 'Setup in progress' : 'Ready to create alert'}
               </p>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                The page is visually redesigned only. Your original logic and functionality stay the same.
-              </p>
-            </div>
-
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate('/threat-logs')}
-                disabled={isSubmitting}
-                className="rounded-xl border-slate-200/70 dark:border-slate-700/70"
-              >
-                Cancel
-              </Button>
-
-              <Button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!selectedAlertType || notificationChannels.length === 0 || isSubmitting}
-                className="rounded-xl bg-cyan-600 text-white shadow-lg hover:bg-cyan-700"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Activity className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Bell className="mr-2 h-4 w-4" />
-                    Create Alert
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default CreateAlert;
+                The page is visually redesigned on

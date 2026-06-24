@@ -278,8 +278,7 @@ export default function RateLimiting() {
                     <TableRow>
                       <TableHead>Endpoint</TableHead>
                       <TableHead>Method</TableHead>
-                      <TableHead>Max Requests</TableHead>
-                      <TableHead>Time Window (s)</TableHead>
+                      <TableHead>Rate Limit</TableHead>
                       <TableHead>Action</TableHead>
                       <TableHead>Active</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -290,8 +289,7 @@ export default function RateLimiting() {
                       <TableRow key={rule.id}>
                         <TableCell className="font-mono text-sm">{rule.endpoint}</TableCell>
                         <TableCell>{rule.method || "*"}</TableCell>
-                        <TableCell>{rule.max_requests}</TableCell>
-                        <TableCell>{rule.time_window_seconds}</TableCell>
+                        <TableCell className="text-sm font-medium">{rule.max_requests} requests / {rule.time_window_seconds}s</TableCell>
                         <TableCell>{getActionBadge(rule.action)}</TableCell>
                         <TableCell>
                           {rule.is_active ? (
@@ -349,9 +347,20 @@ export default function RateLimiting() {
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div><Label>Max Requests</Label><Input type="number" value={form.max_requests} onChange={(e) => setForm({ ...form, max_requests: parseInt(e.target.value) })} /></div>
-                <div><Label>Time Window (sec)</Label><Input type="number" value={form.time_window_seconds} onChange={(e) => setForm({ ...form, time_window_seconds: parseInt(e.target.value) })} /></div>
+                <div>
+                  <Label>Max Requests</Label>
+                  <p className="text-xs text-slate-500 mb-1">Number of requests allowed</p>
+                  <Input type="number" value={form.max_requests} onChange={(e) => setForm({ ...form, max_requests: parseInt(e.target.value) })} placeholder="e.g. 100" />
+                </div>
+                <div>
+                  <Label>Time Window (seconds)</Label>
+                  <p className="text-xs text-slate-500 mb-1">Duration of the window</p>
+                  <Input type="number" value={form.time_window_seconds} onChange={(e) => setForm({ ...form, time_window_seconds: parseInt(e.target.value) })} placeholder="e.g. 60" />
+                </div>
               </div>
+              <p className="text-xs text-slate-500 -mt-2 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                Example: <strong>{form.max_requests || 100} requests</strong> allowed per <strong>{form.time_window_seconds || 60} seconds</strong>
+              </p>
               <div className="grid grid-cols-4 items-center gap-2">
                 <Label className="text-right">Action</Label>
                 <Select value={form.action} onValueChange={(v: any) => setForm({ ...form, action: v })}>

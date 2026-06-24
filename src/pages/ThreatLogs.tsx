@@ -37,6 +37,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 const TIME_RANGES = [
+  { label: "Today", value: "today" },
   { label: "Last 7 Days", value: "7d" },
   { label: "Last 30 Days", value: "30d" },
   { label: "Last Year", value: "1y" },
@@ -111,7 +112,7 @@ const ThreatLogs = () => {
   const [endpointFilter, setEndpointFilter] = useState("");
   const [timeRange, setTimeRange] = useState("all");
 
-  // Fetch first page using the new backend API
+  // Fetch first page — all active filters are sent as server-side params
   const fetchLogs = useCallback(async (url?: string) => {
     const platformId = localStorage.getItem("selected_platform_id");
     if (!platformId) {
@@ -126,6 +127,20 @@ const ThreatLogs = () => {
       } else {
         const apiParams: any = { blocked: 'true', page_size: 20 };
         if (countryFilter) apiParams.country = countryFilter;
+        if (searchTerm) apiParams.search = searchTerm;
+        if (severityFilter !== 'all') apiParams.threat_level = severityFilter;
+        if (ipFilter !== 'all') apiParams.ip = ipFilter;
+        if (endpointFilter.trim()) apiParams.endpoint = endpointFilter;
+        // Time range → start_date sent to backend so it filters ALL records, not just the loaded page
+        if (timeRange === 'today') {
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+          apiParams.start_date = todayStart.toISOString();
+        } else if (timeRange !== 'all') {
+          const msMap: Record<string, number> = { '7d': 7, '30d': 30, '1y': 365 };
+          const days = msMap[timeRange];
+          if (days) apiParams.start_date = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+        }
         data = await apiService.getPlatformThreatLogs(platformId, apiParams);
       }
       // New response shape: { logs, total_count, blocked_count, blocked_rate, next, ... }
@@ -140,9 +155,9 @@ const ThreatLogs = () => {
       console.error("Failed to fetch threat logs:", error);
       return { logs: [], total: 0, blocked: 0, rate: 0, next: null };
     }
-  }, [navigate, countryFilter]);
+  }, [navigate, countryFilter, searchTerm, severityFilter, ipFilter, endpointFilter, timeRange]);
 
-  const loadInitial = async () => {
+  const loadInitial = useCallback(async () => {
     setLoading(true);
     const { logs: initialLogs, total, blocked, rate, next } = await fetchLogs();
     setLogs(initialLogs);
@@ -150,7 +165,7 @@ const ThreatLogs = () => {
     setHasMore(!!next);
     setStats({ total, blocked, rate });
     setLoading(false);
-  };
+  }, [fetchLogs]);
 
   const loadMore = async () => {
     if (!nextPageUrl || loadingMore) return;
@@ -181,59 +196,28 @@ const ThreatLogs = () => {
       const found = arr.find((p: any) => p.id === platformId);
       if (found) setPlatformName(found.name);
     }
-    loadInitial();
+    // Debounce text inputs (search + endpoint), instant for dropdowns
+    const isTextFilter = searchTerm !== undefined || endpointFilter !== undefined;
+    const delay = isTextFilter ? 500 : 0;
+    const timer = setTimeout(() => { loadInitial(); }, delay);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countryFilter]);
+  }, [loadInitial]);
 
-  // Helper: client‑side time range filter (used for display/export only)
-  const filterByTime = (logsArr: any[], range: string) => {
-    if (range === "all") return logsArr;
-    const now = new Date();
-    let start: Date;
-    switch (range) {
-      case "7d": start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
-      case "30d": start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
-      case "1y": start = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); break;
-      default: return logsArr;
-    }
-    return logsArr.filter(log => {
-      const ts = parseLogTimestamp(log);
-      return ts != null && ts >= start.getTime();
-    });
-  };
-
-  // Apply all filters (client‑side) for the loaded logs
+  // All filters are now server-side. Only threatType needs client-side filtering
+  // because the backend doesn't have a dedicated waf_rule_triggered category param.
   const filteredThreats = useMemo(() => {
-    let result = logs;
-    result = filterByTime(result, timeRange);
-    if (searchTerm) {
-      const lower = searchTerm.toLowerCase();
-      result = result.filter(log =>
-        log.client_ip?.toLowerCase().includes(lower) ||
-        log.path?.toLowerCase().includes(lower) ||
-        log.waf_rule_triggered?.toLowerCase().includes(lower) ||
-        log.user_agent?.toLowerCase().includes(lower)
-      );
-    }
-    if (severityFilter !== "all") result = result.filter(log => log.threat_level === severityFilter);
-    if (ipFilter !== "all") result = result.filter(log => log.client_ip === ipFilter);
-    if (endpointFilter.trim()) {
-      const lower = endpointFilter.toLowerCase();
-      result = result.filter(log => log.path?.toLowerCase().includes(lower) || `${log.method} ${log.path}`.toLowerCase().includes(lower));
-    }
-    if (threatType !== "all") {
-      result = result.filter(log => {
-        const rule = (log.waf_rule_triggered || "").toLowerCase();
-        if (threatType === "SQL Injection") return rule.includes("sql");
-        if (threatType === "XSS") return rule.includes("xss");
-        if (threatType === "Path Traversal") return rule.includes("path") || rule.includes("traversal");
-        if (threatType === "Brute Force") return rule.includes("brute");
-        if (threatType === "Malware") return rule.includes("malware");
-        return log.waf_rule_triggered === threatType;
-      });
-    }
-    return result;
-  }, [logs, timeRange, searchTerm, severityFilter, ipFilter, endpointFilter, threatType]);
+    if (threatType === "all") return logs;
+    return logs.filter(log => {
+      const rule = (log.waf_rule_triggered || "").toLowerCase();
+      if (threatType === "SQL Injection") return rule.includes("sql");
+      if (threatType === "XSS") return rule.includes("xss");
+      if (threatType === "Path Traversal") return rule.includes("path") || rule.includes("traversal");
+      if (threatType === "Brute Force") return rule.includes("brute");
+      if (threatType === "Malware") return rule.includes("malware");
+      return log.waf_rule_triggered === threatType;
+    });
+  }, [logs, threatType]);
 
   // Client‑side stats (these only apply to currently loaded logs, not the full dataset)
   const todayStart = new Date();

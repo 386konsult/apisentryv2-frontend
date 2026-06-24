@@ -341,7 +341,7 @@ class APIService {
 
 
   // Get threat (blocked) request logs for a platform
-  async getPlatformThreatLogs(platformId: string, params?: { range?: string; page?: string; start?: string; end?: string; path?: string; blocked?: string; country?: string; page_size?: number }): Promise<any> {
+  async getPlatformThreatLogs(platformId: string, params?: { range?: string; page?: string; start?: string; end?: string; path?: string; blocked?: string; country?: string; page_size?: number; search?: string; threat_level?: string; ip?: string; endpoint?: string; start_date?: string }): Promise<any> {
     const query = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;
     const res = await fetch(fullUrl, {
@@ -1140,6 +1140,14 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
   page_size?: number;
   start_date?: string;
   end_date?: string;
+  search?: string;
+  ip?: string;
+  method?: string;
+  status_code?: string;
+  threat_level?: string;
+  blocked?: string;
+  country?: string;
+  endpoint?: string;
 }): Promise<any> {
   const query = params ? '?' + new URLSearchParams(params as Record<string, any>).toString() : '';
   const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${query}`;

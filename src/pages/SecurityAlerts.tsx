@@ -733,7 +733,7 @@ const SecurityAlerts = () => {
                         <td className="px-4 py-3"><Checkbox checked={selectedTriggers.includes(trigger.id)} onCheckedChange={() => handleTriggerSelect(trigger.id)} /></td>
                         <td className="px-4 py-3 text-xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">{triggerTime ? formatDate(triggerTime) : '-'}</td>
                         <td className="px-4 py-3">
-                          <div className="font-medium text-slate-900 dark:text-white text-xs truncate max-w-[180px]">{relatedAlert?.name || trigger.alert_name || trigger.alert_type || 'Unknown Alert'}</div>
+                          <div className="font-medium text-slate-900 dark:text-white text-xs truncate max-w-[180px]">{relatedAlert?.name || trigger.alert_name || ALERT_TYPES[trigger.alert_type]?.name || trigger.alert_type || 'Unknown Alert'}</div>
                           {(trigger.evidence || relatedAlert?.description) && <div className="text-xs text-slate-400 truncate max-w-[180px]">{trigger.evidence || relatedAlert?.description}</div>}
                         </td>
                         <td className="px-4 py-3">
@@ -770,7 +770,7 @@ const SecurityAlerts = () => {
                               <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Timestamp</Label><p className="text-sm font-mono mt-1">{trigger.occurred_at ? formatDate(trigger.occurred_at) : trigger.timestamp ? formatDate(trigger.timestamp) : trigger.created_at ? formatDate(trigger.created_at) : '-'}</p></div>
-                                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Alert Type</Label><p className="text-sm font-medium mt-1">{trigger.alert_type || relatedAlert?.name || trigger.alert_name || 'Unknown'}</p></div>
+                                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Alert Name</Label><p className="text-sm font-medium mt-1">{relatedAlert?.name || trigger.alert_name || ALERT_TYPES[trigger.alert_type]?.name || trigger.alert_type || 'Unknown'}</p></div>
                                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Threat Level</Label><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${getSeverityConfig(trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium').cls}`}>{trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium'}</span></div>
                                   {trigger.status_code && <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Status Code</Label><p className="text-sm mt-1">{trigger.status_code}</p></div>}
                                 </div>
@@ -877,7 +877,7 @@ const SecurityAlerts = () => {
                     const relatedAlert = trigger ? alerts.find(a => a.alert_type === trigger.alert_type || a.id === trigger.alert_id || a.id === trigger.alert) : null;
                     return (
                       <div key={triggerId} className="text-xs p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between">
-                        <span className="font-medium">{relatedAlert?.name || trigger?.alert_type || triggerId}</span>
+                        <span className="font-medium">{relatedAlert?.name || trigger?.alert_name || ALERT_TYPES[trigger?.alert_type]?.name || trigger?.alert_type || triggerId}</span>
                         {trigger?.client_ip && <span className="text-slate-400 font-mono">{trigger.client_ip}</span>}
                       </div>
                     );

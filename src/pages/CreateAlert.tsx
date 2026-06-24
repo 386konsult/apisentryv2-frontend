@@ -452,12 +452,15 @@ const CreateAlert = () => {
             <div className="grid gap-4 md:grid-cols-2">
               <div className={panelClassName}>
                 <Label htmlFor="rateAnomalyPercentage" className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Increase Percentage
+                  Max Requests
                 </Label>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                  Number of requests allowed before alert triggers
+                </p>
                 <Input
                   id="rateAnomalyPercentage"
                   type="number"
-                  placeholder="e.g., 50"
+                  placeholder="e.g., 100 requests"
                   value={formData.rateAnomalyPercentage}
                   onChange={(e) => handleInputChange('rateAnomalyPercentage', e.target.value)}
                   className={inputClassName}
@@ -468,10 +471,13 @@ const CreateAlert = () => {
                 <Label htmlFor="rateAnomalyTimeWindow" className="text-sm font-semibold text-slate-900 dark:text-white">
                   Time Window (seconds)
                 </Label>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                  Duration to count requests within
+                </p>
                 <Input
                   id="rateAnomalyTimeWindow"
                   type="number"
-                  placeholder="e.g., 300"
+                  placeholder="e.g., 60 seconds"
                   value={formData.rateAnomalyTimeWindow}
                   onChange={(e) => handleInputChange('rateAnomalyTimeWindow', e.target.value)}
                   className={inputClassName}

@@ -422,10 +422,12 @@ const APIEndpoints = () => {
                                 <Button variant="ghost" size="sm" onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); navigate(`/endpoint-analytics/${s.endpoint.id}`); }} className="rounded-lg">
                                   <BarChart3 className="h-4 w-4 mr-1" /> Analytics
                                 </Button>
-                                <Button variant="ghost" size="sm" className="rounded-lg"
-                                  onClick={() => handleToggleProtection(s, s.protection)}>
-                                  <Settings className="h-4 w-4 mr-1" /> {s.protection ? "Unprotect" : "Protect"}
-                                </Button>
+                                {!s.protection && (
+                                  <Button variant="ghost" size="sm" className="rounded-lg"
+                                    onClick={() => handleToggleProtection(s, s.protection)}>
+                                    <Settings className="h-4 w-4 mr-1" /> Protect
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           </tr>

@@ -555,11 +555,27 @@ const SecurityHub = () => {
     }
   };
 
-  const fetchTablePage = async (platformId: string, pageNum: number, append = false) => {
-    if (loadingMore) return;
+  const fetchTablePage = async (platformId: string, pageNum: number, append = false, overrides?: Record<string, any>) => {
+    if (loadingMore && !overrides) return;
     setLoadingMore(true);
     try {
-      const response = await apiService.getPlatformRequestLogs(platformId, { page: pageNum, page_size: PAGE_SIZE });
+      // Build server-side filter params — searches across full dataset, not just loaded page
+      const params: Record<string, any> = { page: pageNum, page_size: PAGE_SIZE };
+      const s = overrides?.searchTerm  ?? searchTerm;
+      const ip = overrides?.ipFilter   ?? ipFilter;
+      const ep = overrides?.endpointFilter ?? endpointFilter;
+      const m  = overrides?.methodFilter   ?? methodFilter;
+      const sc = overrides?.statusCodeFilter ?? statusCodeFilter;
+      const tl = overrides?.threatLevelFilter ?? threatLevelFilter;
+      const wb = overrides?.wafBlockedFilter  ?? wafBlockedFilter;
+      if (s)           params.search       = s;
+      if (ip)          params.ip           = ip;
+      if (ep)          params.endpoint     = ep;
+      if (m  !== "all") params.method      = m;
+      if (sc !== "all") params.status_code = sc;
+      if (tl !== "all") params.threat_level = tl;
+      if (wb !== "all") params.blocked     = wb === "blocked" ? "true" : "false";
+      const response = await apiService.getPlatformRequestLogs(platformId, params);
       let newLogs: RequestLog[] = [];
       if (response.results)         newLogs = response.results;
       else if (response.logs)       newLogs = response.logs;
@@ -595,6 +611,19 @@ const SecurityHub = () => {
     const platformId = localStorage.getItem("selected_platform_id");
     if (platformId) fetchStatsForRange(platformId, statsRange);
   }, [statsRange]);
+
+  // Re-fetch table when any filter changes (debounce text inputs)
+  useEffect(() => {
+    const platformId = localStorage.getItem("selected_platform_id");
+    if (!platformId) return;
+    setPage(1);
+    const delay = (searchTerm || ipFilter || endpointFilter) ? 500 : 0;
+    const timer = setTimeout(() => {
+      setLoading(true);
+      fetchTablePage(platformId, 1, false);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [searchTerm, ipFilter, endpointFilter, methodFilter, statusCodeFilter, threatLevelFilter, wafBlockedFilter]);
 
   useEffect(() => {
     setMethodFilter(searchParams.get("method") || "all");
@@ -645,35 +674,17 @@ const SecurityHub = () => {
 
   const analytics = statsData;
 
-  // ── Table filtering ───────────────────────────────────────────────────────
+  // Filtering is now server-side — tableLogs already contains filtered results from the API.
+  // Only country filter remains client-side (no backend param for it in this view).
   const filteredTableLogs = useMemo(() => {
-    let filtered = [...tableLogs];
-    if (searchTerm) {
-      const lower = searchTerm.toLowerCase();
-      filtered = filtered.filter(log =>
-        log.client_ip?.toLowerCase().includes(lower) ||
-        log.path?.toLowerCase().includes(lower) ||
-        log.endpoint_name?.toLowerCase().includes(lower) ||
-        log.user_agent?.toLowerCase().includes(lower) ||
-        log.method?.toLowerCase().includes(lower)
-      );
-    }
-    if (endpointFilter) filtered = filtered.filter(log => log.path?.toLowerCase().includes(endpointFilter.toLowerCase()));
-    if (ipFilter) filtered = filtered.filter(log => log.client_ip?.toLowerCase().includes(ipFilter.toLowerCase()));
-    if (countryFilter) {
-      filtered = filtered.filter(log => {
-        const c = (log as any).country || (log as any).country_code;
-        if (!c) return true;
-        const sel = countriesData.find((cd: any) => cd.name === countryFilter || cd.code === countryFilter);
-        return sel ? (c === sel.code || c === sel.name || c.toLowerCase() === sel.name.toLowerCase()) : true;
-      });
-    }
-    if (methodFilter !== "all")      filtered = filtered.filter(log => log.method === methodFilter);
-    if (statusCodeFilter !== "all")  filtered = filtered.filter(log => log.status_code === parseInt(statusCodeFilter));
-    if (threatLevelFilter !== "all") filtered = filtered.filter(log => log.threat_level === threatLevelFilter);
-    if (wafBlockedFilter !== "all")  filtered = filtered.filter(log => log.waf_blocked === (wafBlockedFilter === "blocked"));
-    return filtered;
-  }, [tableLogs, searchTerm, endpointFilter, ipFilter, countryFilter, methodFilter, statusCodeFilter, threatLevelFilter, wafBlockedFilter]);
+    if (!countryFilter) return tableLogs;
+    return tableLogs.filter(log => {
+      const c = (log as any).country || (log as any).country_code;
+      if (!c) return true;
+      const sel = countriesData.find((cd: any) => cd.name === countryFilter || cd.code === countryFilter);
+      return sel ? (c === sel.code || c === sel.name || c.toLowerCase() === sel.name.toLowerCase()) : true;
+    });
+  }, [tableLogs, countryFilter]);
 
   const updateQueryParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams);

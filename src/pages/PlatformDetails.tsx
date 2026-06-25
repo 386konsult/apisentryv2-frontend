@@ -22,6 +22,13 @@ import { geoMercator, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 
 
+const countryFlag = (code?: string | null): string => {
+  if (!code || code.length !== 2) return '';
+  try {
+    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
+  } catch { return ''; }
+};
+
 const ALPHA2_TO_NUMERIC: Record<string, number> = {
   US:840,CN:156,RU:643,GB:826,DE:276,FR:250,IN:356,BR:76,JP:392,CA:124,
   AU:36,KR:410,IT:380,ES:724,NL:528,MX:484,ID:360,TR:792,SA:682,PL:616,
@@ -410,7 +417,9 @@ const CountryDetailPanel = ({
       <div className={`px-3 py-2.5 border border-blue-200 dark:border-blue-500/30 bg-blue-50/60 dark:bg-blue-500/5 ${Rsub}`}>
         <div className="flex items-center justify-between mb-1">
           <p className="text-sm font-bold text-slate-900 dark:text-white">{countryName}</p>
-          <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/15 px-1.5 py-0.5 rounded">{countryCode}</span>
+          <span className="text-2xl leading-none">
+            {countryFlag(countryCode) || <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/15 px-1.5 py-0.5 rounded">{countryCode}</span>}
+          </span>
         </div>
         <p className="text-[11px] text-slate-500 dark:text-slate-400">
           <span className="font-mono font-semibold">{requestCount.toLocaleString()}</span> requests · <span className="font-semibold">{shareOfTotal}%</span> of all traffic
@@ -595,9 +604,17 @@ const PlatformDetails: React.FC = () => {
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [countryDetail, setCountryDetail] = useState<any>(null);
   const [countryDetailLoading, setCountryDetailLoading] = useState(false);
-  const [aiInsights, setAiInsights] = useState<any>(null);
+  const [aiInsights, setAiInsights] = useState<any>(() => {
+    try {
+      const stored = localStorage.getItem(`aiInsights_${id}`);
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
   const [aiInsightsError, setAiInsightsError] = useState<string | null>(null);
+  const [aiInsightsUpdatedAt, setAiInsightsUpdatedAt] = useState<string | null>(() => {
+    return localStorage.getItem(`aiInsights_updatedAt_${id}`) || null;
+  });
 
   const fetchAiInsights = useCallback(async () => {
     if (!id) return;
@@ -619,6 +636,12 @@ const PlatformDetails: React.FC = () => {
         throw new Error(data?.error || `Server error ${res.status}`);
       }
       setAiInsights(data);
+      const now = new Date().toLocaleString();
+      setAiInsightsUpdatedAt(now);
+      try {
+        localStorage.setItem(`aiInsights_${id}`, JSON.stringify(data));
+        localStorage.setItem(`aiInsights_updatedAt_${id}`, now);
+      } catch {}
     } catch (e: any) {
       setAiInsightsError(e.message || 'Could not load AI insights');
     } finally {
@@ -791,6 +814,7 @@ const PlatformDetails: React.FC = () => {
     path: log.path || '-',
     attack: log.waf_rule_triggered || (log.threat_level && log.threat_level !== 'none' ? `${String(log.threat_level).toUpperCase()} Threat` : log.waf_blocked ? 'Suspicious Request' : 'Clean'),
     source: log.client_ip || '-',
+    country_code: log.country_code || log.country || null,
     status: log.waf_blocked ? 'blocked' : Number(log.status_code) >= 400 ? 'warning' : 'allowed',
   })), [threatLogs]);
 
@@ -929,8 +953,8 @@ const PlatformDetails: React.FC = () => {
                   <div className="text-2xl font-bold tabular-nums tracking-tight text-red-500 dark:text-red-400">{blockedRequests.toLocaleString()}</div>
                 </div>
                 <div className="border-l border-slate-200/80 dark:border-blue-900/20 pl-4">
-                  <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Block rate</div>
-                  <div className="text-2xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-white">{totalRequests > 0 ? `${blockedRate.toFixed(1)}%` : '0.0%'}</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">WAF Effectiveness</div>
+                  <div className="text-2xl font-bold tabular-nums tracking-tight text-emerald-600 dark:text-emerald-400">{blockedRequests > 0 ? '100%' : '0%'}</div>
                 </div>
               </div>
               <div className="flex-1 min-h-[150px] w-full">
@@ -1062,7 +1086,7 @@ const PlatformDetails: React.FC = () => {
           {[
             { label: 'total_requests', icon: <Activity className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />, iconBg: 'bg-blue-50 dark:bg-blue-500/10', accent: 'from-blue-600 to-cyan-500', accentBg: 'bg-blue-50 dark:bg-slate-800/80', value: <AnimatedNumber value={totalRequests} className={metricNumberClass} />, sub: totalRequests > 0 ? 'Requests received' : 'No traffic yet', subClass: 'text-slate-400 dark:text-slate-500', barWidth: totalRequests > 0 ? '100%' : '0%' },
             { label: 'threats_blocked', icon: <Shield className="h-3.5 w-3.5 text-red-500 dark:text-red-400" />, iconBg: 'bg-red-50 dark:bg-red-500/10', accent: 'from-red-500 to-rose-600', accentBg: 'bg-red-50 dark:bg-slate-800/80', value: <AnimatedNumber value={blockedRequests} className={metricNumberClass} />, sub: blockedRequests > 0 ? 'Threats mitigated' : 'No threats blocked', subClass: 'text-slate-400 dark:text-slate-500', barWidth: `${totalRequests > 0 ? Math.min(100, (blockedRequests / totalRequests) * 100) : 0}%` },
-            { label: 'blocked_rate', icon: <AlertTriangle className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />, iconBg: 'bg-cyan-50 dark:bg-cyan-500/10', accent: 'from-cyan-500 to-teal-500', accentBg: 'bg-cyan-50 dark:bg-slate-800/80', value: <AnimatedNumber value={blockedRate} decimals={2} suffix="%" className={metricNumberClass} />, sub: null, subClass: '', barWidth: `${Math.min(100, Math.max(0, blockedRate ?? 0))}%` },
+            { label: 'waf_effectiveness', icon: <AlertTriangle className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />, iconBg: 'bg-cyan-50 dark:bg-cyan-500/10', accent: 'from-cyan-500 to-teal-500', accentBg: 'bg-cyan-50 dark:bg-slate-800/80', value: <AnimatedNumber value={blockedRequests > 0 ? 100 : 0} decimals={0} suffix="%" className={metricNumberClass} />, sub: blockedRequests > 0 ? `${blockedRequests.toLocaleString()} threats blocked` : 'No threats detected', subClass: 'text-cyan-600 dark:text-cyan-400 font-semibold', barWidth: blockedRequests > 0 ? '100%' : '0%' },
             { label: 'active_endpoints', icon: <Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />, iconBg: 'bg-emerald-50 dark:bg-emerald-500/10', accent: 'from-emerald-500 to-green-600', accentBg: 'bg-emerald-50 dark:bg-slate-800/80', value: <AnimatedNumber value={activeEndpointCount} className={metricNumberClass} />, sub: activeEndpointCount > 0 ? 'Monitoring active' : 'No endpoints yet', subClass: 'text-emerald-600 dark:text-emerald-400 font-semibold', barWidth: activeEndpointCount > 0 ? '100%' : '0%' },
           ].map(({ label, icon, iconBg, accent, accentBg, value, sub, subClass, barWidth }) => (
             <Card key={label} className={`border border-slate-200/60 dark:border-blue-900/20 bg-white dark:bg-[#0d1829] ${R}`}>
@@ -1072,8 +1096,8 @@ const PlatformDetails: React.FC = () => {
                   <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${iconBg}`}>{icon}</div>
                 </div>
                 {value}
-                {label === 'blocked_rate' ? (
-                  <p className="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-300"><AnimatedNumber value={successRate} decimals={2} suffix="% success rate" /></p>
+                {false ? (
+                  <p className="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-300"></p>
                 ) : (
                   <p className={`mt-2 text-xs ${subClass}`}>{sub}</p>
                 )}
@@ -1207,7 +1231,9 @@ const PlatformDetails: React.FC = () => {
                             className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 cursor-pointer hover:bg-blue-50/60 dark:hover:bg-blue-500/5 hover:border-blue-200 dark:hover:border-blue-800/40 transition-colors"
                             onClick={() => setSelectedCountryCode(country.code)}
                           >
-                            <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded px-1.5 py-0.5 flex-shrink-0">{country.code}</span>
+                            <span className="text-lg leading-none flex-shrink-0">
+                              {countryFlag(country.code) || <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded px-1.5 py-0.5">{country.code}</span>}
+                            </span>
                             <span className="flex-1 text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{country.name}</span>
                             <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
                               <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400">{country.count.toLocaleString()}</span>
@@ -1252,7 +1278,10 @@ const PlatformDetails: React.FC = () => {
                     <div key={row.id} className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-blue-500/5">
                       <span className="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">{row.path}</span>
                       <span className={`text-xs font-semibold ${getAttackTextClass(row.attack)}`}>{row.attack}</span>
-                      <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{row.source}</span>
+                      <span className="font-mono text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                        {countryFlag(row.country_code) && <span className="text-sm leading-none">{countryFlag(row.country_code)}</span>}
+                        {row.source}
+                      </span>
                       <span className={`inline-flex w-fit items-center rounded-lg px-2.5 py-1 text-[10px] font-bold ${getStatusClass(row.status)}`}>
                         {row.status === 'blocked' ? 'Blocked' : row.status === 'allowed' ? 'Allowed' : 'Warning'}
                       </span>
@@ -1279,7 +1308,7 @@ const PlatformDetails: React.FC = () => {
                 <div>
                   <CardTitle className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">AI Security Insights</CardTitle>
                   <CardDescription className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                    Powered by Heimdall AI{aiInsights ? ' · updated just now' : ' · click Refresh to generate'}
+                    Powered by Heimdall AI{aiInsights ? ` · updated ${aiInsightsUpdatedAt ?? 'recently'}` : ' · click Refresh to generate'}
                   </CardDescription>
                 </div>
               </div>

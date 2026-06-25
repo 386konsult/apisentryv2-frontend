@@ -52,6 +52,13 @@ interface RequestLog {
   endpoint: string;
 }
 
+const countryFlag = (code?: string | null): string => {
+  if (!code || code.length !== 2) return '';
+  try {
+    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
+  } catch { return ''; }
+};
+
 type TimeRangeKey = "today" | "week" | "month" | "3months" | "6months" | "1year";
 
 const TIME_RANGE_OPTIONS: { label: string; value: TimeRangeKey }[] = [
@@ -413,7 +420,10 @@ const LogDetailModal = ({
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-[14px] border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-4 py-3">
               <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Client IP</p>
-              <p className="font-mono text-sm font-semibold text-slate-900 dark:text-white">{log.client_ip}</p>
+              <p className="font-mono text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                {countryFlag((log as any).country_code || (log as any).country) && <span className="text-base leading-none">{countryFlag((log as any).country_code || (log as any).country)}</span>}
+                {log.client_ip}
+              </p>
             </div>
             <div className="rounded-[14px] border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-4 py-3">
               <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Endpoint</p>
@@ -978,7 +988,12 @@ const SecurityHub = () => {
                           <td className="px-4 py-3"><Badge className={getMethodColor(log.method)}>{log.method}</Badge></td>
                           <td className="px-4 py-3"><span className="font-mono text-xs truncate max-w-xs block text-slate-700 dark:text-slate-300" title={log.path}>{log.path}</span></td>
                           <td className="px-4 py-3"><Badge className={getStatusCodeColor(log.status_code)}>{log.status_code}</Badge></td>
-                          <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{log.client_ip}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
+                            <span className="flex items-center gap-1">
+                              {countryFlag((log as any).country_code || (log as any).country) && <span className="text-sm leading-none">{countryFlag((log as any).country_code || (log as any).country)}</span>}
+                              {log.client_ip}
+                            </span>
+                          </td>
                           <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">{log.response_time_ms ? Math.round(log.response_time_ms) : "-"}ms</td>
                           <td className="px-4 py-3">{log.waf_blocked ? <Badge className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">🚫 Blocked</Badge> : <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">✓ Allowed</Badge>}</td>
                           <td className="px-4 py-3">{log.threat_level && log.threat_level !== "none" ? <Badge className={getThreatLevelColor(log.threat_level)}>{log.threat_level}</Badge> : <Badge variant="outline">-</Badge>}</td>
@@ -1007,7 +1022,11 @@ const SecurityHub = () => {
                       <p className="font-mono text-sm truncate text-slate-700 dark:text-slate-300 mb-2">{log.path}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">{log.timestamp}</p>
                       <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-800/70">
-                        <div className="flex items-center gap-2"><MapPin className="h-3 w-3 text-slate-400" /><span className="text-xs font-mono">{log.client_ip}</span></div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-3 w-3 text-slate-400" />
+                          {countryFlag((log as any).country_code || (log as any).country) && <span className="text-sm leading-none">{countryFlag((log as any).country_code || (log as any).country)}</span>}
+                          <span className="text-xs font-mono">{log.client_ip}</span>
+                        </div>
                         <Button variant="ghost" size="sm" onClick={() => { setSelectedLog(log); setIsDetailsOpen(true); }}>Details</Button>
                       </div>
                     </div>

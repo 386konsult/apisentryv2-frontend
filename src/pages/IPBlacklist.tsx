@@ -40,6 +40,13 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 
+const countryFlag = (code?: string | null): string => {
+  if (!code || code.length !== 2) return '';
+  try {
+    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
+  } catch { return ''; }
+};
+
 const IPBlacklist = () => {
   const [platformName, setPlatformName] = useState<string | null>(null);
   const [blacklist, setBlacklist] = useState<any[]>([]);
@@ -403,6 +410,9 @@ const IPBlacklist = () => {
                                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10">
                                   <MapPin className="h-4 w-4 text-blue-500" />
                                 </div>
+                                {countryFlag(item.country_code || item.country) && (
+                                  <span className="text-lg leading-none">{countryFlag(item.country_code || item.country)}</span>
+                                )}
                                 <span className="font-mono text-sm font-medium text-slate-900 dark:text-white">
                                   {item.ip}
                                 </span>
@@ -477,7 +487,8 @@ const IPBlacklist = () => {
                               <MapPin className="h-4 w-4 text-blue-500" />
                             </div>
                             <div className="min-w-0">
-                              <span className="font-mono text-sm font-semibold text-slate-900 dark:text-white break-all">
+                              <span className="font-mono text-sm font-semibold text-slate-900 dark:text-white break-all flex items-center gap-1.5">
+                                {countryFlag(item.country_code || item.country) && <span className="text-base leading-none">{countryFlag(item.country_code || item.country)}</span>}
                                 {item.ip}
                               </span>
                               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">

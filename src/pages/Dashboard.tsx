@@ -49,6 +49,13 @@ interface CountryData {
   count: number;
 }
 
+const countryFlag = (code?: string | null): string => {
+  if (!code || code.length !== 2) return '';
+  try {
+    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
+  } catch { return ''; }
+};
+
 const OWASP_TOP_10 = [
   { id: 'A01', name: 'Broken Access Control', category: 'Access Control', severity: 'critical' },
   { id: 'A02', name: 'Cryptographic Failures', category: 'Cryptography', severity: 'high' },
@@ -701,8 +708,10 @@ const Dashboard = () => {
                   </div>
                   <div className="flex flex-col">
                     <span className="text-sm">{threat.request_path}</span>
-                    <span className="text-xs text-muted-foreground">
-                      from {threat.source_ip}
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      from
+                      {countryFlag(threat.country_code || threat.country) && <span className="text-sm leading-none">{countryFlag(threat.country_code || threat.country)}</span>}
+                      {threat.source_ip}
                     </span>
                   </div>
                 </div>

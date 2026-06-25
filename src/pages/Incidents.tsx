@@ -74,6 +74,11 @@ interface Incident extends IncidentFormData {
   id: string;
   createdAt: string;
   updatedAt: string;
+  resolvedAt?: string;
+  description?: string;
+  incidentType?: string;
+  alertName?: string;
+  dataClass?: string;
 }
 
 type IncidentEndpoint = IncidentFormData["impactedEndpoints"][number];
@@ -749,11 +754,38 @@ interface ViewIncidentDialogProps {
   incident: Incident;
 }
 
+const countryFlag = (code?: string | null): string => {
+  if (!code || code.length !== 2) return '';
+  try {
+    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
+  } catch { return ''; }
+};
+
 const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
   open,
   onOpenChange,
   incident,
 }) => {
+  const [ipCountries, setIpCountries] = React.useState<Record<string, string>>({});
+
+  React.useEffect(() => {
+    if (!open || !incident.sourceIPs) return;
+    const ips = String(incident.sourceIPs).split(/[,\s]+/).filter(Boolean);
+    if (ips.length === 0) return;
+    const missing = ips.filter(ip => !ipCountries[ip]);
+    if (missing.length === 0) return;
+    missing.forEach(ip => {
+      fetch(`https://ipinfo.io/${ip}/json`)
+        .then(r => r.json())
+        .then(data => {
+          if (data?.country) {
+            setIpCountries(prev => ({ ...prev, [ip]: data.country }));
+          }
+        })
+        .catch(() => {});
+    });
+  }, [open, incident.sourceIPs]);
+
   const severityClass = (() => {
     switch (incident.severity) {
       case "Critical": return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400";
@@ -792,7 +824,8 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 p-6">
+          <div className="space-y-5 p-6">
+            {/* Badges row */}
             <div className="flex flex-wrap gap-2">
               <Badge className={severityClass}>{incident.severity}</Badge>
               <Badge className={statusClass}>{incident.status}</Badge>
@@ -801,34 +834,73 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
                   {incident.category}
                 </Badge>
               )}
+              {(incident as any).incidentType && (
+                <Badge variant="outline" className="rounded-full border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 capitalize">
+                  {String((incident as any).incidentType).replace(/_/g, ' ')}
+                </Badge>
+              )}
+              {(incident as any).alertName && (
+                <Badge variant="outline" className="rounded-full border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                  🔔 {(incident as any).alertName}
+                </Badge>
+              )}
             </div>
 
+            {/* Description (auto-incident engine output) */}
+            {(incident as any).description && (
+              <div className="rounded-2xl border border-orange-100 dark:border-orange-900/30 bg-orange-50 dark:bg-orange-500/5 p-5">
+                <Label className="text-xs font-medium text-orange-600 dark:text-orange-400 uppercase tracking-wide">Detection Details</Label>
+                <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">{(incident as any).description}</p>
+              </div>
+            )}
+
+            {/* Timestamps */}
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-4">
                 <Label className="text-xs text-muted-foreground">Created</Label>
-                <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                  {new Date(incident.createdAt).toLocaleString()}
-                </p>
+                <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">{new Date(incident.createdAt).toLocaleString()}</p>
               </div>
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-4">
-                <Label className="text-xs text-muted-foreground">Updated</Label>
-                <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                  {new Date(incident.updatedAt).toLocaleString()}
-                </p>
+                <Label className="text-xs text-muted-foreground">Last Updated</Label>
+                <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">{new Date(incident.updatedAt).toLocaleString()}</p>
               </div>
             </div>
 
+            {/* Summary */}
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5">
-              <Label className="text-xs font-medium text-muted-foreground">Summary</Label>
-              <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">{incident.summary}</p>
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Summary</Label>
+              <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">
+                {incident.summary || <span className="italic text-slate-400">No summary provided</span>}
+              </p>
             </div>
 
+            {/* Source IPs — with flags */}
+            {incident.sourceIPs && (
+              <div className="rounded-2xl border border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-500/5 p-5">
+                <Label className="text-xs font-medium text-red-600 dark:text-red-400 uppercase tracking-wide">Source IPs</Label>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {String(incident.sourceIPs).split(/[,\s]+/).filter(Boolean).map((ip, i) => (
+                    <span key={i} className="inline-flex items-center gap-2 rounded-xl bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800/40 px-3 py-1.5">
+                      {countryFlag(ipCountries[ip]) && (
+                        <span className="text-base leading-none">{countryFlag(ipCountries[ip])}</span>
+                      )}
+                      <span className="font-mono text-sm font-semibold text-slate-800 dark:text-slate-200">{ip}</span>
+                      {ipCountries[ip] && (
+                        <span className="text-[10px] text-slate-400 font-medium">{ipCountries[ip]}</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Impacted Endpoints */}
             {incident.impactedEndpoints.length > 0 && (
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5">
-                <Label className="text-xs font-medium text-muted-foreground">Impacted Endpoints</Label>
+              <div className="rounded-2xl border border-amber-100 dark:border-amber-900/30 bg-amber-50 dark:bg-amber-500/5 p-5">
+                <Label className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide">Impacted Endpoints</Label>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {incident.impactedEndpoints.map((ep, idx) => (
-                    <Badge key={getEndpointKey(ep, idx)} variant="secondary" className="rounded-full bg-slate-100 dark:bg-slate-700">
+                    <Badge key={getEndpointKey(ep, idx)} variant="secondary" className="rounded-full font-mono bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-300">
                       {getEndpointDisplay(ep)}
                     </Badge>
                   ))}
@@ -836,30 +908,87 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
               </div>
             )}
 
-            {incident.sourceIPs && (
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5">
-                <Label className="text-xs font-medium text-muted-foreground">Source IPs</Label>
-                <p className="mt-3 font-mono text-sm text-slate-700 dark:text-slate-300">{incident.sourceIPs}</p>
+            {/* Extra details grid */}
+            <div className="grid gap-3 md:grid-cols-2">
+              {incident.assignedTo && (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-4">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Assigned To</Label>
+                  <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">{incident.assignedTo}</p>
+                </div>
+              )}
+              {incident.regulatoryImpact && incident.regulatoryImpact !== "None" && (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-4">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Regulatory Impact</Label>
+                  <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">{incident.regulatoryImpact}</p>
+                </div>
+              )}
+              {incident.customerDataExposure && incident.customerDataExposure !== "unknown" && (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-4">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Customer Data Exposure</Label>
+                  <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">{incident.customerDataExposure}</p>
+                </div>
+              )}
+              {incident.requiresCustomerNotification && incident.requiresCustomerNotification !== "unknown" && (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-4">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Customer Notification Required</Label>
+                  <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">{incident.requiresCustomerNotification}</p>
+                </div>
+              )}
+              {(incident as any).dataClass && (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-4">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Data Classification</Label>
+                  <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">{(incident as any).dataClass}</p>
+                </div>
+              )}
+              {(incident as any).resolvedAt && (
+                <div className="rounded-2xl border border-emerald-100 dark:border-emerald-900/30 bg-emerald-50 dark:bg-emerald-500/5 p-4">
+                  <Label className="text-xs text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Resolved At</Label>
+                  <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">{new Date((incident as any).resolvedAt).toLocaleString()}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Containment Actions */}
+            {incident.containmentActions && incident.containmentActions.length > 0 && incident.containmentActions.some(a => a) && (
+              <div className="rounded-2xl border border-blue-100 dark:border-blue-900/30 bg-blue-50 dark:bg-blue-500/5 p-5">
+                <Label className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Containment Actions</Label>
+                <ul className="mt-3 space-y-2">
+                  {incident.containmentActions.filter(Boolean).map((action, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" />
+                      {action}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
+            {/* Next Step */}
+            {incident.nextStep && (
+              <div className="rounded-2xl border border-purple-100 dark:border-purple-900/30 bg-purple-50 dark:bg-purple-500/5 p-5">
+                <Label className="text-xs font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide">Next Step</Label>
+                <p className="mt-3 text-sm text-slate-700 dark:text-slate-300">{incident.nextStep}</p>
+              </div>
+            )}
+
+            {/* Closed incident fields */}
             {incident.status === "Closed" && (
               <>
                 {incident.responseNote && (
                   <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-500/10 p-5">
-                    <Label className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Response Note</Label>
+                    <Label className="text-xs font-medium text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">Response Note</Label>
                     <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{incident.responseNote}</p>
                   </div>
                 )}
                 {incident.actionsTaken && (
                   <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5">
-                    <Label className="text-xs font-medium text-muted-foreground">Actions Taken</Label>
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Actions Taken</Label>
                     <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{incident.actionsTaken}</p>
                   </div>
                 )}
                 {incident.lessonsLearned && (
                   <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-5">
-                    <Label className="text-xs font-medium text-muted-foreground">Lessons Learned</Label>
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Lessons Learned</Label>
                     <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{incident.lessonsLearned}</p>
                   </div>
                 )}
@@ -934,9 +1063,14 @@ const Incidents = () => {
         regulatoryImpact: it.regulatory_impact || it.regulatoryImpact || "None",
         createdAt: it.created_at || it.createdAt || new Date().toISOString(),
         updatedAt: it.updated_at || it.updatedAt || new Date().toISOString(),
+        resolvedAt: it.resolved_at || it.resolvedAt,
         responseNote: it.response_note || it.responseNote,
         actionsTaken: it.actions_taken || it.actionsTaken,
         lessonsLearned: it.lessons_learned || it.lessonsLearned,
+        description: it.description || "",
+        incidentType: it.incident_type || it.incidentType || "",
+        alertName: it.alert_name || it.alertName || "",
+        dataClass: it.data_class || it.dataClass || "",
       }));
       setIncidents(normalized);
     } catch (error: any) {
@@ -1023,7 +1157,9 @@ const Incidents = () => {
     if (!selectedIncident) return;
     try {
       setLoading(true);
+      const platformId = platform?.id || localStorage.getItem("selected_platform_id");
       const payload: Record<string, any> = {
+        platform_uuid: platformId,
         title: data.title,
         severity: data.severity,
         status: data.status,

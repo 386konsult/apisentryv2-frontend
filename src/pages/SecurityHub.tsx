@@ -492,7 +492,10 @@ const SecurityHub = () => {
     suspiciousIPs: 0, uniqueCountries: 0,
   });
 
-  const [statsRange, setStatsRange]       = useState<TimeRangeKey>("today");
+  const [statsRange, setStatsRange]       = useState<TimeRangeKey>(() => {
+    const saved = localStorage.getItem('heimdall_time_range');
+    return (saved as TimeRangeKey) || 'today';
+  });
   const [selectedLog, setSelectedLog]     = useState<RequestLog | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [blockIPDialog, setBlockIPDialog] = useState<{ open: boolean; ip: string }>({ open: false, ip: "" });
@@ -823,7 +826,7 @@ const SecurityHub = () => {
           </div>
           <div className="flex gap-1.5 flex-wrap">
             {TIME_RANGE_OPTIONS.map(opt => (
-              <button key={opt.value} onClick={() => setStatsRange(opt.value)}
+              <button key={opt.value} onClick={() => { setStatsRange(opt.value); localStorage.setItem('heimdall_time_range', opt.value); }}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
                   statsRange === opt.value
                     ? "bg-blue-600 text-white border-blue-600 shadow-sm"

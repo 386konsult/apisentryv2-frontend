@@ -37,11 +37,13 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 const TIME_RANGES = [
-  { label: "Today", value: "today" },
-  { label: "Last 7 Days", value: "7d" },
-  { label: "Last 30 Days", value: "30d" },
-  { label: "Last Year", value: "1y" },
-  { label: "All Time", value: "all" },
+  { label: "Today",      value: "today"   },
+  { label: "This Week",  value: "week"    },
+  { label: "This Month", value: "month"   },
+  { label: "3 Months",   value: "3months" },
+  { label: "6 Months",   value: "6months" },
+  { label: "1 Year",     value: "1year"   },
+  { label: "All Time",   value: "all"     },
 ];
 
 // Helper: parse timestamp to milliseconds (client‑side filtering)
@@ -110,7 +112,12 @@ const ThreatLogs = () => {
   const [threatType, setThreatType] = useState("all");
   const [ipFilter, setIpFilter] = useState("all");
   const [endpointFilter, setEndpointFilter] = useState("");
-  const [timeRange, setTimeRange] = useState("all");
+  const [timeRange, setTimeRange] = useState(() => localStorage.getItem('heimdall_time_range') || 'today');
+
+  const handleTimeRangeChange = (value: string) => {
+    setTimeRange(value);
+    localStorage.setItem('heimdall_time_range', value);
+  };
 
   // Fetch first page — all active filters are sent as server-side params
   const fetchLogs = useCallback(async (url?: string) => {
@@ -132,15 +139,22 @@ const ThreatLogs = () => {
         if (ipFilter !== 'all') apiParams.ip = ipFilter;
         if (endpointFilter.trim()) apiParams.endpoint = endpointFilter;
         // Time range → start_date sent to backend so it filters ALL records, not just the loaded page
-        if (timeRange === 'today') {
-          const todayStart = new Date();
-          todayStart.setHours(0, 0, 0, 0);
-          apiParams.start_date = todayStart.toISOString();
-        } else if (timeRange !== 'all') {
-          const msMap: Record<string, number> = { '7d': 7, '30d': 30, '1y': 365 };
-          const days = msMap[timeRange];
-          if (days) apiParams.start_date = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+        // Exception: when filtering by a specific IP, always search all-time history (no date cap)
+        const ipSearchActive = ipFilter !== 'all';
+        if (timeRange !== 'all' && !ipSearchActive) {
+          const now = new Date();
+          let rangeStart: Date | null = null;
+          switch (timeRange) {
+            case 'today':   { const d = new Date(now); d.setHours(0,0,0,0); rangeStart = d; break; }
+            case 'week':    { const d = new Date(now); d.setDate(d.getDate()-6); d.setHours(0,0,0,0); rangeStart = d; break; }
+            case 'month':   { const d = new Date(now); d.setDate(1); d.setHours(0,0,0,0); rangeStart = d; break; }
+            case '3months': { const d = new Date(now); d.setMonth(d.getMonth()-3); d.setHours(0,0,0,0); rangeStart = d; break; }
+            case '6months': { const d = new Date(now); d.setMonth(d.getMonth()-6); d.setHours(0,0,0,0); rangeStart = d; break; }
+            case '1year':   { const d = new Date(now); d.setFullYear(d.getFullYear()-1); d.setHours(0,0,0,0); rangeStart = d; break; }
+          }
+          if (rangeStart) apiParams.start_date = rangeStart.toISOString();
         }
+        // When IP filter active: no start_date → backend returns full history for that IP
         data = await apiService.getPlatformThreatLogs(platformId, apiParams);
       }
       // New response shape: { logs, total_count, blocked_count, blocked_rate, unique_ips, next, ... }
@@ -232,11 +246,13 @@ const ThreatLogs = () => {
   // uniqueIPs comes from backend (full dataset), not client-side page slice
   const uniqueIPs = stats.uniqueIPs;
 
+  const rangeLabel = TIME_RANGES.find(r => r.value === timeRange)?.label ?? "All Time";
+
   // Stat cards – using backend stats for Total Blocked and Blocked Rate
   const statsData = [
     { label: "Total Blocked", value: stats.total, icon: AlertTriangle, iconColor: "text-red-500", bg: "bg-red-50 dark:bg-red-500/10", sub: "All blocked threats" },
     { label: "Blocked Rate", value: stats.rate, icon: AlertTriangle, iconColor: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-500/10", sub: "% of requests blocked", suffix: "%" },
-    { label: "Today's Threats", value: todayLogs.length, icon: AlertTriangle, iconColor: "text-red-500", bg: "bg-red-50 dark:bg-red-500/10", sub: "Blocked today" },
+    { label: timeRange === 'today' ? "Today's Threats" : "Threats in Range", value: timeRange === 'today' ? todayLogs.length : stats.blocked, icon: AlertTriangle, iconColor: "text-red-500", bg: "bg-red-50 dark:bg-red-500/10", sub: timeRange === 'today' ? "Blocked today" : `Blocked — ${rangeLabel}` },
     { label: "High Severity", value: highCount, icon: AlertTriangle, iconColor: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-500/10", sub: "Requires attention", valueColor: "text-red-600 dark:text-red-400" },
     { label: "Medium Severity", value: mediumCount, icon: AlertTriangle, iconColor: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-500/10", sub: "Monitor closely", valueColor: "text-amber-600 dark:text-amber-400" },
     { label: "Unique IPs", value: uniqueIPs, icon: MapPin, iconColor: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-500/10", sub: "Distinct attackers" },
@@ -399,7 +415,7 @@ const ThreatLogs = () => {
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input placeholder="Search by IP, path, rule..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
             </div>
-            <Select value={timeRange} onValueChange={setTimeRange}>
+            <Select value={timeRange} onValueChange={handleTimeRangeChange}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <Clock className="h-4 w-4 mr-2 text-slate-400" />
                 <SelectValue placeholder="Time Range" />
@@ -424,16 +440,21 @@ const ThreatLogs = () => {
                 {uniqueThreatTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={ipFilter} onValueChange={setIpFilter}>
-              <SelectTrigger>
-                <MapPin className="h-4 w-4 mr-2 text-slate-400" />
-                <SelectValue placeholder="IP Address" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All IPs</SelectItem>
-                {uniqueIPsList.map(ip => <SelectItem key={ip} value={ip}>{ip}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Filter by IP address..."
+                value={ipFilter === 'all' ? '' : ipFilter}
+                onChange={e => setIpFilter(e.target.value.trim() || 'all')}
+                className="pl-9 pr-8"
+              />
+              {ipFilter !== 'all' && (
+                <button
+                  onClick={() => setIpFilter('all')}
+                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 text-sm"
+                >✕</button>
+              )}
+            </div>
             <div className="relative">
               <Code className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input placeholder="Filter by endpoint..." value={endpointFilter} onChange={e => setEndpointFilter(e.target.value)} className="pl-9" />
@@ -450,10 +471,17 @@ const ThreatLogs = () => {
                 </Badge>
               )}
               {searchTerm && <Badge className="cursor-pointer" onClick={() => setSearchTerm("")}>✕ Search: {searchTerm}</Badge>}
-              {timeRange !== "all" && <Badge className="cursor-pointer" onClick={() => setTimeRange("all")}>✕ Time: {TIME_RANGES.find(r => r.value === timeRange)?.label}</Badge>}
+              {timeRange !== "all" && <Badge className="cursor-pointer" onClick={() => handleTimeRangeChange("all")}>✕ Time: {TIME_RANGES.find(r => r.value === timeRange)?.label}</Badge>}
               {severityFilter !== "all" && <Badge className="cursor-pointer" onClick={() => setSeverityFilter("all")}>✕ Severity: {severityFilter}</Badge>}
               {threatType !== "all" && <Badge className="cursor-pointer" onClick={() => setThreatType("all")}>✕ Type: {threatType}</Badge>}
-              {ipFilter !== "all" && <Badge className="cursor-pointer" onClick={() => setIpFilter("all")}>✕ IP: {ipFilter}</Badge>}
+              {ipFilter !== "all" && (
+                <>
+                  <Badge className="cursor-pointer" onClick={() => setIpFilter("all")}>✕ IP: {ipFilter}</Badge>
+                  <Badge className="bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 text-xs">
+                    🔍 Searching all-time history for this IP
+                  </Badge>
+                </>
+              )}
               {endpointFilter.trim() && <Badge className="cursor-pointer" onClick={() => setEndpointFilter("")}>✕ Endpoint: {endpointFilter.length > 20 ? endpointFilter.substring(0,20)+"..." : endpointFilter}</Badge>}
             </div>
           )}

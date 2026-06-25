@@ -1391,4 +1391,45 @@ const CreateAlert = () => {
                 {!selectedAlertType || notificationChannels.length === 0 ? 'Setup in progress' : 'Ready to create alert'}
               </p>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                The page is visually redesigned on
+                The page is visually redesigned only. Your original logic and functionality stay the same.
+              </p>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate('/threat-logs')}
+                disabled={isSubmitting}
+                className="rounded-xl border-slate-200/70 dark:border-slate-700/70"
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!selectedAlertType || notificationChannels.length === 0 || isSubmitting}
+                className="rounded-xl bg-cyan-600 text-white shadow-lg hover:bg-cyan-700"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Activity className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Bell className="mr-2 h-4 w-4" />
+                    Create Alert
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CreateAlert;

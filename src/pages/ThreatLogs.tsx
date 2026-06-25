@@ -46,6 +46,12 @@ const TIME_RANGES = [
   { label: "All Time",   value: "all"     },
 ];
 
+// Helper: country code → flag emoji
+const countryFlag = (code?: string | null): string => {
+  if (!code || code.length !== 2) return '';
+  return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
+};
+
 // Helper: parse timestamp to milliseconds (client‑side filtering)
 const parseLogTimestamp = (log: any): number | null => {
   const raw = log?.timestamp ?? log?.created_at ?? log?.createdAt;
@@ -120,7 +126,7 @@ const ThreatLogs = () => {
   };
 
   // Fetch first page — all active filters are sent as server-side params
-  const fetchLogs = useCallback(async (url?: string) => {
+  const fetchLogs = useCallback(async () => {
     const platformId = localStorage.getItem("selected_platform_id");
     if (!platformId) {
       navigate("/platforms");
@@ -128,11 +134,8 @@ const ThreatLogs = () => {
     }
     try {
       let data;
-      if (url) {
-        const res = await fetch(url);
-        data = await res.json();
-      } else {
-        const apiParams: any = { blocked: 'true', page_size: 20 };
+      {
+        const apiParams: any = { blocked: 'true', page_size: 50 };
         if (countryFilter) apiParams.country = countryFilter;
         if (searchTerm) apiParams.search = searchTerm;
         if (severityFilter !== 'all') apiParams.threat_level = severityFilter;
@@ -186,7 +189,12 @@ const ThreatLogs = () => {
     if (!nextPageUrl || loadingMore) return;
     setLoadingMore(true);
     try {
-      const response = await fetch(nextPageUrl);
+      const token = localStorage.getItem('auth_token');
+      const subdomain = localStorage.getItem('tenant_subdomain');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Token ${token}`;
+      if (subdomain) headers['X-Tenant-Subdomain'] = subdomain;
+      const response = await fetch(nextPageUrl, { headers });
       const data = await response.json();
       const newLogs = data.logs || [];
       setLogs(prev => [...prev, ...newLogs]);
@@ -524,7 +532,14 @@ const ThreatLogs = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                         <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-3">
                           <p className="text-xs text-slate-500 mb-1">Source IP</p>
-                          <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3 text-slate-400" /><span className="text-sm font-mono truncate">{threat.client_ip}</span></div>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="h-3 w-3 text-slate-400" />
+                            {countryFlag(threat.country) && <span className="text-xl leading-none flex-shrink-0">{countryFlag(threat.country)}</span>}
+                            <div className="min-w-0">
+                              <span className="text-sm font-mono truncate block">{threat.client_ip}</span>
+                              {(threat.country_name || threat.country) && <span className="text-xs text-slate-400">{threat.country_name || threat.country}</span>}
+                            </div>
+                          </div>
                         </div>
                         <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-3">
                           <p className="text-xs text-slate-500 mb-1">Request</p>
@@ -555,7 +570,16 @@ const ThreatLogs = () => {
                                 <div><Label className="text-xs text-slate-500">Severity</Label><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${sevCfg.cls}`}>{threat.threat_level || "low"}</span></div>
                                 <div><Label className="text-xs text-slate-500">WAF Status</Label><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-300 mt-1">🚫 Blocked</span></div>
                               </div>
-                              <div><Label>Source IP</Label><p className="text-sm font-mono">{threat.client_ip}</p></div>
+                              <div>
+                                <Label>Source IP</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  {countryFlag(threat.country) && <span className="text-2xl leading-none">{countryFlag(threat.country)}</span>}
+                                  <span className="text-sm font-mono">{threat.client_ip}</span>
+                                  {(threat.country_name || threat.country) && (
+                                    <span className="text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{threat.country_name || threat.country}</span>
+                                  )}
+                                </div>
+                              </div>
                               <div><Label>Request</Label><p className="text-sm font-mono">{threat.method} {threat.path}</p></div>
                               <div><Label>WAF Rule Triggered</Label><p className="text-sm">{threat.waf_rule_triggered || "None"}</p></div>
                               {threat.user_agent && <div><Label>User Agent</Label><p className="text-sm bg-slate-50 dark:bg-slate-800 p-3 rounded-xl break-all font-mono text-xs">{threat.user_agent}</p></div>}

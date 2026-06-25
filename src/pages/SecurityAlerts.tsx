@@ -102,6 +102,12 @@ function extractSignaturePattern(trigger: any): string | null {
   return match ? match[1].trim() : null;
 }
 
+// Helper: country code → flag emoji
+const countryFlag = (code?: string | null): string => {
+  if (!code || code.length !== 2) return '';
+  return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
+};
+
 const SecurityAlerts = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -358,7 +364,6 @@ const SecurityAlerts = () => {
 
   const statsData = [
     { label: 'Active Alerts', value: alerts.filter(a => a.status === 'active').length, icon: Bell, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10', sub: 'Currently monitoring' },
-    { label: 'High Severity', value: alerts.filter(a => a.severity === 'high').length, icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-500/10', sub: 'Require immediate attention', valueColor: 'text-red-600 dark:text-red-400' },
     { label: 'Recent Triggers', value: triggers.length, icon: Zap, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10', sub: 'Alert trigger events' },
     { label: 'Total Triggers', value: alerts.reduce((sum, alert) => sum + alert.triggerCount, 0), icon: Activity, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-500/10', sub: 'All time triggers' },
   ];
@@ -422,8 +427,8 @@ const SecurityAlerts = () => {
           </div>
         </motion.div>
 
-        {/* Stats Cards (4 cards) */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Stats Cards (3 cards) */}
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
           {statsData.map((stat, i) => (
             <div
               key={i}
@@ -798,9 +803,16 @@ const SecurityAlerts = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
-                            <MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" />
-                            <span className="text-xs font-mono text-slate-600 dark:text-slate-400 truncate max-w-[120px]">{trigger.client_ip || trigger.ip || '—'}</span>
+                          <div className="flex items-center gap-2">
+                            {countryFlag(trigger.extra?.country_code) ? (
+                              <span className="text-xl leading-none flex-shrink-0">{countryFlag(trigger.extra?.country_code)}</span>
+                            ) : (
+                              <MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                              <span className="text-xs font-mono text-slate-600 dark:text-slate-400 truncate block">{trigger.client_ip || trigger.ip || '—'}</span>
+                              {(trigger.extra?.country || trigger.extra?.country_code) && <span className="text-xs text-slate-400">{trigger.extra?.country || trigger.extra?.country_code}</span>}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-3">
@@ -836,12 +848,46 @@ const SecurityAlerts = () => {
                                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Threat Level</Label><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${getSeverityConfig(trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium').cls}`}>{trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium'}</span></div>
                                   {trigger.status_code && <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Status Code</Label><p className="text-sm mt-1">{trigger.status_code}</p></div>}
                                 </div>
-                                {trigger.client_ip || trigger.ip ? <div><Label className="text-xs font-semibold text-slate-500">Client IP</Label><p className="text-sm font-mono mt-1">{trigger.client_ip || trigger.ip}</p></div> : null}
-                                {trigger.url || trigger.endpoint || trigger.path ? <div><Label className="text-xs font-semibold text-slate-500">URL / Endpoint</Label><p className="text-sm font-mono mt-1">{trigger.url || trigger.endpoint || trigger.path || trigger.endpoint_path}</p></div> : null}
+                                {/* Attack origin */}
+                                {(trigger.client_ip || trigger.ip) && (
+                                  <div>
+                                    <Label className="text-xs font-semibold text-slate-500">Source IP</Label>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      {countryFlag(trigger.extra?.country_code) && <span className="text-2xl leading-none">{countryFlag(trigger.extra?.country_code)}</span>}
+                                      <span className="text-sm font-mono">{trigger.client_ip || trigger.ip}</span>
+                                      {(trigger.extra?.country || trigger.extra?.country_code) && (
+                                        <span className="text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{trigger.extra?.country || trigger.extra?.country_code}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                {trigger.extra?.country && <div><Label className="text-xs font-semibold text-slate-500">Origin Country</Label><p className="text-sm mt-1">{trigger.extra.country}</p></div>}
+                                {(trigger.url || trigger.endpoint || trigger.path) && <div><Label className="text-xs font-semibold text-slate-500">URL / Endpoint</Label><p className="text-sm font-mono mt-1">{trigger.url || trigger.endpoint || trigger.path}</p></div>}
                                 {trigger.method && <div><Label className="text-xs font-semibold text-slate-500">Method</Label><Badge className={`${getMethodColor(trigger.method)} rounded-lg mt-1`}>{trigger.method}</Badge></div>}
-                                {trigger.evidence && <div><Label className="text-xs font-semibold text-slate-500">Evidence</Label><p className="text-sm mt-1">{trigger.evidence}</p></div>}
-                                {trigger.headers && Object.keys(trigger.headers).length > 0 && <div><Label className="text-xs font-semibold text-slate-500">Headers</Label><div className="bg-slate-900 dark:bg-slate-950 p-3 rounded-xl font-mono text-xs text-slate-100 overflow-x-auto mt-2"><pre className="whitespace-pre-wrap break-words">{JSON.stringify(trigger.headers, null, 2)}</pre></div></div>}
-                                {trigger.extra && Object.keys(trigger.extra).length > 0 && <div><Label className="text-xs font-semibold text-slate-500">Extra Data</Label><div className="bg-slate-900 dark:bg-slate-950 p-3 rounded-xl font-mono text-xs text-slate-100 overflow-x-auto mt-2"><pre className="whitespace-pre-wrap break-words">{JSON.stringify(trigger.extra, null, 2)}</pre></div></div>}
+                                {/* WAF rule */}
+                                {(trigger.extra?.waf_rule_triggered) && (
+                                  <div className="rounded-xl bg-red-50 dark:bg-red-900/20 p-3 border border-red-200/70 dark:border-red-700/70">
+                                    <Label className="text-xs text-red-600 dark:text-red-400">WAF Rule Triggered</Label>
+                                    <p className="text-sm font-semibold text-red-700 dark:text-red-300 mt-1">{trigger.extra.waf_rule_triggered}</p>
+                                  </div>
+                                )}
+                                {/* Status & timing */}
+                                <div className="grid grid-cols-2 gap-3">
+                                  {trigger.extra?.status_code && <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Status Code</Label><p className="text-sm font-mono mt-1">{trigger.extra.status_code}</p></div>}
+                                  {trigger.extra?.response_time_ms != null && <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-200/70 dark:border-slate-700/70"><Label className="text-xs text-slate-500">Response Time</Label><p className="text-sm font-mono mt-1">{trigger.extra.response_time_ms} ms</p></div>}
+                                </div>
+                                {/* User agent */}
+                                {trigger.extra?.user_agent && <div><Label className="text-xs font-semibold text-slate-500">User Agent</Label><div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-lg font-mono text-xs mt-1 break-all">{trigger.extra.user_agent}</div></div>}
+                                {/* Evidence */}
+                                {trigger.evidence && <div><Label className="text-xs font-semibold text-slate-500">Evidence</Label><p className="text-sm mt-1 text-slate-700 dark:text-slate-300">{trigger.evidence}</p></div>}
+                                {/* Request headers */}
+                                {(trigger.extra?.request_headers && Object.keys(trigger.extra.request_headers).length > 0) ? (
+                                  <div><Label className="text-xs font-semibold text-slate-500">Request Headers</Label><div className="bg-slate-900 dark:bg-slate-950 p-3 rounded-xl font-mono text-xs text-slate-100 overflow-x-auto mt-2"><pre className="whitespace-pre-wrap break-words">{JSON.stringify(trigger.extra.request_headers, null, 2)}</pre></div></div>
+                                ) : trigger.headers && Object.keys(trigger.headers).length > 0 ? (
+                                  <div><Label className="text-xs font-semibold text-slate-500">Request Headers</Label><div className="bg-slate-900 dark:bg-slate-950 p-3 rounded-xl font-mono text-xs text-slate-100 overflow-x-auto mt-2"><pre className="whitespace-pre-wrap break-words">{JSON.stringify(trigger.headers, null, 2)}</pre></div></div>
+                                ) : null}
+                                {/* Request body */}
+                                {trigger.extra?.request_body && <div><Label className="text-xs font-semibold text-slate-500">Request Body</Label><div className="bg-slate-900 dark:bg-slate-950 p-3 rounded-xl font-mono text-xs text-slate-100 overflow-x-auto mt-2"><pre className="whitespace-pre-wrap break-words">{typeof trigger.extra.request_body === 'string' ? trigger.extra.request_body : JSON.stringify(trigger.extra.request_body, null, 2)}</pre></div></div>}
                               </div>
                             </DialogContent>
                           </Dialog>

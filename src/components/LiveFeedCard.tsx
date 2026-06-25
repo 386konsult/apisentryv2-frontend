@@ -16,17 +16,21 @@ const METHOD_COLORS: Record<string, string> = {
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-// Backend returns "DD-MM-YYYY HH:MM" — not ISO, so new Date() can't parse it directly.
+// Backend returns timestamps in UTC (ISO or "DD-MM-YYYY HH:MM").
+// Always parse as UTC so local-time display is correct regardless of browser timezone.
 function parseTs(ts: string | undefined): Date | null {
   if (!ts) return null;
-  // Try ISO first (future-proof)
+
+  // ISO string — Date constructor handles UTC correctly
   let d = new Date(ts);
   if (!isNaN(d.getTime())) return d;
-  // Handle "DD-MM-YYYY HH:MM" and "DD-MM-YYYY HH:MM:SS"
-  const m = ts.match(/^(\d{2})-(\d{2})-(\d{4})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/);
+
+  // "DD-MM-YYYY HH:MM[:SS]" — treat as UTC explicitly
+  const m = ts.match(/^(\d{1,2})-(\d{1,2})-(\d{4})[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (m) {
     const [, dd, mo, yyyy, hh, mm, ss = '0'] = m;
-    d = new Date(Number(yyyy), Number(mo) - 1, Number(dd), Number(hh), Number(mm), Number(ss));
+    // Use Date.UTC so hours are treated as UTC, then local display is automatic
+    d = new Date(Date.UTC(Number(yyyy), Number(mo) - 1, Number(dd), Number(hh), Number(mm), Number(ss)));
     if (!isNaN(d.getTime())) return d;
   }
   return null;

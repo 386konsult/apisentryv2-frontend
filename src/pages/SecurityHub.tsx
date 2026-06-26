@@ -554,12 +554,13 @@ const SecurityHub = () => {
       setStatsData({
         totalLogs,
         blockedLogs,
-        uniqueIPs:       new Set(sample.map((l: RequestLog) => l.client_ip)).size,
+        // Use backend-computed values (full dataset) — not sample-based estimates
+        uniqueIPs:       response.unique_ips       ?? new Set(sample.map((l: RequestLog) => l.client_ip).filter(Boolean)).size,
+        uniqueCountries: response.unique_countries ?? new Set(sample.map((l: RequestLog) => (l as any).country || (l as any).country_code).filter(Boolean)).size,
+        suspiciousIPs:   response.suspicious_ips   ?? Object.values(ipFreq).filter(c => c > 10).length,
         errorLogs:       sample.filter((l: RequestLog) => l.status_code >= 400).length,
         avgResponseTime: sample.length ? sample.reduce((s: number, l: RequestLog) => s + (l.response_time_ms ?? 0), 0) / sample.length : 0,
         botRequests:     sample.filter((l: RequestLog) => botPatterns.some(p => p.test(l.user_agent || ""))).length,
-        suspiciousIPs:   Object.values(ipFreq).filter(c => c > 10).length,
-        uniqueCountries: new Set(sample.map((l: RequestLog) => (l as any).country || (l as any).country_code).filter(Boolean)).size,
       });
     } catch (err) {
       console.error("Stats fetch error:", err);

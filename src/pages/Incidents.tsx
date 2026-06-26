@@ -1070,7 +1070,6 @@ const Incidents = () => {
         description: it.description || "",
         incidentType: it.incident_type || it.incidentType || "",
         alertName: it.alert_name || it.alertName || "",
-        dataClass: it.data_class || it.dataClass || "",
       }));
       setIncidents(normalized);
     } catch (error: any) {

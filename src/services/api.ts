@@ -667,13 +667,6 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
     });
   }
 
-  async updateEndpoint(id: number, endpointData: Partial<APIEndpoint>): Promise<APIEndpoint> {
-    return await this.request<APIEndpoint>(`/endpoints/${id}/`, {
-      method: 'PUT',
-      body: JSON.stringify(endpointData),
-    });
-  }
-
   async deleteEndpoint(id: number): Promise<void> {
     await this.request(`/endpoints/${id}/`, { method: 'DELETE' });
   }

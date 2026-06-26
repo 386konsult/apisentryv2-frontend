@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import HeimdallAILogo from '@/components/HeimdallAILogo';
 import { apiService } from "@/services/api";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import countriesData from "@/data/countries.json";
 
@@ -485,7 +485,11 @@ const LogDetailModal = ({
 const SecurityHub = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+  // Tracks whether the filter-change useEffect is running for the first time (mount).
+  // On mount the main useEffect already handles the fetch; we skip the duplicate.
+  const isFilterFirstRun = React.useRef(true);
 
   const [tableLogs, setTableLogs]         = useState<RequestLog[]>([]);
   const [loading, setLoading]             = useState(true);
@@ -504,7 +508,7 @@ const SecurityHub = () => {
 
   const [statsRange, setStatsRange]       = useState<TimeRangeKey>(() => {
     const saved = localStorage.getItem('heimdall_time_range');
-    return (saved as TimeRangeKey) || 'today';
+    return (saved as TimeRangeKey) || '1year';
   });
   const [selectedLog, setSelectedLog]     = useState<RequestLog | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -615,10 +619,15 @@ const SecurityHub = () => {
         if (found) setPlatformName(found.name);
       } catch {}
     }
+    // Reset filter-first-run guard so the filter useEffect doesn't double-fetch
+    // on the fresh mount triggered by this navigation.
+    isFilterFirstRun.current = true;
     setLoading(true); setPage(1); setHasMore(true);
     fetchStatsForRange(platformId, statsRange);
     fetchTablePage(platformId, 1, false);
-  }, [navigate]);
+  // location.key changes on every React Router navigation to this page,
+  // ensuring data reloads whenever the user arrives here (not just on first mount).
+  }, [location.key]);
 
   // Re-fetch stats whenever the time range changes
   useEffect(() => {
@@ -626,8 +635,13 @@ const SecurityHub = () => {
     if (platformId) fetchStatsForRange(platformId, statsRange);
   }, [statsRange]);
 
-  // Re-fetch table when any filter changes (debounce text inputs)
+  // Re-fetch table when any filter changes (debounce text inputs).
+  // Skips the initial mount run — the main useEffect above already handles that.
   useEffect(() => {
+    if (isFilterFirstRun.current) {
+      isFilterFirstRun.current = false;
+      return;
+    }
     const platformId = localStorage.getItem("selected_platform_id");
     if (!platformId) return;
     setPage(1);

@@ -152,6 +152,10 @@ const CreateAlert = () => {
     webhookURL: '',
   });
 
+  // Multi-email state for notification recipients
+  const [notificationEmails, setNotificationEmails] = useState<string[]>([]);
+  const [emailInputValue, setEmailInputValue] = useState('');
+
   const selectedAlert = ALERT_TYPES.find((type) => type.id === selectedAlertType);
   const SelectedIcon = selectedAlert?.icon || Bell;
   const selectedNotificationLabels = NOTIFICATION_CHANNELS.filter((channel) =>
@@ -274,7 +278,8 @@ const CreateAlert = () => {
         notification_settings: {
           slack_webhook: formData.slackWebhook,
           teams_webhook: formData.teamsWebhook,
-          email: formData.emailAddress,
+          email: notificationEmails[0] || formData.emailAddress,
+          notification_emails: notificationEmails.length > 0 ? notificationEmails : (formData.emailAddress ? [formData.emailAddress] : []),
           webhook_url: formData.webhookURL,
         },
       };
@@ -1002,17 +1007,46 @@ const CreateAlert = () => {
               </div>
             </div>
 
-            <Label htmlFor="emailAddress" className="text-sm font-medium text-slate-900 dark:text-white">
-              Email Address
+            <Label className="text-sm font-medium text-slate-900 dark:text-white">
+              Email Recipients
             </Label>
-            <Input
-              id="emailAddress"
-              type="email"
-              placeholder="admin@company.com"
-              value={formData.emailAddress}
-              onChange={(e) => handleInputChange('emailAddress', e.target.value)}
-              className={inputClassName}
-            />
+            {/* Tag-style multi-email input */}
+            <div className={`${inputClassName} min-h-[42px] h-auto flex flex-wrap gap-1.5 p-2 cursor-text`}
+              onClick={() => document.getElementById('emailTagInput')?.focus()}>
+              {notificationEmails.map((email) => (
+                <span key={email} className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 text-xs font-medium px-2 py-1 rounded-md">
+                  {email}
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setNotificationEmails(prev => prev.filter(e => e !== email)); }}
+                    className="hover:text-red-500 transition-colors"><X className="h-3 w-3" /></button>
+                </span>
+              ))}
+              <input
+                id="emailTagInput"
+                type="email"
+                placeholder={notificationEmails.length === 0 ? "admin@company.com — press Enter to add" : "Add another email..."}
+                value={emailInputValue}
+                onChange={(e) => setEmailInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.key === 'Enter' || e.key === ',' || e.key === 'Tab') && emailInputValue.trim()) {
+                    e.preventDefault();
+                    const email = emailInputValue.trim().replace(/,$/, '');
+                    if (email && !notificationEmails.includes(email)) {
+                      setNotificationEmails(prev => [...prev, email]);
+                    }
+                    setEmailInputValue('');
+                  }
+                }}
+                onBlur={() => {
+                  if (emailInputValue.trim()) {
+                    const email = emailInputValue.trim();
+                    if (!notificationEmails.includes(email)) setNotificationEmails(prev => [...prev, email]);
+                    setEmailInputValue('');
+                  }
+                }}
+                className="flex-1 min-w-[200px] bg-transparent border-none outline-none text-sm text-slate-900 dark:text-white placeholder:text-slate-400"
+              />
+            </div>
+            <p className="mt-1 text-xs text-slate-400">Press Enter or comma to add each email address</p>
           </div>
         )}
       </div>
@@ -1375,7 +1409,7 @@ const CreateAlert = () => {
                 <span className="text-slate-700 dark:text-slate-300">Notification channel selected</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <CheckCircle2 className={`h-4 w-4 ${!emailSelected || Boolean(formData.emailAddress.trim()) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-600'}`} />
+                <CheckCircle2 className={`h-4 w-4 ${!emailSelected || notificationEmails.length > 0 || Boolean(formData.emailAddress.trim()) ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-600'}`} />
                 <span className="text-slate-700 dark:text-slate-300">Email destination ready</span>
               </div>
             </div>

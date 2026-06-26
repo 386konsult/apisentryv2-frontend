@@ -52,6 +52,7 @@ import {
   Play,
   Edit,
   Trash2,
+  X,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -73,6 +74,13 @@ const ALERT_TYPES: Record<string, { name: string; icon: any; color?: string }> =
   signature_attack: { name: 'Signature Attack', icon: AlertCircle, color: 'text-purple-500' },
   custom_rules: { name: 'Custom Rules', icon: Settings, color: 'text-gray-500' },
 };
+
+const ATTACK_SIGNATURES = [
+  'SQL Injection', 'XSS (Cross-Site Scripting)', 'CSRF (Cross-Site Request Forgery)',
+  'Path Traversal', 'Command Injection', 'LDAP Injection', 'NoSQL Injection',
+  'XML External Entity (XXE)', 'Server-Side Request Forgery (SSRF)',
+  'Remote Code Execution (RCE)', 'Local File Inclusion (LFI)',
+];
 
 const NOTIFICATION_ICONS: Record<string, any> = {
   email: Mail,
@@ -144,6 +152,11 @@ const SecurityAlerts = () => {
     email: '',
     webhook_url: '',
   });
+  const [updateEmails, setUpdateEmails] = useState<string[]>([]);
+  const [updateEmailInput, setUpdateEmailInput] = useState('');
+  const [editingSignatures, setEditingSignatures] = useState(false);
+  const [editedSignatures, setEditedSignatures] = useState<string[]>([]);
+  const [savingSignatures, setSavingSignatures] = useState(false);
 
   const fetchAlerts = async () => {
     setLoading(true);
@@ -288,7 +301,13 @@ const SecurityAlerts = () => {
   const handleUpdateClick = (alert: any) => {
     setSelectedAlertForUpdate(alert);
     const notificationSettings = alert.notification_settings || alert.configuration?.notification_settings || {};
-    setUpdateFormData({ notification_channels: alert.notification_channels || [], slack_webhook: notificationSettings.slack_webhook || '', teams_webhook: notificationSettings.teams_webhook || '', email: notificationSettings.email || '', webhook_url: notificationSettings.webhook_url || '' });
+    setUpdateFormData({ notification_channels: alert.notification_channels || [], slack_webhook: notificationSettings.slack_webhook || '', teams_webhook: notificationSettings.teams_webhook || '', email: notificationSettings.email || alert.email || '', webhook_url: notificationSettings.webhook_url || '' });
+    // Populate multi-email list: prefer notification_emails array, fall back to single email
+    const existingEmails: string[] = alert.notification_emails?.length > 0
+      ? alert.notification_emails
+      : (alert.email ? [alert.email] : (notificationSettings.email ? [notificationSettings.email] : []));
+    setUpdateEmails(existingEmails);
+    setUpdateEmailInput('');
     setUpdateDialogOpen(true);
   };
 
@@ -298,7 +317,8 @@ const SecurityAlerts = () => {
     if (!selectedAlertForUpdate) return;
     try {
       setLoading(true);
-      const updateData = { notification_channels: updateFormData.notification_channels, slack_webhook: updateFormData.slack_webhook || undefined, teams_webhook: updateFormData.teams_webhook || undefined, email: updateFormData.email || undefined, webhook_url: updateFormData.webhook_url || undefined, notification_settings: { slack_webhook: updateFormData.slack_webhook, teams_webhook: updateFormData.teams_webhook, email: updateFormData.email, webhook_url: updateFormData.webhook_url } };
+      const emails = updateEmails.length > 0 ? updateEmails : (updateFormData.email ? [updateFormData.email] : []);
+      const updateData = { notification_channels: updateFormData.notification_channels, slack_webhook: updateFormData.slack_webhook || undefined, teams_webhook: updateFormData.teams_webhook || undefined, email: emails[0] || undefined, notification_emails: emails, webhook_url: updateFormData.webhook_url || undefined, notification_settings: { slack_webhook: updateFormData.slack_webhook, teams_webhook: updateFormData.teams_webhook, email: emails[0] || updateFormData.email, notification_emails: emails, webhook_url: updateFormData.webhook_url } };
       await apiService.updateAlert(selectedAlertForUpdate.id, updateData);
       toast({ title: "Alert Updated", description: "Alert notification settings have been updated successfully.", variant: "default" });
       setUpdateDialogOpen(false); setSelectedAlertForUpdate(null); await fetchAlerts();
@@ -923,14 +943,51 @@ const SecurityAlerts = () => {
               {[
                 { id: 'slack-webhook', label: 'Slack Webhook URL', placeholder: 'https://hooks.slack.com/services/...', field: 'slack_webhook' },
                 { id: 'teams-webhook', label: 'Teams Webhook URL', placeholder: 'https://outlook.office.com/webhook/...', field: 'teams_webhook' },
-                { id: 'email', label: 'Email Address', placeholder: 'alert@example.com', field: 'email', type: 'email' },
                 { id: 'webhook-url', label: 'Generic Webhook URL', placeholder: 'https://example.com/webhook', field: 'webhook_url' },
-              ].map(({ id, label, placeholder, field, type }) => (
+              ].map(({ id, label, placeholder, field }) => (
                 <div key={id}>
                   <Label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</Label>
-                  <Input id={id} type={type || 'url'} placeholder={placeholder} value={(updateFormData as any)[field]} onChange={(e) => setUpdateFormData(prev => ({ ...prev, [field]: e.target.value }))} className="mt-1.5 rounded-xl border-slate-200/70 dark:border-slate-700" />
+                  <Input id={id} type="url" placeholder={placeholder} value={(updateFormData as any)[field]} onChange={(e) => setUpdateFormData(prev => ({ ...prev, [field]: e.target.value }))} className="mt-1.5 rounded-xl border-slate-200/70 dark:border-slate-700" />
                 </div>
               ))}
+              {/* Multi-email tag input */}
+              <div>
+                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Email Recipients</Label>
+                <div className="mt-1.5 min-h-[42px] h-auto flex flex-wrap gap-1.5 p-2 rounded-xl border border-slate-200/70 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-text"
+                  onClick={() => document.getElementById('updateEmailTagInput')?.focus()}>
+                  {updateEmails.map((email) => (
+                    <span key={email} className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 text-xs font-medium px-2 py-1 rounded-md">
+                      {email}
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setUpdateEmails(prev => prev.filter(e => e !== email)); }}
+                        className="hover:text-red-500 transition-colors"><X className="h-3 w-3" /></button>
+                    </span>
+                  ))}
+                  <input
+                    id="updateEmailTagInput"
+                    type="email"
+                    placeholder={updateEmails.length === 0 ? "alert@example.com — press Enter to add" : "Add another email..."}
+                    value={updateEmailInput}
+                    onChange={(e) => setUpdateEmailInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ',' || e.key === 'Tab') && updateEmailInput.trim()) {
+                        e.preventDefault();
+                        const email = updateEmailInput.trim().replace(/,$/, '');
+                        if (email && !updateEmails.includes(email)) setUpdateEmails(prev => [...prev, email]);
+                        setUpdateEmailInput('');
+                      }
+                    }}
+                    onBlur={() => {
+                      if (updateEmailInput.trim()) {
+                        const email = updateEmailInput.trim();
+                        if (!updateEmails.includes(email)) setUpdateEmails(prev => [...prev, email]);
+                        setUpdateEmailInput('');
+                      }
+                    }}
+                    className="flex-1 min-w-[200px] bg-transparent border-none outline-none text-sm text-slate-900 dark:text-white placeholder:text-slate-400"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Press Enter or comma to add each email address</p>
+              </div>
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-700">
                 <Button variant="outline" className="rounded-xl" onClick={() => { setUpdateDialogOpen(false); setSelectedAlertForUpdate(null); }}>Cancel</Button>
                 <Button onClick={handleUpdateSubmit} disabled={loading} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">{loading ? 'Updating...' : 'Update Alert'}</Button>
@@ -1032,10 +1089,61 @@ const SecurityAlerts = () => {
                   </div>
                 </div>
                 {selectedAlertForView.description && <div><Label className="text-xs font-semibold text-slate-500">Description</Label><p className="text-sm mt-1">{selectedAlertForView.description}</p></div>}
-                <div><Label className="text-xs font-semibold text-slate-500">Conditions & Configuration</Label>
-                  <div className="rounded-xl bg-slate-900 dark:bg-slate-950 p-4 border border-slate-700/50 font-mono text-xs text-slate-100 overflow-x-auto mt-2">
-                    {selectedAlertForView.configuration && Object.keys(selectedAlertForView.configuration).length > 0 ? <pre className="whitespace-pre-wrap break-words">{JSON.stringify(selectedAlertForView.configuration, null, 2)}</pre> : <p className="text-slate-500">No configuration set</p>}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-xs font-semibold text-slate-500">Conditions & Configuration</Label>
+                    {(selectedAlertForView.alert_type || selectedAlertForView.type) === 'signature_attack' && !editingSignatures && (
+                      <Button size="sm" variant="outline" className="h-6 text-xs rounded-lg px-2"
+                        onClick={() => { setEditedSignatures(selectedAlertForView.attack_signatures || selectedAlertForView.configuration?.attack_signatures || []); setEditingSignatures(true); }}>
+                        <Edit className="h-3 w-3 mr-1" /> Edit
+                      </Button>
+                    )}
                   </div>
+                  {(selectedAlertForView.alert_type || selectedAlertForView.type) === 'signature_attack' && editingSignatures ? (
+                    <div className="rounded-xl border border-slate-200/70 dark:border-slate-700 p-4 space-y-3">
+                      <p className="text-xs text-slate-500">Toggle signatures on/off. Unchecked ones will be removed when you save.</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {ATTACK_SIGNATURES.map((sig) => {
+                          const active = editedSignatures.includes(sig);
+                          return (
+                            <div key={sig} onClick={() => setEditedSignatures(prev => active ? prev.filter(s => s !== sig) : [...prev, sig])}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-sm ${active ? 'border-purple-400 bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300' : 'border-slate-200 dark:border-slate-700 text-slate-400 line-through opacity-60'}`}>
+                              <div className={`w-4 h-4 rounded flex items-center justify-center border ${active ? 'bg-purple-500 border-purple-500' : 'border-slate-300 dark:border-slate-600'}`}>
+                                {active && <span className="text-white text-[10px] font-bold">✓</span>}
+                              </div>
+                              {sig}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <Button size="sm" className="rounded-lg bg-purple-600 hover:bg-purple-700 text-white" disabled={savingSignatures || editedSignatures.length === 0}
+                          onClick={async () => {
+                            setSavingSignatures(true);
+                            try {
+                              await apiService.updateAlert(selectedAlertForView.id, {
+                                attack_signatures: editedSignatures,
+                                configuration: { ...(selectedAlertForView.configuration || {}), attack_signatures: editedSignatures },
+                              });
+                              // Update local state
+                              setAlerts(prev => prev.map(a => a.id === selectedAlertForView.id ? { ...a, attack_signatures: editedSignatures, configuration: { ...(a.configuration || {}), attack_signatures: editedSignatures } } : a));
+                              setSelectedAlertForView((prev: any) => prev ? { ...prev, attack_signatures: editedSignatures, configuration: { ...(prev.configuration || {}), attack_signatures: editedSignatures } } : prev);
+                              setEditingSignatures(false);
+                              toast({ title: 'Signatures updated', description: `${editedSignatures.length} attack signature${editedSignatures.length !== 1 ? 's' : ''} active.` });
+                            } catch (e: any) {
+                              toast({ title: 'Failed to save', description: e?.message || 'Could not update signatures.', variant: 'destructive' });
+                            } finally { setSavingSignatures(false); }
+                          }}>
+                          {savingSignatures ? 'Saving...' : `Save (${editedSignatures.length} active)`}
+                        </Button>
+                        <Button size="sm" variant="outline" className="rounded-lg" onClick={() => setEditingSignatures(false)}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl bg-slate-900 dark:bg-slate-950 p-4 border border-slate-700/50 font-mono text-xs text-slate-100 overflow-x-auto mt-2">
+                      {selectedAlertForView.configuration && Object.keys(selectedAlertForView.configuration).length > 0 ? <pre className="whitespace-pre-wrap break-words">{JSON.stringify(selectedAlertForView.configuration, null, 2)}</pre> : <p className="text-slate-500">No configuration set</p>}
+                    </div>
+                  )}
                 </div>
                 <div><Label className="text-xs font-semibold text-slate-500">Notification Channels</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -1047,7 +1155,7 @@ const SecurityAlerts = () => {
               </div>
             )}
             <div className="flex justify-end pt-4 border-t border-slate-200/70 dark:border-slate-700">
-              <Button variant="outline" className="rounded-xl" onClick={() => { setViewDialogOpen(false); setSelectedAlertForView(null); }}>Close</Button>
+              <Button variant="outline" className="rounded-xl" onClick={() => { setViewDialogOpen(false); setSelectedAlertForView(null); setEditingSignatures(false); }}>Close</Button>
             </div>
           </DialogContent>
         </Dialog>

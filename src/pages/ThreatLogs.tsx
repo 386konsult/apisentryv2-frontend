@@ -161,12 +161,17 @@ const ThreatLogs = () => {
         data = await apiService.getPlatformThreatLogs(platformId, apiParams);
       }
       // New response shape: { logs, total_count, blocked_count, blocked_rate, unique_ips, next, ... }
+      const fetchedLogs = data.logs || [];
+      // Use backend-computed unique_ips (full dataset) when available.
+      // Fall back to counting distinct IPs in the loaded page sample if backend returns null/undefined/0.
+      const backendUniqueIPs = data.unique_ips ?? null;
+      const sampleUniqueIPs = new Set(fetchedLogs.map((l: any) => l.client_ip).filter(Boolean)).size;
       return {
-        logs: data.logs || [],
+        logs: fetchedLogs,
         total: data.total_count || 0,
         blocked: data.blocked_count || 0,
         rate: data.blocked_rate || 0,
-        uniqueIPs: data.unique_ips || 0,
+        uniqueIPs: backendUniqueIPs !== null && backendUniqueIPs > 0 ? backendUniqueIPs : sampleUniqueIPs,
         next: data.next || null,
       };
     } catch (error) {

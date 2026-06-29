@@ -103,7 +103,7 @@ const ThreatLogs = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [nextPageUrl, setNextPageUrl] = useState<string | null>(null);
-  const [stats, setStats] = useState({ total: 0, blocked: 0, rate: 0, uniqueIPs: 0 });
+  const [stats, setStats] = useState({ total: 0, blocked: 0, rate: 0, uniqueIPs: 0, highSeverity: 0, mediumSeverity: 0 });
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -155,7 +155,9 @@ const ThreatLogs = () => {
             case '6months': { const d = new Date(now); d.setMonth(d.getMonth()-6); d.setHours(0,0,0,0); rangeStart = d; break; }
             case '1year':   { const d = new Date(now); d.setFullYear(d.getFullYear()-1); d.setHours(0,0,0,0); rangeStart = d; break; }
           }
-          if (rangeStart) apiParams.start_date = rangeStart.toISOString();
+          // Send date-only (YYYY-MM-DD) — same format SecurityHub uses — to avoid
+          // timezone edge cases with full ISO strings.
+          if (rangeStart) apiParams.start_date = rangeStart.toISOString().split("T")[0];
         }
         // When IP filter active: no start_date → backend returns full history for that IP
         data = await apiService.getPlatformThreatLogs(platformId, apiParams);
@@ -172,21 +174,23 @@ const ThreatLogs = () => {
         blocked: data.blocked_count || 0,
         rate: data.blocked_rate || 0,
         uniqueIPs: backendUniqueIPs !== null && backendUniqueIPs > 0 ? backendUniqueIPs : sampleUniqueIPs,
+        highSeverity: data.high_severity_count ?? fetchedLogs.filter((l: any) => l.threat_level === 'high').length,
+        mediumSeverity: data.medium_severity_count ?? fetchedLogs.filter((l: any) => l.threat_level === 'medium').length,
         next: data.next || null,
       };
     } catch (error) {
       console.error("Failed to fetch threat logs:", error);
-      return { logs: [], total: 0, blocked: 0, rate: 0, uniqueIPs: 0, next: null };
+      return { logs: [], total: 0, blocked: 0, rate: 0, uniqueIPs: 0, highSeverity: 0, mediumSeverity: 0, next: null };
     }
   }, [navigate, countryFilter, searchTerm, severityFilter, ipFilter, endpointFilter, timeRange]);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
-    const { logs: initialLogs, total, blocked, rate, uniqueIPs, next } = await fetchLogs();
+    const { logs: initialLogs, total, blocked, rate, uniqueIPs, highSeverity, mediumSeverity, next } = await fetchLogs();
     setLogs(initialLogs);
     setNextPageUrl(next);
     setHasMore(!!next);
-    setStats({ total, blocked, rate, uniqueIPs });
+    setStats({ total, blocked, rate, uniqueIPs, highSeverity, mediumSeverity });
     setLoading(false);
   }, [fetchLogs]);
 
@@ -234,41 +238,38 @@ const ThreatLogs = () => {
 
   // All filters are now server-side. Only threatType needs client-side filtering
   // because the backend doesn't have a dedicated waf_rule_triggered category param.
+  // Results are sorted newest-first so the table always shows the most recent threats.
   const filteredThreats = useMemo(() => {
-    if (threatType === "all") return logs;
-    return logs.filter(log => {
-      const rule = (log.waf_rule_triggered || "").toLowerCase();
-      if (threatType === "SQL Injection") return rule.includes("sql");
-      if (threatType === "XSS") return rule.includes("xss");
-      if (threatType === "Path Traversal") return rule.includes("path") || rule.includes("traversal");
-      if (threatType === "Brute Force") return rule.includes("brute");
-      if (threatType === "Malware") return rule.includes("malware");
-      return log.waf_rule_triggered === threatType;
+    let result = logs;
+    if (threatType !== "all") {
+      result = logs.filter(log => {
+        const rule = (log.waf_rule_triggered || "").toLowerCase();
+        if (threatType === "SQL Injection") return rule.includes("sql");
+        if (threatType === "XSS") return rule.includes("xss");
+        if (threatType === "Path Traversal") return rule.includes("path") || rule.includes("traversal");
+        if (threatType === "Brute Force") return rule.includes("brute");
+        if (threatType === "Malware") return rule.includes("malware");
+        return log.waf_rule_triggered === threatType;
+      });
+    }
+    // Sort newest first
+    return [...result].sort((a, b) => {
+      const ta = parseLogTimestamp(a) ?? 0;
+      const tb = parseLogTimestamp(b) ?? 0;
+      return tb - ta;
     });
   }, [logs, threatType]);
 
-  // Client‑side stats (these only apply to currently loaded logs, not the full dataset)
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayLogs = logs.filter(log => {
-    const ts = parseLogTimestamp(log);
-    return ts != null && ts >= todayStart.getTime();
-  });
-  const highCount = logs.filter(l => l.threat_level === "high").length;
-  const mediumCount = logs.filter(l => l.threat_level === "medium").length;
-  // uniqueIPs comes from backend (full dataset), not client-side page slice
-  const uniqueIPs = stats.uniqueIPs;
+  // Security Events total: use backend total when no client-side threat-type filter active.
+  // (threatType is the only client-side filter; all others are server-side.)
+  const securityEventsTotal = threatType !== 'all' ? filteredThreats.length : stats.total;
 
-  const rangeLabel = TIME_RANGES.find(r => r.value === timeRange)?.label ?? "All Time";
-
-  // Stat cards – using backend stats for Total Blocked and Blocked Rate
+  // Stat cards – 4 cards using backend aggregates over the full filtered dataset
   const statsData = [
-    { label: "Total Blocked", value: stats.total, icon: AlertTriangle, iconColor: "text-red-500", bg: "bg-red-50 dark:bg-red-500/10", sub: "All blocked threats" },
-    { label: "Blocked Rate", value: stats.rate, icon: AlertTriangle, iconColor: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-500/10", sub: "% of requests blocked", suffix: "%" },
-    { label: timeRange === 'today' ? "Today's Threats" : "Threats in Range", value: timeRange === 'today' ? todayLogs.length : stats.blocked, icon: AlertTriangle, iconColor: "text-red-500", bg: "bg-red-50 dark:bg-red-500/10", sub: timeRange === 'today' ? "Blocked today" : `Blocked — ${rangeLabel}` },
-    { label: "High Severity", value: highCount, icon: AlertTriangle, iconColor: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-500/10", sub: "Requires attention", valueColor: "text-red-600 dark:text-red-400" },
-    { label: "Medium Severity", value: mediumCount, icon: AlertTriangle, iconColor: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-500/10", sub: "Monitor closely", valueColor: "text-amber-600 dark:text-amber-400" },
-    { label: "Unique IPs", value: uniqueIPs, icon: MapPin, iconColor: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-500/10", sub: "Distinct attackers" },
+    { label: "Total Blocked",  value: stats.total,        icon: AlertTriangle, iconColor: "text-red-500",    bg: "bg-red-50 dark:bg-red-500/10",    sub: "Blocked threats in range" },
+    { label: "Blocked Rate",   value: stats.rate,         icon: AlertTriangle, iconColor: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-500/10", sub: "% of requests blocked", suffix: "%" },
+    { label: "High Severity",  value: stats.highSeverity, icon: AlertTriangle, iconColor: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-500/10", sub: "High-severity threats",  valueColor: "text-red-600 dark:text-red-400" },
+    { label: "Unique IPs",     value: stats.uniqueIPs,    icon: MapPin,        iconColor: "text-blue-500",   bg: "bg-blue-50 dark:bg-blue-500/10",    sub: "Distinct attacker IPs" },
   ];
 
   // Filter options extracted from loaded logs
@@ -393,7 +394,7 @@ const ThreatLogs = () => {
         </motion.div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {statsData.map((stat, i) => (
             <div key={i} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
               <div className="p-5">
@@ -504,7 +505,7 @@ const ThreatLogs = () => {
         <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
           <div className="border-b px-6 py-4">
             <h3 className="text-lg font-semibold">
-              Security Events <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 text-xs font-bold">{filteredThreats.length}</span>
+              Security Events <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 text-xs font-bold">{securityEventsTotal.toLocaleString()}</span>
             </h3>
             <p className="text-sm text-slate-500">Detailed view of detected threats and security incidents</p>
           </div>

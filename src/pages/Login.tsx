@@ -133,7 +133,7 @@ const Login = () => {
         <div className="absolute bottom-1/3 left-0 w-60 h-60 rounded-full bg-sky-400/8 blur-3xl pointer-events-none" />
 
         {/* Logo — top left — links back to landing page */}
-        <Link to="/" className="absolute top-8 left-8 flex items-center gap-2.5 no-underline hover:opacity-80 transition-opacity">
+        <Link to="/" className="absolute top-8 left-8 z-20 flex items-center gap-2.5 no-underline hover:opacity-80 transition-opacity cursor-pointer">
           <HeimdallAILogo size={30} />
           <div className="leading-tight">
             <span className="text-white font-bold text-sm tracking-tight block">Heimdall</span>

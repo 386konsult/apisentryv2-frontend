@@ -507,7 +507,8 @@ const SecurityHub = () => {
   });
 
   const [statsRange, setStatsRange]       = useState<TimeRangeKey>(() => {
-    const saved = localStorage.getItem('heimdall_time_range');
+    // Use a SecurityHub-specific key so ThreatLogs selections don't overwrite this default.
+    const saved = localStorage.getItem('heimdall_securityhub_range');
     return (saved as TimeRangeKey) || '1year';
   });
   const [selectedLog, setSelectedLog]     = useState<RequestLog | null>(null);
@@ -552,19 +553,20 @@ const SecurityHub = () => {
       const sample: RequestLog[] = response.logs ?? response.results ?? (Array.isArray(response) ? response : []);
       const totalLogs   = response.total_count  ?? sample.length;
       const blockedLogs = response.blocked_count ?? sample.filter((l: RequestLog) => l.waf_blocked).length;
+      // All stats now come from backend aggregates over the full dataset.
+      // Sample-based fallbacks are only used if the backend doesn't return the field.
       const botPatterns = [/bot/i, /crawler/i, /spider/i, /scraper/i, /curl/i, /wget/i, /python/i, /postman/i];
       const ipFreq: Record<string, number> = {};
       sample.forEach((l: RequestLog) => { ipFreq[l.client_ip] = (ipFreq[l.client_ip] || 0) + 1; });
       setStatsData({
         totalLogs,
         blockedLogs,
-        // Use backend-computed values (full dataset) — not sample-based estimates
-        uniqueIPs:       response.unique_ips       ?? new Set(sample.map((l: RequestLog) => l.client_ip).filter(Boolean)).size,
-        uniqueCountries: response.unique_countries ?? new Set(sample.map((l: RequestLog) => (l as any).country || (l as any).country_code).filter(Boolean)).size,
-        suspiciousIPs:   response.suspicious_ips   ?? Object.values(ipFreq).filter(c => c > 10).length,
-        errorLogs:       sample.filter((l: RequestLog) => l.status_code >= 400).length,
-        avgResponseTime: sample.length ? sample.reduce((s: number, l: RequestLog) => s + (l.response_time_ms ?? 0), 0) / sample.length : 0,
-        botRequests:     sample.filter((l: RequestLog) => botPatterns.some(p => p.test(l.user_agent || ""))).length,
+        uniqueIPs:       response.unique_ips        ?? new Set(sample.map((l: RequestLog) => l.client_ip).filter(Boolean)).size,
+        uniqueCountries: response.unique_countries  ?? new Set(sample.map((l: RequestLog) => (l as any).country || (l as any).country_code).filter(Boolean)).size,
+        suspiciousIPs:   response.suspicious_ips    ?? Object.values(ipFreq).filter(c => c > 10).length,
+        errorLogs:       response.error_count       ?? sample.filter((l: RequestLog) => l.status_code >= 400).length,
+        avgResponseTime: response.avg_response_time ?? (sample.length ? sample.reduce((s: number, l: RequestLog) => s + (l.response_time_ms ?? 0), 0) / sample.length : 0),
+        botRequests:     response.bot_requests_count ?? sample.filter((l: RequestLog) => botPatterns.some(p => p.test(l.user_agent || ""))).length,
       });
     } catch (err) {
       console.error("Stats fetch error:", err);
@@ -851,7 +853,7 @@ const SecurityHub = () => {
           </div>
           <div className="flex gap-1.5 flex-wrap">
             {TIME_RANGE_OPTIONS.map(opt => (
-              <button key={opt.value} onClick={() => { setStatsRange(opt.value); localStorage.setItem('heimdall_time_range', opt.value); }}
+              <button key={opt.value} onClick={() => { setStatsRange(opt.value); localStorage.setItem('heimdall_securityhub_range', opt.value); }}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
                   statsRange === opt.value
                     ? "bg-blue-600 text-white border-blue-600 shadow-sm"

@@ -847,7 +847,7 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
   }
 
   // Get alert triggers
-  async getAlertTriggers(platformId?: string, params?: { page?: string; page_size?: string; range?: string; start?: string; end?: string }): Promise<any> {
+  async getAlertTriggers(platformId?: string, params?: { page?: string; page_size?: string; range?: string; start?: string; end?: string; alert_type?: string; threat_level?: string; client_ip?: string; method?: string; url?: string }): Promise<any> {
     const baseQuery: Record<string, string> = {};
     if (platformId) baseQuery.platform_uuid = platformId;
     if (params) Object.assign(baseQuery, params);

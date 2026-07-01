@@ -50,7 +50,6 @@ const SecurityDashboard = () => {
         // Get platform ID from localStorage
         const platformId = localStorage.getItem('selected_platform_id');
         if (!platformId) {
-          console.log("No platform selected, skipping API call");
           return;
         }
 
@@ -76,25 +75,19 @@ const SecurityDashboard = () => {
           );
           
           if (!issuesResponse.ok) {
-            console.log("Failed to fetch issues:", issuesResponse.status, issuesResponse.statusText);
             return;
           }
           
           const issuesData = await issuesResponse.json();
           const backendIssues = issuesData.issues || issuesData || [];
           
-          console.log("Backend vulnerabilities response:", issuesData);
-          console.log("Parsed vulnerabilities:", backendIssues);
           
           // Extract analysis_run_id from response if available (check multiple possible locations)
           if (issuesData.analysis_run_id) {
-            console.log("Found analysis_run_id in issues response:", issuesData.analysis_run_id);
             setAnalysisRunId(issuesData.analysis_run_id);
           } else if (issuesData.analysis_run?.id) {
-            console.log("Found analysis_run_id in nested analysis_run:", issuesData.analysis_run.id);
             setAnalysisRunId(issuesData.analysis_run.id);
           } else if (backendIssues.length > 0 && backendIssues[0]?.analysis_run_id) {
-            console.log("Found analysis_run_id in first issue:", backendIssues[0].analysis_run_id);
             setAnalysisRunId(backendIssues[0].analysis_run_id);
           }
           
@@ -124,7 +117,6 @@ const SecurityDashboard = () => {
             }
           }
         } catch (error) {
-          console.log("Error fetching GitHub repos:", error);
         }
 
         // If not found in GitHub, try Bitbucket repos
@@ -146,12 +138,10 @@ const SecurityDashboard = () => {
               }
             }
           } catch (error) {
-            console.log("Error fetching Bitbucket repos:", error);
           }
         }
         
         if (!repoDetails || !repo_url) {
-          console.log(`Repository with name '${repoName}' not found in the list`);
           return;
         }
 
@@ -167,25 +157,19 @@ const SecurityDashboard = () => {
         );
         
         if (!issuesResponse.ok) {
-          console.log("Failed to fetch issues:", issuesResponse.status, issuesResponse.statusText);
           return;
         }
         
         const issuesData = await issuesResponse.json();
         const backendIssues = issuesData.issues || issuesData || [];
         
-        console.log("Backend vulnerabilities response:", issuesData);
-        console.log("Parsed vulnerabilities:", backendIssues);
         
         // Extract analysis_run_id from response if available (check multiple possible locations)
         if (issuesData.analysis_run_id) {
-          console.log("Found analysis_run_id in issues response:", issuesData.analysis_run_id);
           setAnalysisRunId(issuesData.analysis_run_id);
         } else if (issuesData.analysis_run?.id) {
-          console.log("Found analysis_run_id in nested analysis_run:", issuesData.analysis_run.id);
           setAnalysisRunId(issuesData.analysis_run.id);
         } else if (backendIssues.length > 0 && backendIssues[0]?.analysis_run_id) {
-          console.log("Found analysis_run_id in first issue:", backendIssues[0].analysis_run_id);
           setAnalysisRunId(backendIssues[0].analysis_run_id);
         }
         
@@ -204,22 +188,18 @@ const SecurityDashboard = () => {
   // Fetch compliance findings when compliance tab is active
   useEffect(() => {
     const fetchComplianceFindings = async () => {
-      console.log("Compliance tab effect triggered:", { activeTab, analysisRunId });
       
       if (activeTab !== 'compliance') {
-        console.log("Not on compliance tab, skipping");
         return;
       }
 
       if (!analysisRunId) {
-        console.log("No analysis_run_id available. Checking URL params and response data...");
         
         // Try to get from URL params again
         const urlParams = new URLSearchParams(window.location.search);
         const analysisRunIdFromParams = urlParams.get('analysis_run_id');
         
         if (analysisRunIdFromParams) {
-          console.log("Found analysis_run_id in URL params:", analysisRunIdFromParams);
           setAnalysisRunId(analysisRunIdFromParams);
           // Continue with the fetch below
         } else {
@@ -237,17 +217,14 @@ const SecurityDashboard = () => {
       }
 
       try {
-        console.log("Fetching compliance findings for analysis_run_id:", runIdToUse);
         setComplianceLoading(true);
         const token = localStorage.getItem("auth_token");
         const headers = token ? { Authorization: `Token ${token}` } : {};
 
         const apiUrl = `${API_BASE_URL}/analysis-runs/${runIdToUse}/compliance-findings/`;
-        console.log("API URL:", apiUrl);
 
         const response = await fetch(apiUrl, { headers });
 
-        console.log("Compliance findings response status:", response.status);
 
         if (!response.ok) {
           console.error("Failed to fetch compliance findings:", response.status, response.statusText);
@@ -258,7 +235,6 @@ const SecurityDashboard = () => {
         }
 
         const data = await response.json();
-        console.log("Compliance findings response data:", data);
         setComplianceFindings(data);
       } catch (error) {
         console.error("Error fetching compliance findings:", error);
@@ -274,22 +250,18 @@ const SecurityDashboard = () => {
   // Fetch best practices when best practices tab is active
   useEffect(() => {
     const fetchBestPractices = async () => {
-      console.log("Best practices tab effect triggered:", { activeTab, analysisRunId });
       
       if (activeTab !== 'best-practices') {
-        console.log("Not on best practices tab, skipping");
         return;
       }
 
       if (!analysisRunId) {
-        console.log("No analysis_run_id available. Checking URL params and response data...");
         
         // Try to get from URL params again
         const urlParams = new URLSearchParams(window.location.search);
         const analysisRunIdFromParams = urlParams.get('analysis_run_id');
         
         if (analysisRunIdFromParams) {
-          console.log("Found analysis_run_id in URL params:", analysisRunIdFromParams);
           setAnalysisRunId(analysisRunIdFromParams);
           // Continue with the fetch below
         } else {
@@ -307,17 +279,14 @@ const SecurityDashboard = () => {
       }
 
       try {
-        console.log("Fetching best practices for analysis_run_id:", runIdToUse);
         setBestPracticesLoading(true);
         const token = localStorage.getItem("auth_token");
         const headers = token ? { Authorization: `Token ${token}` } : {};
 
         const apiUrl = `${API_BASE_URL}/analysis-runs/${runIdToUse}/best-practices/`;
-        console.log("API URL:", apiUrl);
 
         const response = await fetch(apiUrl, { headers });
 
-        console.log("Best practices response status:", response.status);
 
         if (!response.ok) {
           console.error("Failed to fetch best practices:", response.status, response.statusText);
@@ -328,7 +297,6 @@ const SecurityDashboard = () => {
         }
 
         const data = await response.json();
-        console.log("Best practices response data:", data);
         setBestPracticesData(data);
       } catch (error) {
         console.error("Error fetching best practices:", error);
@@ -344,22 +312,18 @@ const SecurityDashboard = () => {
   // Fetch priority recommendations when recommendations tab is active
   useEffect(() => {
     const fetchRecommendations = async () => {
-      console.log("Recommendations tab effect triggered:", { activeTab, analysisRunId });
       
       if (activeTab !== 'recommendations') {
-        console.log("Not on recommendations tab, skipping");
         return;
       }
 
       if (!analysisRunId) {
-        console.log("No analysis_run_id available. Checking URL params and response data...");
         
         // Try to get from URL params again
         const urlParams = new URLSearchParams(window.location.search);
         const analysisRunIdFromParams = urlParams.get('analysis_run_id');
         
         if (analysisRunIdFromParams) {
-          console.log("Found analysis_run_id in URL params:", analysisRunIdFromParams);
           setAnalysisRunId(analysisRunIdFromParams);
           // Continue with the fetch below
         } else {
@@ -377,17 +341,14 @@ const SecurityDashboard = () => {
       }
 
       try {
-        console.log("Fetching priority recommendations for analysis_run_id:", runIdToUse);
         setRecommendationsLoading(true);
         const token = localStorage.getItem("auth_token");
         const headers = token ? { Authorization: `Token ${token}` } : {};
 
         const apiUrl = `${API_BASE_URL}/analysis-runs/${runIdToUse}/priority-recommendations/`;
-        console.log("API URL:", apiUrl);
 
         const response = await fetch(apiUrl, { headers });
 
-        console.log("Priority recommendations response status:", response.status);
 
         if (!response.ok) {
           console.error("Failed to fetch priority recommendations:", response.status, response.statusText);
@@ -398,7 +359,6 @@ const SecurityDashboard = () => {
         }
 
         const data = await response.json();
-        console.log("Priority recommendations response data:", data);
         setRecommendationsData(data);
       } catch (error) {
         console.error("Error fetching priority recommendations:", error);
@@ -414,22 +374,18 @@ const SecurityDashboard = () => {
   // Fetch dashboard data when summary tab is active
   useEffect(() => {
     const fetchDashboardData = async () => {
-      console.log("Summary tab effect triggered:", { activeTab, analysisRunId });
       
       if (activeTab !== 'summary') {
-        console.log("Not on summary tab, skipping");
         return;
       }
 
       if (!analysisRunId) {
-        console.log("No analysis_run_id available. Checking URL params and response data...");
         
         // Try to get from URL params again
         const urlParams = new URLSearchParams(window.location.search);
         const analysisRunIdFromParams = urlParams.get('analysis_run_id');
         
         if (analysisRunIdFromParams) {
-          console.log("Found analysis_run_id in URL params:", analysisRunIdFromParams);
           setAnalysisRunId(analysisRunIdFromParams);
           // Continue with the fetch below
         } else {
@@ -447,17 +403,14 @@ const SecurityDashboard = () => {
       }
 
       try {
-        console.log("Fetching dashboard data for analysis_run_id:", runIdToUse);
         setDashboardLoading(true);
         const token = localStorage.getItem("auth_token");
         const headers = token ? { Authorization: `Token ${token}` } : {};
 
         const apiUrl = `${API_BASE_URL}/analysis-runs/${runIdToUse}/dashboard/`;
-        console.log("API URL:", apiUrl);
 
         const response = await fetch(apiUrl, { headers });
 
-        console.log("Dashboard response status:", response.status);
 
         if (!response.ok) {
           console.error("Failed to fetch dashboard data:", response.status, response.statusText);
@@ -468,7 +421,6 @@ const SecurityDashboard = () => {
         }
 
         const data = await response.json();
-        console.log("Dashboard response data:", data);
         setDashboardData(data);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -484,22 +436,18 @@ const SecurityDashboard = () => {
   // Fetch dependency issues when dependencies tab is active
   useEffect(() => {
     const fetchDependencyIssues = async () => {
-      console.log("Dependencies tab effect triggered:", { activeTab, analysisRunId });
       
       if (activeTab !== 'dependencies') {
-        console.log("Not on dependencies tab, skipping");
         return;
       }
 
       if (!analysisRunId) {
-        console.log("No analysis_run_id available. Checking URL params and response data...");
         
         // Try to get from URL params again
         const urlParams = new URLSearchParams(window.location.search);
         const analysisRunIdFromParams = urlParams.get('analysis_run_id');
         
         if (analysisRunIdFromParams) {
-          console.log("Found analysis_run_id in URL params:", analysisRunIdFromParams);
           setAnalysisRunId(analysisRunIdFromParams);
           // Continue with the fetch below
         } else {
@@ -517,17 +465,14 @@ const SecurityDashboard = () => {
       }
 
       try {
-        console.log("Fetching dependency issues for analysis_run_id:", runIdToUse);
         setDependencyIssuesLoading(true);
         const token = localStorage.getItem("auth_token");
         const headers = token ? { Authorization: `Token ${token}` } : {};
 
         const apiUrl = `${API_BASE_URL}/analysis-runs/${runIdToUse}/dependency-issues/`;
-        console.log("API URL:", apiUrl);
 
         const response = await fetch(apiUrl, { headers });
 
-        console.log("Dependency issues response status:", response.status);
 
         if (!response.ok) {
           console.error("Failed to fetch dependency issues:", response.status, response.statusText);
@@ -538,7 +483,6 @@ const SecurityDashboard = () => {
         }
 
         const data = await response.json();
-        console.log("Dependency issues response data:", data);
         setDependencyIssuesData(data);
       } catch (error) {
         console.error("Error fetching dependency issues:", error);

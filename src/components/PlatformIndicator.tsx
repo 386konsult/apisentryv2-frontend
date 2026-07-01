@@ -575,9 +575,10 @@ const PlatformIndicator: React.FC = () => {
         <div ref={searchRef} className="relative">
           <div className={`
             relative flex items-center gap-2 h-9 rounded-2xl px-3 w-64 transition-all duration-200
+            ring-2 ring-blue-500/30 shadow-[0_0_0_4px_rgba(37,99,235,0.06)] dark:shadow-[0_0_0_4px_rgba(37,99,235,0.12)]
             ${searchOpen
-              ? 'bg-white dark:bg-slate-900 ring-2 ring-blue-500/30 shadow-[0_0_0_4px_rgba(37,99,235,0.06)] dark:shadow-[0_0_0_4px_rgba(37,99,235,0.12)]'
-              : 'bg-slate-100/80 dark:bg-slate-800/60 ring-1 ring-slate-200/60 dark:ring-slate-700/40 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+              ? 'bg-white dark:bg-slate-900'
+              : 'bg-slate-100/80 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800/80'
             }
           `}>
             <Search className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />

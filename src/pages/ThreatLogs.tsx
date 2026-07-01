@@ -118,11 +118,11 @@ const ThreatLogs = () => {
   const [threatType, setThreatType] = useState("all");
   const [ipFilter, setIpFilter] = useState("all");
   const [endpointFilter, setEndpointFilter] = useState("");
-  const [timeRange, setTimeRange] = useState(() => localStorage.getItem('heimdall_time_range') || 'today');
+  const [timeRange, setTimeRange] = useState(() => localStorage.getItem('heimdall_threatlogs_range') || 'all');
 
   const handleTimeRangeChange = (value: string) => {
     setTimeRange(value);
-    localStorage.setItem('heimdall_time_range', value);
+    localStorage.setItem('heimdall_threatlogs_range', value);
   };
 
   // Fetch first page — all active filters are sent as server-side params
@@ -229,7 +229,7 @@ const ThreatLogs = () => {
       if (found) setPlatformName(found.name);
     }
     // Debounce text inputs (search + endpoint), instant for dropdowns
-    const isTextFilter = searchTerm !== undefined || endpointFilter !== undefined;
+    const isTextFilter = searchTerm !== '' || endpointFilter !== '';
     const delay = isTextFilter ? 500 : 0;
     const timer = setTimeout(() => { loadInitial(); }, delay);
     return () => clearTimeout(timer);
@@ -264,12 +264,11 @@ const ThreatLogs = () => {
   // (threatType is the only client-side filter; all others are server-side.)
   const securityEventsTotal = threatType !== 'all' ? filteredThreats.length : stats.total;
 
-  // Stat cards – 4 cards using backend aggregates over the full filtered dataset
+  // Stat cards – 3 cards using backend aggregates over the full filtered dataset
   const statsData = [
-    { label: "Total Blocked",  value: stats.total,        icon: AlertTriangle, iconColor: "text-red-500",    bg: "bg-red-50 dark:bg-red-500/10",    sub: "Blocked threats in range" },
-    { label: "Blocked Rate",   value: stats.rate,         icon: AlertTriangle, iconColor: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-500/10", sub: "% of requests blocked", suffix: "%" },
-    { label: "High Severity",  value: stats.highSeverity, icon: AlertTriangle, iconColor: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-500/10", sub: "High-severity threats",  valueColor: "text-red-600 dark:text-red-400" },
-    { label: "Unique IPs",     value: stats.uniqueIPs,    icon: MapPin,        iconColor: "text-blue-500",   bg: "bg-blue-50 dark:bg-blue-500/10",    sub: "Distinct attacker IPs" },
+    { label: "Total Blocked", value: stats.total,    icon: AlertTriangle, iconColor: "text-red-500",    bg: "bg-red-50 dark:bg-red-500/10",       sub: "Blocked threats in range" },
+    { label: "Blocked Rate",  value: stats.rate,     icon: AlertTriangle, iconColor: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-500/10", sub: "% of requests blocked", suffix: "%" },
+    { label: "Unique IPs",    value: stats.uniqueIPs, icon: MapPin,       iconColor: "text-blue-500",   bg: "bg-blue-50 dark:bg-blue-500/10",     sub: "Distinct attacker IPs" },
   ];
 
   // Filter options extracted from loaded logs
@@ -289,7 +288,6 @@ const ThreatLogs = () => {
     return Array.from(types).sort();
   }, [logs]);
 
-  const uniqueIPsList = useMemo(() => Array.from(new Set(logs.map(l => l.client_ip))).sort(), [logs]);
   const uniqueSeverities = useMemo(() => Array.from(new Set(logs.map(l => l.threat_level).filter(Boolean))).sort(), [logs]);
 
   const clearAllFilters = () => {
@@ -394,7 +392,7 @@ const ThreatLogs = () => {
         </motion.div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-3">
           {statsData.map((stat, i) => (
             <div key={i} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 shadow-sm rounded-2xl overflow-hidden">
               <div className="p-5">

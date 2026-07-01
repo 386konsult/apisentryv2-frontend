@@ -1730,7 +1730,7 @@ const Incidents = () => {
                               </div>
                               {incident.summary && (
                                 <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[280px]" title={incident.summary}>
-                                  {incident.summary.substring(0, 80)}...
+                                  {incident.summary.length > 80 ? incident.summary.substring(0, 80) + '...' : incident.summary}
                                 </div>
                               )}
                             </div>
@@ -1808,7 +1808,7 @@ const Incidents = () => {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
-                      {incident.summary && <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{incident.summary.substring(0, 100)}...</p>}
+                      {incident.summary && <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{incident.summary.length > 100 ? incident.summary.substring(0, 100) + '...' : incident.summary}</p>}
                       <div className="mt-4 flex flex-wrap items-center gap-2">
                         <Badge className={getSeverityColor(incident.severity)}>{incident.severity}</Badge>
                         <Badge className={getStatusColor(incident.status)}>{incident.status}</Badge>

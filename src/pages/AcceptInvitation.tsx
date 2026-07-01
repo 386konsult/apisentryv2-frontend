@@ -64,7 +64,6 @@ const AcceptInvitation = () => {
     
     try {
       const response = await apiService.getInvitationByToken(token);
-      console.log('Invitation response from API:', response);
       
       // Handle nested invitation structure
       const invitationData = response.invitation || response;
@@ -82,7 +81,6 @@ const AcceptInvitation = () => {
         created_at: invitationData.created_at,
       };
       
-      console.log('Normalized invitation:', normalizedInvitation);
       setInvitation(normalizedInvitation);
       
       // Check if invitation email matches logged-in user email
@@ -105,7 +103,6 @@ const AcceptInvitation = () => {
     setAccepting(true);
     try {
       const response = await apiService.acceptInvitation(token);
-      console.log('Accept invitation response:', response);
       
       // Handle nested response structure
       const responseData = response.invitation || response;

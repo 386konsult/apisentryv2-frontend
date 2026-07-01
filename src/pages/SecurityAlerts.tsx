@@ -157,6 +157,8 @@ const SecurityAlerts = () => {
   const [editingSignatures, setEditingSignatures] = useState(false);
   const [editedSignatures, setEditedSignatures] = useState<string[]>([]);
   const [savingSignatures, setSavingSignatures] = useState(false);
+  const [triggersLoading, setTriggersLoading] = useState(false);
+  const [triggersTotal, setTriggersTotal] = useState(0);
 
   const fetchAlerts = async () => {
     setLoading(true);
@@ -189,23 +191,82 @@ const SecurityAlerts = () => {
         incidentId: alert.incident_id,
       }));
       setAlerts(mappedAlerts);
-      try {
-        const triggersRes = await apiService.getAlertTriggers(platformId || undefined, { page: '1', page_size: '100' });
-        let triggersArray: any[] = [];
-        if (Array.isArray(triggersRes)) triggersArray = triggersRes;
-        else if (triggersRes && Array.isArray((triggersRes as any).triggers)) triggersArray = (triggersRes as any).triggers;
-        else if (triggersRes && Array.isArray((triggersRes as any).results)) triggersArray = (triggersRes as any).results;
-        setTriggers(triggersArray);
-      } catch { setTriggers([]); }
     } catch (error) {
       setAlerts([]);
-      setTriggers([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchAlerts(); fetchIncidents(); }, []);
+  // Server-side trigger fetch — passes all active filters to the backend so
+  // the full DB is searched, not just a client-side slice of 100 rows.
+  const fetchTriggers = React.useCallback(async (params: {
+    alert_type?: string;
+    threat_level?: string;
+    client_ip?: string;
+    method?: string;
+    url?: string;
+    start?: string;
+    end?: string;
+  } = {}) => {
+    setTriggersLoading(true);
+    try {
+      const platformId = localStorage.getItem('selected_platform_id');
+      const apiParams: Record<string, string> = { page: '1', page_size: '500' };
+      if (params.alert_type && params.alert_type !== 'all') apiParams.alert_type = params.alert_type;
+      if (params.threat_level && params.threat_level !== 'all') apiParams.threat_level = params.threat_level;
+      if (params.client_ip) apiParams.client_ip = params.client_ip;
+      if (params.method && params.method !== 'all') apiParams.method = params.method;
+      if (params.url) apiParams.url = params.url;
+      if (params.start) apiParams.start = params.start;
+      if (params.end) apiParams.end = params.end;
+      const triggersRes = await apiService.getAlertTriggers(platformId || undefined, apiParams);
+      let triggersArray: any[] = [];
+      let total = 0;
+      if (Array.isArray(triggersRes)) {
+        triggersArray = triggersRes;
+        total = triggersRes.length;
+      } else if (triggersRes && Array.isArray((triggersRes as any).triggers)) {
+        triggersArray = (triggersRes as any).triggers;
+        total = (triggersRes as any).count ?? triggersArray.length;
+      } else if (triggersRes && Array.isArray((triggersRes as any).results)) {
+        triggersArray = (triggersRes as any).results;
+        total = (triggersRes as any).count ?? triggersArray.length;
+      }
+      setTriggers(triggersArray);
+      setTriggersTotal(total);
+    } catch {
+      setTriggers([]);
+      setTriggersTotal(0);
+    } finally {
+      setTriggersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchAlerts(); fetchIncidents(); fetchTriggers(); }, []);
+
+  // Re-fetch triggers from backend whenever any filter changes.
+  // Text inputs (IP, endpoint) are debounced 500ms; dropdowns and dates are instant.
+  useEffect(() => {
+    const isText = triggerIPFilter !== '' || triggerEndpointFilter !== '';
+    const delay = isText ? 500 : 0;
+    const timer = setTimeout(() => {
+      // Convert date strings to ISO datetime for the backend
+      const startISO = triggerDateStart ? new Date(triggerDateStart + 'T00:00:00').toISOString() : undefined;
+      const endISO   = triggerDateEnd   ? new Date(triggerDateEnd   + 'T23:59:59').toISOString() : undefined;
+      fetchTriggers({
+        alert_type:   triggerAlertTypeFilter,
+        threat_level: triggerSeverityFilter,
+        client_ip:    triggerIPFilter || undefined,
+        method:       triggerMethodFilter,
+        url:          triggerEndpointFilter || undefined,
+        start:        startISO,
+        end:          endISO,
+      });
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [triggerIPFilter, triggerEndpointFilter, triggerDateStart, triggerDateEnd,
+      triggerAlertTypeFilter, triggerSeverityFilter, triggerMethodFilter, fetchTriggers]);
 
   const fetchIncidents = async () => {
     try {
@@ -223,32 +284,11 @@ const SecurityAlerts = () => {
     return matchesSearch && matchesStatus && matchesSeverity && matchesType;
   });
 
-  const filteredTriggers = useMemo(() => triggers.filter(trigger => {
-    const triggerIP = trigger.client_ip || trigger.ip || '';
-    const matchesIP = !triggerIPFilter || triggerIP.toLowerCase().includes(triggerIPFilter.toLowerCase());
-    const triggerEndpoint = trigger.url || trigger.endpoint || trigger.path || trigger.endpoint_path || '';
-    const matchesEndpoint = !triggerEndpointFilter || triggerEndpoint.toLowerCase().includes(triggerEndpointFilter.toLowerCase());
-    const triggerTime = trigger.occurred_at || trigger.timestamp || trigger.created_at;
-    let matchesDateRange = true;
-    if (triggerTime && (triggerDateStart || triggerDateEnd)) {
-      try {
-        const triggerDate = new Date(triggerTime);
-        if (triggerDateStart) { const startDate = new Date(triggerDateStart); startDate.setHours(0,0,0,0); if (triggerDate < startDate) matchesDateRange = false; }
-        if (triggerDateEnd && matchesDateRange) { const endDate = new Date(triggerDateEnd); endDate.setHours(23,59,59,999); if (triggerDate > endDate) matchesDateRange = false; }
-      } catch { }
-    } else if (triggerDateStart || triggerDateEnd) { matchesDateRange = false; }
-    const relatedAlert = alerts.find(a => a.alert_type === trigger.alert_type || a.id === trigger.alert_id || a.id === trigger.alert);
-    const alertType = trigger.alert_type || relatedAlert?.alert_type || relatedAlert?.type || '';
-    const matchesAlertType = triggerAlertTypeFilter === 'all' || alertType === triggerAlertTypeFilter;
-    const threatLevel = trigger.threat_level || trigger.severity || relatedAlert?.severity || 'medium';
-    const matchesSeverity = triggerSeverityFilter === 'all' || threatLevel === triggerSeverityFilter;
-    const method = trigger.method || '';
-    const matchesMethod = triggerMethodFilter === 'all' || method.toLowerCase() === triggerMethodFilter.toLowerCase();
-    return matchesIP && matchesEndpoint && matchesDateRange && matchesAlertType && matchesSeverity && matchesMethod;
-  }), [triggers, alerts, triggerIPFilter, triggerEndpointFilter, triggerDateStart, triggerDateEnd, triggerAlertTypeFilter, triggerSeverityFilter, triggerMethodFilter]);
+  // Triggers are already filtered server-side; expose as-is.
+  const filteredTriggers = triggers;
 
   useEffect(() => {
-    const filteredTriggerIds = new Set(filteredTriggers.map(t => t.id));
+    const filteredTriggerIds = new Set(filteredTriggers.map((t: any) => t.id));
     setSelectedTriggers(prev => prev.filter(id => filteredTriggerIds.has(id)));
   }, [filteredTriggers]);
 
@@ -256,7 +296,17 @@ const SecurityAlerts = () => {
   const handleSelectAll = () => { if (selectedAlerts.length === filteredAlerts.length) { setSelectedAlerts([]); } else { setSelectedAlerts(filteredAlerts.map(alert => alert.id)); } };
   const handleTriggerSelect = (triggerId: string) => { setSelectedTriggers(prev => prev.includes(triggerId) ? prev.filter(id => id !== triggerId) : [...prev, triggerId]); };
   const handleSelectAllTriggers = () => { if (selectedTriggers.length === filteredTriggers.length) { setSelectedTriggers([]); } else { setSelectedTriggers(filteredTriggers.map(trigger => trigger.id)); } };
-  const clearTriggerFilters = () => { setTriggerIPFilter(''); setTriggerEndpointFilter(''); setTriggerDateStart(''); setTriggerDateEnd(''); setTriggerAlertTypeFilter('all'); setTriggerSeverityFilter('all'); setTriggerMethodFilter('all'); };
+  const clearTriggerFilters = () => {
+    setTriggerIPFilter('');
+    setTriggerEndpointFilter('');
+    setTriggerDateStart('');
+    setTriggerDateEnd('');
+    setTriggerAlertTypeFilter('all');
+    setTriggerSeverityFilter('all');
+    setTriggerMethodFilter('all');
+    // Re-fetch all triggers with no filters
+    fetchTriggers({});
+  };
 
   const handleAddTriggersToIncident = async (incidentId: string | null) => {
     if (!selectedTriggers.length) { toast({ title: "No triggers selected", description: "Please select at least one trigger to add as evidence.", variant: "destructive" }); return; }
@@ -705,7 +755,7 @@ const SecurityAlerts = () => {
                 Alert Triggers
               </h3>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Trigger events for all security alerts ({filteredTriggers.length} of {triggers.length})
+                Trigger events for all security alerts ({triggers.length} of {triggersTotal}){triggersLoading && <span className="ml-2 text-xs text-slate-400 animate-pulse">Loading…</span>}
               </p>
             </div>
             {selectedTriggers.length > 0 && (
@@ -765,7 +815,11 @@ const SecurityAlerts = () => {
             </div>
           </div>
 
-          {triggers.length === 0 ? (
+          {triggersLoading ? (
+            <div className="flex justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+            </div>
+          ) : triggers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="p-5 rounded-full bg-amber-50 dark:bg-amber-500/10 mb-4">
                 <Zap className="h-10 w-10 text-amber-400" />
@@ -779,6 +833,7 @@ const SecurityAlerts = () => {
                 <Filter className="h-10 w-10 text-slate-400" />
               </div>
               <p className="font-semibold text-slate-700 dark:text-slate-300">No triggers match filters</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">No results in the database for the selected filters</p>
               <Button variant="outline" size="sm" onClick={clearTriggerFilters} className="mt-4 text-xs">Clear Filters</Button>
             </div>
           ) : (

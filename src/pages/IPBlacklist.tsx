@@ -68,7 +68,6 @@ const IPBlacklist = () => {
       const response = await apiService.getBlacklist(platformId);
       const respAny = response as any;
       const blacklistArray = Array.isArray(respAny) ? respAny : (respAny.results || respAny.data || []);
-      console.log("Fetched blacklist:", blacklistArray); // Debug log
       setBlacklist(blacklistArray);
     } catch (error) {
       toast({
@@ -112,11 +111,7 @@ const IPBlacklist = () => {
 
   const removeIPFromBlacklist = async () => {
     const idToDelete = deleteDialog.id;
-    const ipToDelete = deleteDialog.ip?.ip || deleteDialog.ip;
-    
-    console.log("Removing IP with ID:", idToDelete);
-    console.log("IP address:", ipToDelete);
-    
+
     if (!idToDelete) {
       toast({
         title: "Error removing IP",
@@ -137,7 +132,6 @@ const IPBlacklist = () => {
       setDeleteDialog({ open: false, ip: null, id: null });
       fetchBlacklist();
     } catch (error: any) {
-      console.error("Delete error:", error);
       toast({
         title: "Error removing IP",
         description: error.message || "Failed to remove IP from blacklist.",
@@ -451,11 +445,9 @@ const IPBlacklist = () => {
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
                                     onClick={() => {
-                                      console.log("Delete clicked for item:", item);
                                       const deleteId = item.id || item.ip_id || item.pk;
-                                      console.log("Using ID:", deleteId);
-                                      setDeleteDialog({ 
-                                        open: true, 
+                                      setDeleteDialog({
+                                        open: true,
                                         ip: item,
                                         id: deleteId
                                       });

@@ -89,7 +89,6 @@ export default function RateLimiting() {
       const data = await apiService.request(`/rate-limits/?platform_id=${platformId}`);
       setRules(data.results || data);
     } catch (err: any) {
-      console.error(err);
       const msg = err?.message || "Failed to load rate limit rules";
       setError(msg);
       toast({ title: "Error", description: msg, variant: "destructive" });

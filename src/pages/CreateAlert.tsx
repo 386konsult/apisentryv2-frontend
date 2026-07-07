@@ -113,6 +113,7 @@ const CreateAlert = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedAlertType, setSelectedAlertType] = useState<string>('');
   const [alertName, setAlertName] = useState<string>('');
+  const [severity, setSeverity] = useState<string>('medium');
   const [notificationChannels, setNotificationChannels] = useState<string[]>([]);
   const [selectedAttacks, setSelectedAttacks] = useState<string[]>([]);
   const [allowedIPs, setAllowedIPs] = useState<string[]>(['']);
@@ -256,6 +257,15 @@ const CreateAlert = () => {
   };
 
   const handleSubmit = async () => {
+    // Commit any email still sitting in the input (user typed but didn't press Enter)
+    let finalEmails = [...notificationEmails];
+    if (emailInputValue.trim()) {
+      const pending = emailInputValue.trim();
+      if (!finalEmails.includes(pending)) finalEmails = [...finalEmails, pending];
+      setNotificationEmails(finalEmails);
+      setEmailInputValue('');
+    }
+
     setIsSubmitting(true);
     try {
       const platformId = localStorage.getItem('selected_platform_id');
@@ -267,7 +277,7 @@ const CreateAlert = () => {
         alert_type: selectedAlertType,
         name: alertName.trim() || `${ALERT_TYPES.find((t) => t.id === selectedAlertType)?.name} Alert`,
         description: `Alert for ${ALERT_TYPES.find((t) => t.id === selectedAlertType)?.description}`,
-        severity: 'medium',
+        severity: severity,
         configuration: {
           ...formData,
           attack_signatures: selectedAttacks,
@@ -278,8 +288,8 @@ const CreateAlert = () => {
         notification_settings: {
           slack_webhook: formData.slackWebhook,
           teams_webhook: formData.teamsWebhook,
-          email: notificationEmails[0] || formData.emailAddress,
-          notification_emails: notificationEmails.length > 0 ? notificationEmails : (formData.emailAddress ? [formData.emailAddress] : []),
+          email: finalEmails[0] || formData.emailAddress,
+          notification_emails: finalEmails.length > 0 ? finalEmails : (formData.emailAddress ? [formData.emailAddress] : []),
           webhook_url: formData.webhookURL,
         },
       };
@@ -1108,7 +1118,7 @@ const CreateAlert = () => {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => navigate('/threat-logs')}
+              onClick={() => navigate('/security-alerts')}
               disabled={isSubmitting}
               className="border-white/40 bg-white/15 text-white hover:bg-white/25 hover:text-white"
             >
@@ -1345,6 +1355,33 @@ const CreateAlert = () => {
               <p className="mt-1 text-xs text-slate-400">Give this alert a memorable name — it will appear in the Security Alerts list.</p>
             </div>
 
+            {/* Severity Selector */}
+            <div>
+              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                Severity <span className="text-red-400">*</span>
+              </Label>
+              <div className="mt-2 flex gap-2">
+                {(['low', 'medium', 'high'] as const).map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => setSeverity(level)}
+                    className={`flex-1 rounded-xl border py-2 text-sm font-semibold capitalize transition-all ${
+                      severity === level
+                        ? level === 'high'
+                          ? 'border-red-500 bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+                          : level === 'medium'
+                          ? 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
+                          : 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400'
+                    }`}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="rounded-2xl bg-slate-950 p-5 text-white">
               <div className="flex items-start gap-3">
                 <div className="rounded-xl bg-white/10 p-3">
@@ -1433,7 +1470,7 @@ const CreateAlert = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate('/threat-logs')}
+                onClick={() => navigate('/security-alerts')}
                 disabled={isSubmitting}
                 className="rounded-xl border-slate-200/70 dark:border-slate-700/70"
               >

@@ -182,6 +182,12 @@ const SecurityAlerts = () => {
         configuration: alert.configuration,
         attack_signatures: alert.attack_signatures || alert.configuration?.attack_signatures || [],
         notification_channels: alert.notification_channels || [],
+        // Notification delivery fields — required for the update modal to pre-populate
+        email: alert.email || '',
+        notification_emails: Array.isArray(alert.notification_emails) ? alert.notification_emails : [],
+        slack_webhook: alert.slack_webhook || '',
+        teams_webhook: alert.teams_webhook || '',
+        webhook_url: alert.webhook_url || '',
         acknowledged: alert.acknowledged,
         incident_id: alert.incident_id,
         type: alert.alert_type,
@@ -277,7 +283,7 @@ const SecurityAlerts = () => {
   };
 
   const filteredAlerts = alerts.filter(alert => {
-    const matchesSearch = alert.name.toLowerCase().includes(searchTerm.toLowerCase()) || alert.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (alert.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (alert.description || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || alert.status === statusFilter;
     const matchesSeverity = severityFilter === 'all' || alert.severity === severityFilter;
     const matchesType = typeFilter === 'all' || alert.type === typeFilter;
@@ -352,10 +358,15 @@ const SecurityAlerts = () => {
     setSelectedAlertForUpdate(alert);
     const notificationSettings = alert.notification_settings || alert.configuration?.notification_settings || {};
     setUpdateFormData({ notification_channels: alert.notification_channels || [], slack_webhook: notificationSettings.slack_webhook || '', teams_webhook: notificationSettings.teams_webhook || '', email: notificationSettings.email || alert.email || '', webhook_url: notificationSettings.webhook_url || '' });
-    // Populate multi-email list: prefer notification_emails array, fall back to single email
-    const existingEmails: string[] = alert.notification_emails?.length > 0
-      ? alert.notification_emails
-      : (alert.email ? [alert.email] : (notificationSettings.email ? [notificationSettings.email] : []));
+    // Populate multi-email list: merge all sources (notification_emails array + legacy email +
+    // notification_settings.email) so the modal always pre-fills with whatever was saved.
+    const fromArray: string[] = Array.isArray(alert.notification_emails) ? alert.notification_emails : [];
+    const candidates = [
+      ...fromArray,
+      alert.email || '',
+      notificationSettings.email || '',
+    ];
+    const existingEmails: string[] = [...new Set(candidates.filter((e: any) => e && typeof e === 'string' && e.trim()))];
     setUpdateEmails(existingEmails);
     setUpdateEmailInput('');
     setUpdateDialogOpen(true);
@@ -1042,6 +1053,18 @@ const SecurityAlerts = () => {
                   />
                 </div>
                 <p className="mt-1 text-xs text-slate-400">Press Enter or comma to add each email address</p>
+                {updateEmails.length > 0 && (
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="font-medium text-slate-600 dark:text-slate-300">Saved on this alert:</span>{' '}
+                    {updateEmails.join(', ')}
+                  </p>
+                )}
+                {updateEmails.length === 0 && selectedAlertForUpdate?.email && (
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="font-medium text-slate-600 dark:text-slate-300">Previously saved:</span>{' '}
+                    {selectedAlertForUpdate.email}
+                  </p>
+                )}
               </div>
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-700">
                 <Button variant="outline" className="rounded-xl" onClick={() => { setUpdateDialogOpen(false); setSelectedAlertForUpdate(null); }}>Cancel</Button>

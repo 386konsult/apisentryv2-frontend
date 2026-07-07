@@ -149,7 +149,7 @@ const ThreatLogs = () => {
           let rangeStart: Date | null = null;
           switch (timeRange) {
             case 'today':   { const d = new Date(now); d.setHours(0,0,0,0); rangeStart = d; break; }
-            case 'week':    { const d = new Date(now); d.setDate(d.getDate()-6); d.setHours(0,0,0,0); rangeStart = d; break; }
+            case 'week':    { const d = new Date(now); const day = d.getDay(); const daysSinceMonday = day === 0 ? 6 : day - 1; d.setDate(d.getDate() - daysSinceMonday); d.setHours(0,0,0,0); const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0); rangeStart = d < monthStart ? monthStart : d; break; }
             case 'month':   { const d = new Date(now); d.setDate(1); d.setHours(0,0,0,0); rangeStart = d; break; }
             case '3months': { const d = new Date(now); d.setMonth(d.getMonth()-3); d.setHours(0,0,0,0); rangeStart = d; break; }
             case '6months': { const d = new Date(now); d.setMonth(d.getMonth()-6); d.setHours(0,0,0,0); rangeStart = d; break; }

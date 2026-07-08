@@ -11,12 +11,13 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import HeimdallAILogo from '@/components/HeimdallAILogo';
 import { useAuth } from '@/contexts/AuthContext';
+import { API_BASE_URL } from '@/services/api';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DAILY_IMAGE_LIMIT = 50;
 const MAX_IMAGE_MB = 5;
 const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
-const API_BASE = import.meta.env.VITE_API_URL || 'https://staging.breachnet.io/api/v1';
+const API_BASE = API_BASE_URL;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ContentBlock {
@@ -737,6 +738,10 @@ const HeimdallAI: React.FC = () => {
         headers: { 'Content-Type': 'application/json', Authorization: `Token ${localStorage.getItem('auth_token')}` },
         body: JSON.stringify({ messages: newMessages.slice(-20).map(m => ({ role: m.role, content: m.content })) }),
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('AI service is unavailable. Please try again later.');
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Request failed');
       const aiText: string = data.response || '';
@@ -771,6 +776,10 @@ const HeimdallAI: React.FC = () => {
         headers: { 'Content-Type': 'application/json', Authorization: `Token ${localStorage.getItem('auth_token')}` },
         body: JSON.stringify({ messages: newMessages.slice(-20).map(m => ({ role: m.role, content: m.content })) }),
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('AI service is unavailable. Please try again later.');
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Request failed');
       const aiText: string = data.response || '';

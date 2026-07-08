@@ -115,7 +115,7 @@ const ThreatLogs = () => {
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
-  const [threatType, setThreatType] = useState("all");
+  const [threatType, setThreatType] = useState(() => searchParams.get("threat") || "all");
   const [ipFilter, setIpFilter] = useState("all");
   const [endpointFilter, setEndpointFilter] = useState("");
   const [timeRange, setTimeRange] = useState(() => localStorage.getItem('heimdall_threatlogs_range') || 'all');
@@ -266,9 +266,9 @@ const ThreatLogs = () => {
 
   // Stat cards – 3 cards using backend aggregates over the full filtered dataset
   const statsData = [
-    { label: "Total Blocked", value: stats.total,    icon: AlertTriangle, iconColor: "text-red-500",    bg: "bg-red-50 dark:bg-red-500/10",       sub: "Blocked threats in range" },
-    { label: "Blocked Rate",  value: stats.rate,     icon: AlertTriangle, iconColor: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-500/10", sub: "% of requests blocked", suffix: "%" },
-    { label: "Unique IPs",    value: stats.uniqueIPs, icon: MapPin,       iconColor: "text-blue-500",   bg: "bg-blue-50 dark:bg-blue-500/10",     sub: "Distinct attacker IPs" },
+    { label: "Total Blocked",    value: stats.total,     icon: AlertTriangle, iconColor: "text-red-500",    bg: "bg-red-50 dark:bg-red-500/10",       sub: "Blocked threats in range" },
+    { label: "Block Percentage", value: stats.rate,      icon: AlertTriangle, iconColor: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-500/10", sub: "% of requests blocked", suffix: "%" },
+    { label: "Unique IPs",       value: stats.uniqueIPs, icon: MapPin,        iconColor: "text-blue-500",   bg: "bg-blue-50 dark:bg-blue-500/10",     sub: "Distinct attacker IPs" },
   ];
 
   // Filter options extracted from loaded logs
@@ -403,7 +403,7 @@ const ThreatLogs = () => {
                 </div>
                 <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 mt-3">{stat.label}</p>
                 <p className={`text-2xl font-bold ${stat.valueColor || "text-slate-900 dark:text-white"}`}>
-                  <AnimatedNumber value={stat.value} decimals={stat.label === "Blocked Rate" ? 1 : 0} suffix={stat.suffix || ""} />
+                  <AnimatedNumber value={stat.value} decimals={stat.label === "Block Percentage" ? 1 : 0} suffix={stat.suffix || ""} />
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{stat.sub}</p>
               </div>

@@ -942,7 +942,7 @@ const PlatformDetails: React.FC = () => {
               </select>
             </CardHeader>
             <CardContent className="flex flex-col flex-1 p-6 pt-5">
-              <div className={`mb-6 flex-shrink-0 grid grid-cols-3 gap-4 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 p-4 ${Rsub}`}>
+              <div className={`mb-6 flex-shrink-0 grid grid-cols-4 gap-4 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 p-4 ${Rsub}`}>
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Total</div>
                   <div className="text-2xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-white">{totalRequests.toLocaleString()}</div>
@@ -955,6 +955,12 @@ const PlatformDetails: React.FC = () => {
                 <div className="border-l border-slate-200/80 dark:border-blue-900/20 pl-4">
                   <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">WAF Effectiveness</div>
                   <div className="text-2xl font-bold tabular-nums tracking-tight text-emerald-600 dark:text-emerald-400">{blockedRequests > 0 ? '100%' : '0%'}</div>
+                </div>
+                <div className="border-l border-slate-200/80 dark:border-blue-900/20 pl-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Blocked Rate</div>
+                  <div className="text-2xl font-bold tabular-nums tracking-tight text-violet-600 dark:text-violet-400">
+                    {totalRequests > 0 ? `${((blockedRequests / totalRequests) * 100).toFixed(1)}%` : '0%'}
+                  </div>
                 </div>
               </div>
               <div className="flex-1 min-h-[150px] w-full">
@@ -996,7 +1002,7 @@ const PlatformDetails: React.FC = () => {
                       const getThreatBadgeClass = (name: string) => { const v = (name || '').toLowerCase(); if (v.includes('sql')) return 'border border-red-200/60 bg-red-50 text-red-500 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400'; if (v.includes('xss') || v.includes('script')) return 'border border-amber-200/60 bg-amber-50 text-amber-500 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400'; if (v.includes('brute') || v.includes('auth') || v.includes('rate')) return 'border border-blue-200/60 bg-blue-50 text-blue-600 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400'; return 'border border-cyan-200/60 bg-cyan-50 text-cyan-600 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-400'; };
                       const threatValue = Number(threat.value || 0);
                       return (
-                        <div key={idx} className={`flex items-center gap-3 border border-slate-100 dark:border-blue-900/20 bg-slate-50/50 dark:bg-[#0F1724]/50 p-3 ${Rsub}`}>
+                        <div key={idx} onClick={() => navigateTo(`/threat-logs?threat=${encodeURIComponent(threat.name)}`)} className={`flex items-center gap-3 border border-slate-100 dark:border-blue-900/20 bg-slate-50/50 dark:bg-[#0F1724]/50 p-3 ${Rsub} cursor-pointer hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
                           <span className={`flex-shrink-0 rounded-lg px-2 py-1 font-mono text-[10px] font-bold ${getThreatBadgeClass(threat.name)}`}>{getThreatCode(threat.name)}</span>
                           <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200">{threat.name}</span>
                           <div className="h-1.5 w-14 flex-shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">

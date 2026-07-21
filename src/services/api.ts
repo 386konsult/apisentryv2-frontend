@@ -535,6 +535,9 @@ class APIService {
 
   // Authentication methods
   async login(credentials: LoginRequest): Promise<LoginResponse> {
+    // Clear any stale token before login — otherwise getHeaders() sends it and
+    // DRF's TokenAuthentication rejects the request with "Invalid token."
+    this.token = null;
     const response = await this.request<LoginResponse>('/auth/login/', {
       method: 'POST',
       body: JSON.stringify(credentials),

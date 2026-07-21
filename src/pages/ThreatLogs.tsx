@@ -113,12 +113,13 @@ const ThreatLogs = () => {
   const [countryFilter, setCountryFilter] = useState<string>(() => searchParams.get("country") || "");
 
   // Filters
-  const [searchTerm, setSearchTerm] = useState("");
+  // searchTerm and timeRange can be pre-set from URL params when navigating from the dashboard
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") || "");
   const [severityFilter, setSeverityFilter] = useState("all");
-  const [threatType, setThreatType] = useState(() => searchParams.get("threat") || "all");
+  const [threatType, setThreatType] = useState("all");
   const [ipFilter, setIpFilter] = useState("all");
   const [endpointFilter, setEndpointFilter] = useState("");
-  const [timeRange, setTimeRange] = useState(() => localStorage.getItem('heimdall_threatlogs_range') || 'all');
+  const [timeRange, setTimeRange] = useState(() => searchParams.get("time") || localStorage.getItem('heimdall_threatlogs_range') || 'all');
 
   const handleTimeRangeChange = (value: string) => {
     setTimeRange(value);

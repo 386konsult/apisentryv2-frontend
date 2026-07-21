@@ -39,7 +39,6 @@ const EndpointAnalytics   = lazy(() => import("./pages/EndpointAnalytics"));
 const Integrations        = lazy(() => import("./pages/Integrations"));
 const Users               = lazy(() => import("./pages/Users"));
 const Settings            = lazy(() => import("./pages/Settings"));
-const Playground          = lazy(() => import("./pages/Playground"));
 const CISOReports         = lazy(() => import("./pages/CISOReports"));
 const SecurityHub         = lazy(() => import("./pages/SecurityHub"));
 const SecurityAlerts      = lazy(() => import("./pages/SecurityAlerts"));
@@ -252,7 +251,6 @@ const AppContent = () => {
                             <Route path="/endpoint-analytics/:endpointId"      element={<EndpointAnalytics />} />
                             <Route path="/integrations"        element={<ProtectedPlatformRoute><Integrations /></ProtectedPlatformRoute>} />
                             <Route path="/settings"            element={<ProtectedPlatformRoute><Settings /></ProtectedPlatformRoute>} />
-                            <Route path="/playground"          element={<ProtectedPlatformRoute><Playground /></ProtectedPlatformRoute>} />
                             <Route path="/ciso-reports"        element={<ProtectedPlatformRoute><CISOReports /></ProtectedPlatformRoute>} />
                             <Route path="/security-hub"        element={<ProtectedPlatformRoute><SecurityHub /></ProtectedPlatformRoute>} />
                             <Route path="/security-alerts"     element={<ProtectedPlatformRoute><SecurityAlerts /></ProtectedPlatformRoute>} />

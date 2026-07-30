@@ -65,18 +65,8 @@ const Platforms = () => {
         const data = await res.json();
         const apiList: Platform[] = Array.isArray(data) ? data : data.results || [];
 
-        // Merge: API is source of truth, but keep any locally-cached platforms that
-        // the API hasn't returned yet (e.g. just created and not yet reflected server-side).
-        const cached = localStorage.getItem('user_platforms');
-        const cachedList: Platform[] = cached ? JSON.parse(cached) : [];
-        const apiIds = new Set(apiList.map((p) => p.id));
-        const localOnly = cachedList.filter((p) => !apiIds.has(p.id));
-        const merged = [...apiList, ...localOnly];
-
-        setPlatforms(merged);
-        if (merged.length > 0) {
-          localStorage.setItem('user_platforms', JSON.stringify(merged));
-        }
+        setPlatforms(apiList);
+        localStorage.setItem('user_platforms', JSON.stringify(apiList));
       } catch (e: any) {
         // API failed (e.g. network error or 401) — fall back to whatever is cached locally.
         const cached = localStorage.getItem('user_platforms');
@@ -118,7 +108,11 @@ const Platforms = () => {
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Token ${token}` } : {}) },
       });
       if (!res.ok && res.status !== 204) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
-      setPlatforms(prev => prev.filter(p => p.id !== deleteTarget.id));
+      setPlatforms(prev => {
+        const updated = prev.filter(p => p.id !== deleteTarget.id);
+        localStorage.setItem('user_platforms', JSON.stringify(updated));
+        return updated;
+      });
       toast({ title: 'Workspace deleted', description: `"${deleteTarget.name}" permanently deleted.` });
       setDeleteTarget(null);
     } catch (e: any) {

@@ -196,9 +196,22 @@ const HeimdallFAB: React.FC = () => {
   );
 };
 
+// Detect org subdomain on heimdallsecurity.io and pre-set tenant context.
+// e.g. acme.heimdallsecurity.io → tenant_subdomain = "acme"
+const detectOrgSubdomain = () => {
+  const hostname = window.location.hostname;
+  if (hostname.endsWith('.heimdallsecurity.io')) {
+    const subdomain = hostname.split('.')[0];
+    if (subdomain && subdomain !== 'app' && subdomain !== 'api' && subdomain !== 'www') {
+      localStorage.setItem('tenant_subdomain', subdomain);
+    }
+  }
+};
+
 const AppContent = () => {
   const [isDark, setIsDark] = useState(getStoredTheme);
   useEffect(() => { applyTheme(isDark); }, [isDark]);
+  useEffect(() => { detectOrgSubdomain(); }, []);
 
   return (
     <BrowserRouter>

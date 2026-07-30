@@ -16,8 +16,13 @@ import {
   Upload,
   Download,
   CheckCircle2,
+  Globe,
+  Wifi,
+  AlertCircle,
 } from 'lucide-react';
 import HeimdallAILogo from '@/components/HeimdallAILogo';
+
+const HEIMDALL_PUBLIC_IP = '165.245.217.132';
 
 const platforms = [
   // { id: 'aws', name: 'Amazon Web Services', icon: Cloud, color: 'from-orange-500 to-yellow-500' },
@@ -37,11 +42,18 @@ const linuxTools = [
   { id: 'wget', name: 'Wget' },
 ];
 
-const stepLabels = [
-  { step: 1, title: 'Choose Platform', description: 'Select deployment target' },
+const selfManagedStepLabels = [
+  { step: 1, title: 'Choose Setup', description: 'Managed or self-managed' },
   { step: 2, title: 'Platform Setup', description: 'Environment and app details' },
   { step: 3, title: 'API Docs', description: 'Ports and collection upload' },
   { step: 4, title: 'Install WAF', description: 'Generate install command' },
+];
+
+const managedStepLabels = [
+  { step: 1, title: 'Choose Setup', description: 'Managed or self-managed' },
+  { step: 2, title: 'Origin Config', description: 'Your app URL and hostname' },
+  { step: 3, title: 'DNS Setup', description: 'Point your domain at Heimdall' },
+  { step: 4, title: 'Verify DNS', description: 'Confirm and go live' },
 ];
 
 const Onboarding = () => {
@@ -62,6 +74,19 @@ const Onboarding = () => {
   const [selectedTool, setSelectedTool] = useState<'curl' | 'wget'>('curl');
   const [installCommandLinux, setInstallCommandLinux] = useState<string | null>(null);
   const [installCommandWindows, setInstallCommandWindows] = useState<string | null>(null);
+
+  // Managed WAF state
+  const [wafType, setWafType] = useState<'self-managed' | 'managed' | null>(null);
+  const [managedPlatformName, setManagedPlatformName] = useState('');
+  const [destinationUrl, setDestinationUrl] = useState('');
+  const [protectedHostname, setProtectedHostname] = useState('');
+  const [managedEnvironment, setManagedEnvironment] = useState('production');
+  const [managedPlatformId, setManagedPlatformId] = useState<string | null>(null);
+  const [dnsVerifyResult, setDnsVerifyResult] = useState<{ verified: boolean; message: string; resolved_to?: string[] } | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [managedLoading, setManagedLoading] = useState(false);
+  const [managedError, setManagedError] = useState<string | null>(null);
+
   const navigate = useNavigate();
   const { setSelectedPlatformId } = usePlatform();
 
@@ -92,8 +117,116 @@ const Onboarding = () => {
     }
   };
 
+  const handleManagedStep2 = async () => {
+    setManagedLoading(true);
+    setManagedError(null);
+    const token = localStorage.getItem('auth_token');
+
+    try {
+      // Create the platform first
+      const formData = new FormData();
+      formData.append('name', managedPlatformName);
+      formData.append('environment', managedEnvironment);
+      formData.append('deployment_type', 'saas');
+      formData.append('status', 'active');
+      formData.append('application_url', destinationUrl);
+      formData.append('listening_port', '80');
+      formData.append('forwarded_port', '80');
+
+      const platformRes = await fetch(`${API_BASE_URL}/platforms/`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+        headers: token ? { Authorization: `Token ${token}` } : {},
+      });
+
+      if (!platformRes.ok) {
+        const err = await platformRes.json().catch(() => ({}));
+        throw new Error(JSON.stringify(err));
+      }
+
+      const platformData = await platformRes.json();
+      const platformObj = platformData.platform?.id ? platformData.platform : platformData;
+      const platformId = platformObj.id;
+
+      if (!platformId) throw new Error('Platform created but no ID returned.');
+
+      // Store the platform in local state and cache
+      const entry = {
+        id: platformObj.id,
+        name: platformObj.name,
+        environment: platformObj.environment,
+        deployment_type: platformObj.deployment_type,
+        status: platformObj.status || 'active',
+        created_at: platformObj.created_at,
+        total_requests: 0,
+        blocked_threats: 0,
+        active_endpoints: 0,
+      };
+      const existing = localStorage.getItem('user_platforms');
+      const list = existing ? JSON.parse(existing) : [];
+      const deduped = list.filter((p: { id: string }) => p.id !== entry.id);
+      deduped.push(entry);
+      localStorage.setItem('user_platforms', JSON.stringify(deduped));
+      setSelectedPlatformId(platformId);
+      setManagedPlatformId(platformId);
+
+      // Store the managed destination
+      const destRes = await fetch(`${API_BASE_URL}/platforms/${platformId}/managed-destination/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Token ${token}` } : {}),
+        },
+        body: JSON.stringify({ destination_url: destinationUrl, protected_hostname: protectedHostname }),
+      });
+
+      if (!destRes.ok) {
+        const err = await destRes.json().catch(() => ({}));
+        throw new Error(JSON.stringify(err));
+      }
+
+      setCurrentStep(3);
+    } catch (err: unknown) {
+      setManagedError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+    } finally {
+      setManagedLoading(false);
+    }
+  };
+
+  const handleVerifyDNS = async () => {
+    if (!managedPlatformId) return;
+    setVerifying(true);
+    setDnsVerifyResult(null);
+    const token = localStorage.getItem('auth_token');
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/platforms/${managedPlatformId}/verify-dns/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: token ? { Authorization: `Token ${token}` } : {},
+      });
+      const data = await res.json();
+      setDnsVerifyResult(data);
+      if (data.verified) setCurrentStep(4);
+    } catch {
+      setDnsVerifyResult({ verified: false, message: 'Network error. Please try again.' });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const handleNext = () => {
     if (currentStep < 4) {
+      if (wafType === 'managed' && currentStep === 2) {
+        handleManagedStep2();
+        return;
+      }
+      if (wafType === 'managed' && currentStep === 3) {
+        handleVerifyDNS();
+        return;
+      }
       if (currentStep === 3) {
         const formData = new FormData();
         formData.append('name', platformName);
@@ -189,6 +322,15 @@ const Onboarding = () => {
   };
 
   const canProceed = () => {
+    if (wafType === 'managed') {
+      switch (currentStep) {
+        case 1: return wafType !== null;
+        case 2: return managedPlatformName.trim() !== '' && destinationUrl.trim() !== '' && protectedHostname.trim() !== '';
+        case 3: return true;
+        case 4: return true;
+        default: return false;
+      }
+    }
     switch (currentStep) {
       case 1:
         return true;
@@ -265,10 +407,10 @@ const Onboarding = () => {
               <div className="rounded-2xl border border-white/10 bg-slate-950/45 px-5 py-4 backdrop-blur-md">
                 <p className="text-xs uppercase tracking-wide text-blue-100">Current Step</p>
                 <p className="mt-2 text-xl font-semibold text-white">
-                  {currentStep === 1 && 'Choose Platform'}
-                  {currentStep === 2 && 'Platform Setup'}
-                  {currentStep === 3 && 'Upload API Docs'}
-                  {currentStep === 4 && 'Install WAF'}
+                  {currentStep === 1 && 'Choose Setup'}
+                  {currentStep === 2 && (wafType === 'managed' ? 'Origin Config' : 'Platform Setup')}
+                  {currentStep === 3 && (wafType === 'managed' ? 'DNS Setup' : 'Upload API Docs')}
+                  {currentStep === 4 && (wafType === 'managed' ? 'Verify DNS' : 'Install WAF')}
                 </p>
               </div>
             </div>
@@ -277,7 +419,7 @@ const Onboarding = () => {
           <CardContent className="p-6 sm:p-8">
             <div className="grid gap-6 xl:grid-cols-[250px_minmax(0,1fr)]">
               <div className="space-y-3">
-                {stepLabels.map(({ step, title, description }) => {
+                {(wafType === 'managed' ? managedStepLabels : selfManagedStepLabels).map(({ step, title, description }) => {
                   const isActive = step === currentStep;
                   const isComplete = step < currentStep;
 
@@ -318,51 +460,228 @@ const Onboarding = () => {
                 {currentStep === 1 && (
                   <Card className="rounded-3xl border border-slate-200/60 bg-white shadow-sm dark:border-slate-800/60 dark:bg-slate-900/50">
                     <CardHeader className="pb-4">
-                      <CardTitle className="text-xl">Select Your Platform</CardTitle>
+                      <CardTitle className="text-xl">How do you want to deploy?</CardTitle>
                       <CardDescription>
-                        Choose where you&apos;ll deploy Smartcomply Heimdall.
+                        Choose whether Heimdall hosts the WAF for you, or you install it on your own server.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
-                      {platforms.length > 0 ? (
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                          {platforms.map((platform) => (
-                            <Card
-                              key={platform.id}
-                              className={`cursor-pointer rounded-2xl border transition-all hover:shadow-md ${
-                                selectedPlatform === platform.id
-                                  ? 'ring-2 ring-primary border-primary'
-                                  : 'hover:border-primary/50'
-                              }`}
-                              onClick={() => setSelectedPlatform(platform.id)}
-                            >
-                              <CardContent className="p-5 text-center">
-                                <div className={`mb-4 inline-flex rounded-2xl bg-gradient-to-r ${platform.color} p-4`}>
-                                  <platform.icon className="h-6 w-6 text-white" />
-                                </div>
-                                <h4 className="font-medium text-slate-900 dark:text-white">{platform.name}</h4>
-                              </CardContent>
-                            </Card>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <Card
+                          className={`cursor-pointer rounded-2xl border-2 transition-all hover:shadow-md ${
+                            wafType === 'self-managed'
+                              ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-500/10'
+                              : 'border-slate-200 hover:border-blue-300 dark:border-slate-700'
+                          }`}
+                          onClick={() => setWafType('self-managed')}
+                        >
+                          <CardContent className="p-6">
+                            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
+                              <Server className="h-6 w-6 text-slate-600 dark:text-slate-300" />
+                            </div>
+                            <h4 className="font-semibold text-slate-900 dark:text-white">Self-Managed</h4>
+                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                              Install the WAF on your own server. You manage Docker and infrastructure.
+                            </p>
+                            {wafType === 'self-managed' && (
+                              <div className="mt-3 flex items-center gap-1 text-xs font-medium text-blue-600">
+                                <CheckCircle2 className="h-4 w-4" /> Selected
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+
+                        <Card
+                          className={`cursor-pointer rounded-2xl border-2 transition-all hover:shadow-md ${
+                            wafType === 'managed'
+                              ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-500/10'
+                              : 'border-slate-200 hover:border-blue-300 dark:border-slate-700'
+                          }`}
+                          onClick={() => setWafType('managed')}
+                        >
+                          <CardContent className="p-6">
+                            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 dark:bg-blue-500/20">
+                              <Globe className="h-6 w-6 text-blue-600" />
+                            </div>
+                            <h4 className="font-semibold text-slate-900 dark:text-white">Managed by Heimdall</h4>
+                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                              We host the WAF. Just point your domain's DNS at us. No Docker, no install.
+                            </p>
+                            {wafType === 'managed' && (
+                              <div className="mt-3 flex items-center gap-1 text-xs font-medium text-blue-600">
+                                <CheckCircle2 className="h-4 w-4" /> Selected
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {currentStep === 2 && wafType === 'managed' && (
+                  <Card className="rounded-3xl border border-slate-200/60 bg-white shadow-sm dark:border-slate-800/60 dark:bg-slate-900/50">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-xl">Configure Your Origin</CardTitle>
+                      <CardDescription>
+                        Tell us your real server URL and the domain you want to protect.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-5">
+                      <div className="space-y-2">
+                        <Label htmlFor="managed-platform-name">Platform Name</Label>
+                        <Input
+                          id="managed-platform-name"
+                          placeholder="e.g., iFitness Production"
+                          value={managedPlatformName}
+                          onChange={(e) => setManagedPlatformName(e.target.value)}
+                          className="rounded-xl"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="destination-url">Origin URL</Label>
+                        <Input
+                          id="destination-url"
+                          placeholder="e.g., https://app.ifitness.com or http://192.168.1.5:8080"
+                          value={destinationUrl}
+                          onChange={(e) => setDestinationUrl(e.target.value)}
+                          className="rounded-xl"
+                        />
+                        <p className="text-xs text-slate-500">Your real server. Clean traffic gets forwarded here after the WAF inspects it.</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="protected-hostname">Protected Hostname</Label>
+                        <Input
+                          id="protected-hostname"
+                          placeholder="e.g., app.ifitness.com"
+                          value={protectedHostname}
+                          onChange={(e) => setProtectedHostname(e.target.value)}
+                          className="rounded-xl"
+                        />
+                        <p className="text-xs text-slate-500">The domain your customers use. You'll point this at Heimdall in the next step.</p>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-5 dark:border-slate-700/60 dark:bg-slate-800/30">
+                        <Label className="mb-3 block">Environment</Label>
+                        <RadioGroup value={managedEnvironment} onValueChange={setManagedEnvironment} className="space-y-3">
+                          {['production', 'staging', 'development'].map((env) => (
+                            <div key={env} className="flex items-center space-x-2 rounded-xl border border-slate-200/60 bg-white/80 px-3 py-3 dark:border-slate-700/60 dark:bg-slate-900/60">
+                              <RadioGroupItem value={env} id={`managed-${env}`} />
+                              <Label htmlFor={`managed-${env}`} className="capitalize">{env}</Label>
+                            </div>
                           ))}
-                        </div>
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-6 py-12 text-center dark:border-slate-700 dark:bg-slate-800/30">
-                          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-500/10">
-                            <Shield className="h-8 w-8 text-blue-500" />
-                          </div>
-                          <h4 className="text-lg font-semibold text-slate-900 dark:text-white">
-                            Continue With Guided Setup
-                          </h4>
-                          <p className="mt-2 max-w-lg mx-auto text-sm text-slate-500 dark:text-slate-400">
-                            Platform preset cards are currently hidden, but you can continue to create and configure your platform manually in the next step.
-                          </p>
+                        </RadioGroup>
+                      </div>
+
+                      {managedError && (
+                        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400">
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                          {managedError}
                         </div>
                       )}
                     </CardContent>
                   </Card>
                 )}
 
-                {currentStep === 2 && (
+                {currentStep === 3 && wafType === 'managed' && (
+                  <Card className="rounded-3xl border border-slate-200/60 bg-white shadow-sm dark:border-slate-800/60 dark:bg-slate-900/50">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-xl">Point Your DNS at Heimdall</CardTitle>
+                      <CardDescription>
+                        Add an A record for <strong>{protectedHostname}</strong> in your domain registrar or DNS provider.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-5">
+                      <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-500/20 dark:bg-blue-500/10">
+                        <p className="mb-3 text-sm font-medium text-slate-700 dark:text-slate-300">Add this DNS record:</p>
+                        <div className="grid grid-cols-3 gap-3 text-sm">
+                          {[
+                            { label: 'Type', value: 'A' },
+                            { label: 'Name / Host', value: protectedHostname || 'your hostname' },
+                            { label: 'Value / Points to', value: HEIMDALL_PUBLIC_IP },
+                          ].map(({ label, value }) => (
+                            <div key={label} className="rounded-xl border border-blue-100 bg-white p-3 dark:border-blue-500/10 dark:bg-slate-900/60">
+                              <p className="text-xs text-slate-500">{label}</p>
+                              <p className="mt-1 font-mono font-semibold text-slate-900 dark:text-white break-all">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="mt-3 text-xs text-slate-500">Set TTL to 300 or the lowest value available. DNS changes can take up to 48 hours to propagate.</p>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          Once you've added the record, click <strong>Verify DNS</strong> below. If it hasn't propagated yet, come back later and try again.
+                        </p>
+                      </div>
+
+                      {dnsVerifyResult && !dnsVerifyResult.verified && (
+                        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400">
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                          {dnsVerifyResult.message}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {currentStep === 4 && wafType === 'managed' && (
+                  <Card className="rounded-3xl border border-slate-200/60 bg-white shadow-sm dark:border-slate-800/60 dark:bg-slate-900/50">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-xl">
+                        {dnsVerifyResult?.verified ? '🎉 You\'re Protected!' : 'Verification'}
+                      </CardTitle>
+                      <CardDescription>
+                        {dnsVerifyResult?.verified
+                          ? `${protectedHostname} is now routing through Heimdall WAF.`
+                          : 'DNS verification result'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-5">
+                      {dnsVerifyResult?.verified ? (
+                        <div className="space-y-4">
+                          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-6 text-center dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20">
+                              <Wifi className="h-7 w-7 text-emerald-600" />
+                            </div>
+                            <p className="font-semibold text-emerald-800 dark:text-emerald-300">DNS Verified</p>
+                            <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
+                              Traffic to <strong>{protectedHostname}</strong> is now intercepted and inspected by Heimdall before reaching your origin.
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Summary</p>
+                            <div className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-400">
+                              <p>Protected domain: <span className="font-mono">{protectedHostname}</span></p>
+                              <p>Origin server: <span className="font-mono">{destinationUrl}</span></p>
+                              <p>WAF IP: <span className="font-mono">{HEIMDALL_PUBLIC_IP}</span></p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-red-200 bg-red-50/60 p-6 text-center dark:border-red-500/20 dark:bg-red-500/10">
+                          <AlertCircle className="mx-auto mb-3 h-10 w-10 text-red-500" />
+                          <p className="font-semibold text-red-700 dark:text-red-400">Verification Failed</p>
+                          <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                            {dnsVerifyResult?.message || 'DNS has not propagated yet.'}
+                          </p>
+                          <Button
+                            className="mt-4 rounded-xl"
+                            variant="outline"
+                            onClick={() => { setCurrentStep(3); setDnsVerifyResult(null); }}
+                          >
+                            Go back and try again
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {currentStep === 2 && wafType !== 'managed' && (
                   <Card className="rounded-3xl border border-slate-200/60 bg-white shadow-sm dark:border-slate-800/60 dark:bg-slate-900/50">
                     <CardHeader className="pb-4">
                       <CardTitle className="text-xl">Create Your Platform</CardTitle>
@@ -434,7 +753,7 @@ const Onboarding = () => {
                   </Card>
                 )}
 
-                {currentStep === 3 && (
+                {currentStep === 3 && wafType !== 'managed' && (
                   <Card className="rounded-3xl border border-slate-200/60 bg-white shadow-sm dark:border-slate-800/60 dark:bg-slate-900/50">
                     <CardHeader className="pb-4">
                       <CardTitle className="text-xl">Upload API Documentation</CardTitle>
@@ -513,7 +832,7 @@ const Onboarding = () => {
                   </Card>
                 )}
 
-                {currentStep === 4 && (
+                {currentStep === 4 && wafType !== 'managed' && (
                   <Card className="rounded-3xl border border-slate-200/60 bg-white shadow-sm dark:border-slate-800/60 dark:bg-slate-900/50">
                     <CardHeader className="pb-4">
                       <CardTitle className="text-xl">Install WAF Protection</CardTitle>
@@ -629,8 +948,12 @@ const Onboarding = () => {
                 Previous
               </Button>
 
-              <Button onClick={handleNext} disabled={!canProceed()} className="rounded-xl">
-                {currentStep === 4 ? 'Proceed to Dashboard' : 'Next'}
+              <Button onClick={handleNext} disabled={!canProceed() || managedLoading || verifying} className="rounded-xl">
+                {wafType === 'managed' && currentStep === 2 && (managedLoading ? 'Saving...' : 'Next')}
+                {wafType === 'managed' && currentStep === 3 && (verifying ? 'Verifying...' : 'Verify DNS')}
+                {wafType === 'managed' && currentStep === 4 && 'Proceed to Dashboard'}
+                {wafType === 'managed' && currentStep === 1 && 'Next'}
+                {wafType !== 'managed' && (currentStep === 4 ? 'Proceed to Dashboard' : 'Next')}
               </Button>
             </div>
           </CardContent>

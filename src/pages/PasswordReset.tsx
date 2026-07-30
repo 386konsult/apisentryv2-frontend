@@ -37,7 +37,7 @@ const PasswordReset = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/password-reset-confirm/`, {
+      const response = await fetch(`${API_BASE_URL}/auth/password-reset-confirm/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

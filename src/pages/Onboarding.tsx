@@ -965,13 +965,24 @@ const Onboarding = () => {
                 Previous
               </Button>
 
-              <Button onClick={handleNext} disabled={!canProceed() || managedLoading || verifying} className="rounded-xl">
-                {wafType === 'managed' && currentStep === 2 && (managedLoading ? 'Saving...' : 'Next')}
-                {wafType === 'managed' && currentStep === 3 && (verifying ? 'Verifying...' : 'Verify DNS')}
-                {wafType === 'managed' && currentStep === 4 && 'Proceed to Dashboard'}
-                {wafType === 'managed' && currentStep === 1 && 'Next'}
-                {wafType !== 'managed' && (currentStep === 4 ? 'Proceed to Dashboard' : 'Next')}
-              </Button>
+              <div className="flex items-center gap-3">
+                {wafType === 'managed' && currentStep === 3 && (
+                  <Button
+                    variant="ghost"
+                    className="rounded-xl text-slate-500 hover:text-slate-700"
+                    onClick={() => selectedPlatformId ? navigate(`/platforms/${selectedPlatformId}`) : navigate('/platforms')}
+                  >
+                    Proceed to Dashboard
+                  </Button>
+                )}
+                <Button onClick={handleNext} disabled={!canProceed() || managedLoading || verifying} className="rounded-xl">
+                  {wafType === 'managed' && currentStep === 2 && (managedLoading ? 'Saving...' : 'Next')}
+                  {wafType === 'managed' && currentStep === 3 && (verifying ? 'Verifying...' : 'Verify DNS')}
+                  {wafType === 'managed' && currentStep === 4 && 'Proceed to Dashboard'}
+                  {wafType === 'managed' && currentStep === 1 && 'Next'}
+                  {wafType !== 'managed' && (currentStep === 4 ? 'Proceed to Dashboard' : 'Next')}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

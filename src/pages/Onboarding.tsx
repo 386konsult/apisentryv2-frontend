@@ -82,7 +82,7 @@ const Onboarding = () => {
   const [protectedHostname, setProtectedHostname] = useState('');
   const [managedEnvironment, setManagedEnvironment] = useState('production');
   const [managedPlatformId, setManagedPlatformId] = useState<string | null>(null);
-  const [dnsVerifyResult, setDnsVerifyResult] = useState<{ verified: boolean; message: string; resolved_to?: string[] } | null>(null);
+  const [dnsVerifyResult, setDnsVerifyResult] = useState<{ verified: boolean; message: string; resolved_to?: string[]; probe_success?: boolean; probe_message?: string } | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [managedLoading, setManagedLoading] = useState(false);
   const [managedError, setManagedError] = useState<string | null>(null);
@@ -532,7 +532,7 @@ const Onboarding = () => {
                         <Label htmlFor="managed-platform-name">Platform Name</Label>
                         <Input
                           id="managed-platform-name"
-                          placeholder="e.g., iFitness Production"
+                          placeholder="e.g., Heimdall Production"
                           value={managedPlatformName}
                           onChange={(e) => setManagedPlatformName(e.target.value)}
                           className="rounded-xl"
@@ -543,7 +543,7 @@ const Onboarding = () => {
                         <Label htmlFor="destination-url">Origin URL</Label>
                         <Input
                           id="destination-url"
-                          placeholder="e.g., https://app.ifitness.com or http://192.168.1.5:8080"
+                          placeholder="e.g., https://app.heimdall.com or http://192.168.1.5:8080"
                           value={destinationUrl}
                           onChange={(e) => setDestinationUrl(e.target.value)}
                           className="rounded-xl"
@@ -555,12 +555,17 @@ const Onboarding = () => {
                         <Label htmlFor="protected-hostname">Protected Hostname</Label>
                         <Input
                           id="protected-hostname"
-                          placeholder="e.g., app.ifitness.com"
+                          placeholder="e.g., app.yourdomain.com"
                           value={protectedHostname}
-                          onChange={(e) => setProtectedHostname(e.target.value)}
+                          onChange={(e) => {
+                            let val = e.target.value.trim();
+                            try { val = new URL(val).hostname; } catch {}
+                            val = val.replace(/\/+$/, '');
+                            setProtectedHostname(val);
+                          }}
                           className="rounded-xl"
                         />
-                        <p className="text-xs text-slate-500">The domain your customers use. You'll point this at Heimdall in the next step.</p>
+                        <p className="text-xs text-slate-500">Hostname only — no https:// or trailing slash. e.g., app.yourdomain.com</p>
                       </div>
 
                       <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-5 dark:border-slate-700/60 dark:bg-slate-800/30">
@@ -651,6 +656,18 @@ const Onboarding = () => {
                               Traffic to <strong>{protectedHostname}</strong> is now intercepted and inspected by Heimdall before reaching your origin.
                             </p>
                           </div>
+
+                          {dnsVerifyResult?.probe_success ? (
+                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                              <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">✅ WAF Live</p>
+                              <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">{dnsVerifyResult.probe_message}</p>
+                            </div>
+                          ) : (
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+                              <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">⏳ WAF Not Yet Active</p>
+                              <p className="mt-1 text-sm text-amber-600 dark:text-amber-400">{dnsVerifyResult?.probe_message || 'WAF container is not running yet.'}</p>
+                            </div>
+                          )}
 
                           <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
                             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Summary</p>

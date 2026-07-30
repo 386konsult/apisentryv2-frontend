@@ -622,7 +622,7 @@ const Onboarding = () => {
                           Once you've added the record, click <strong>Verify DNS</strong> below. If it hasn't propagated yet, come back later and try again.
                         </p>
                         <p className="mt-2 text-xs text-slate-500 dark:text-slate-500 leading-relaxed">
-                          Prefer to verify later? Click <strong>Proceed to Dashboard</strong> — your platform is already created. You can find your platform ID in the URL once you land on your dashboard (e.g. <span className="font-mono">/platforms/your-platform-id</span>). Share that ID with your team or use it to re-verify DNS anytime from your platform page.
+                          Prefer to verify later? Click <strong>Proceed to Dashboard</strong> and your platform is already created. You can find your platform ID in the URL once you land on your dashboard (e.g. <span className="font-mono">/platforms/your-platform-id</span>). Share that ID with us to start Heimdall for you as we manage everything on our end.
                         </p>
                       </div>
 

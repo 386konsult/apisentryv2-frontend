@@ -614,11 +614,15 @@ const Onboarding = () => {
                           ))}
                         </div>
                         <p className="mt-3 text-xs text-slate-500">Set TTL to 300 or the lowest value available. DNS changes can take up to 48 hours to propagate.</p>
+                        <p className="mt-2 text-xs text-slate-400 leading-relaxed">This record tells the internet to route traffic for <span className="font-semibold text-slate-500">{protectedHostname}</span> through Heimdall's WAF before it reaches your server. Once propagated, all requests will be inspected and filtered for threats automatically — your origin server stays hidden and protected.</p>
                       </div>
 
                       <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
                         <p className="text-sm text-slate-600 dark:text-slate-400">
                           Once you've added the record, click <strong>Verify DNS</strong> below. If it hasn't propagated yet, come back later and try again.
+                        </p>
+                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-500 leading-relaxed">
+                          Prefer to verify later? Click <strong>Proceed to Dashboard</strong> — your platform is already created. You can find your platform ID in the URL once you land on your dashboard (e.g. <span className="font-mono">/platforms/your-platform-id</span>). Share that ID with your team or use it to re-verify DNS anytime from your platform page.
                         </p>
                       </div>
 

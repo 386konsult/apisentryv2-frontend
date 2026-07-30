@@ -10,14 +10,14 @@ import {
 } from 'recharts';
 import {
   Shield, AlertTriangle, Activity, TrendingUp,
-  Globe, Eye, Plus, Search, Users, ArrowLeft, Sparkles, RefreshCw, CheckCircle, ChevronRight, Gauge,
+  Globe, Eye, Plus, Search, Users, ArrowLeft, Sparkles, RefreshCw, CheckCircle, ChevronRight, Gauge, Loader2,
 } from 'lucide-react';
 import HeimdallAILogo from '@/components/HeimdallAILogo';
 import WorkspaceAccessGate from '@/components/WorkspaceAccessGate';
 import HeatmapCard from '@/components/HeatmapCard';
 import LiveFeedCard from '@/components/LiveFeedCard';
 import { motion } from 'framer-motion';
-import apiService from '@/services/api';
+import apiService, { API_BASE_URL } from '@/services/api';
 import { geoMercator, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 
@@ -547,6 +547,25 @@ const CountryDetailPanel = ({
 const PlatformDetails: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   const [platform, setPlatform] = useState<any>(null);
+  const [verifyingDns, setVerifyingDns] = useState(false);
+
+  const handleVerifyDns = async () => {
+    setVerifyingDns(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${API_BASE_URL}/platforms/${id}/verify-dns/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Token ${token}` } : {}) },
+      });
+      const data = await res.json();
+      if (data.verified) {
+        setPlatform((prev: any) => prev ? { ...prev, managed_config: { ...prev.managed_config, dns_verified: true } } : prev);
+      }
+    } catch {} finally {
+      setVerifyingDns(false);
+    }
+  };
   const [loading, setLoading] = useState(() => {
     if (!id) return true;
     try {
@@ -918,9 +937,20 @@ const PlatformDetails: React.FC = () => {
                 </motion.div>
               </div>
             </div>
-            <span className="ml-auto hidden items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white lg:inline-flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-white" />Updated just now
-            </span>
+            {platform?.is_managed && platform?.managed_config && !platform?.managed_config?.dns_verified ? (
+              <button
+                onClick={handleVerifyDns}
+                disabled={verifyingDns}
+                className="ml-auto hidden items-center gap-1.5 rounded-full border border-amber-400/60 bg-amber-400/20 px-3 py-1.5 text-[11px] font-semibold text-amber-200 hover:bg-amber-400/30 disabled:opacity-60 transition-colors lg:inline-flex"
+              >
+                {verifyingDns ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
+                {verifyingDns ? 'Verifying…' : 'Verify DNS'}
+              </button>
+            ) : (
+              <span className="ml-auto hidden items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white lg:inline-flex">
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />Updated just now
+              </span>
+            )}
           </div>
         </motion.div>
 

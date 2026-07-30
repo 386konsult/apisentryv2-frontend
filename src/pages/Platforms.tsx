@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
   Shield, Plus, Activity, Globe, Settings, Eye,
-  Server, Zap, AlertTriangle, Trash2, X,
+  Server, Zap, AlertTriangle, Trash2, X, Clock, CheckCircle2, Loader2,
 } from 'lucide-react';
 import HeimdallAILogo from '@/components/HeimdallAILogo';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,6 +22,8 @@ interface Platform {
   total_requests?: number;
   blocked_threats?: number;
   active_endpoints?: number;
+  is_managed?: boolean;
+  managed_config?: { protected_hostname: string; dns_verified: boolean } | null;
 }
 
 // Animated counter
@@ -47,10 +49,38 @@ const Platforms = () => {
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Platform | null>(null);
   const [isDeleting, setIsDeleting]     = useState(false);
+  const [verifyingDnsId, setVerifyingDnsId] = useState<string | null>(null);
   const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const navigate     = useNavigate();
   const { toast }    = useToast();
   const { setSelectedPlatformId } = usePlatform();
+
+  const handleVerifyDns = async (platform: Platform) => {
+    if (!platform.managed_config) return;
+    setVerifyingDnsId(platform.id);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${API_BASE_URL}/platforms/${platform.id}/verify-dns/`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Token ${token}` } : {}) },
+      });
+      const data = await res.json();
+      if (data.verified) {
+        setPlatforms(prev => prev.map(p =>
+          p.id === platform.id
+            ? { ...p, managed_config: { ...p.managed_config!, dns_verified: true } }
+            : p
+        ));
+        toast({ title: '✅ DNS Verified', description: `${platform.managed_config.protected_hostname} is live through Heimdall WAF.` });
+      } else {
+        toast({ title: 'DNS not propagated yet', description: data.message || 'Try again in a few minutes.', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Verification failed', description: 'Could not reach the server.', variant: 'destructive' });
+    } finally {
+      setVerifyingDnsId(null);
+    }
+  };
 
   useEffect(() => {
     const fetch_ = async () => {
@@ -380,6 +410,31 @@ const Platforms = () => {
                       </div>
                     ) : null}
                   </div>
+
+                  {/* DNS pending banner for managed platforms */}
+                  {platform.is_managed && platform.managed_config && !platform.managed_config.dns_verified && (
+                    <div className="mx-5 mb-4 rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/5 px-4 py-3">
+                      <div className="flex items-start gap-2.5">
+                        <Clock className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-0.5">DNS Pending</p>
+                          <p className="text-[11px] text-amber-600 dark:text-amber-500 leading-relaxed mb-2">
+                            Point <span className="font-mono font-semibold">{platform.managed_config.protected_hostname}</span> → <span className="font-mono font-semibold">165.245.217.132</span>, then verify.
+                          </p>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleVerifyDns(platform); }}
+                            disabled={verifyingDnsId === platform.id}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-60 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors"
+                          >
+                            {verifyingDnsId === platform.id
+                              ? <><Loader2 className="h-3 w-3 animate-spin"/>Verifying…</>
+                              : <><CheckCircle2 className="h-3 w-3"/>Verify DNS</>
+                            }
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* CTA button */}
                   <div className="px-5 pb-5">

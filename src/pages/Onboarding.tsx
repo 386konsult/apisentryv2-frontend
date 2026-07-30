@@ -543,7 +543,7 @@ const Onboarding = () => {
                         <Label htmlFor="destination-url">Origin URL</Label>
                         <Input
                           id="destination-url"
-                          placeholder="e.g., https://app.heimdall.com or http://192.168.1.5:8080"
+                          placeholder="e.g., https://api.heimdallsecurity.io or http://192.168.1.5:8080"
                           value={destinationUrl}
                           onChange={(e) => setDestinationUrl(e.target.value)}
                           className="rounded-xl"
@@ -555,7 +555,7 @@ const Onboarding = () => {
                         <Label htmlFor="protected-hostname">Protected Hostname</Label>
                         <Input
                           id="protected-hostname"
-                          placeholder="e.g., app.yourdomain.com"
+                          placeholder="e.g., app.heimdallsecurity.io"
                           value={protectedHostname}
                           onChange={(e) => {
                             let val = e.target.value.trim();

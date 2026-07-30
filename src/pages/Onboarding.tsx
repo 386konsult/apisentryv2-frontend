@@ -970,7 +970,7 @@ const Onboarding = () => {
                   <Button
                     variant="ghost"
                     className="rounded-xl text-slate-500 hover:text-slate-700"
-                    onClick={() => selectedPlatformId ? navigate(`/platforms/${selectedPlatformId}`) : navigate('/platforms')}
+                    onClick={() => { const pid = localStorage.getItem('selected_platform_id'); navigate(pid ? `/platforms/${pid}` : '/platforms'); }}
                   >
                     Proceed to Dashboard
                   </Button>

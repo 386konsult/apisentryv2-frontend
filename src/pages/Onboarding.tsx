@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { API_BASE_URL } from '@/services/api';
+import { API_BASE_URL, cacheInvalidate } from '@/services/api';
 import { usePlatform } from '@/contexts/PlatformContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -194,7 +194,6 @@ const Onboarding = () => {
       const deduped = list.filter((p: { id: string }) => p.id !== entry.id);
       deduped.push(entry);
       localStorage.setItem('user_platforms', JSON.stringify(deduped));
-      setSelectedPlatformId(platformId);
       setManagedPlatformId(platformId);
 
       // Store the managed destination
@@ -213,6 +212,9 @@ const Onboarding = () => {
         throw new Error(JSON.stringify(err));
       }
 
+      // Set selected platform AFTER is_managed is set on backend, and bust the cache
+      cacheInvalidate(`platform:${platformId}`);
+      setSelectedPlatformId(platformId);
       setCurrentStep(3);
     } catch (err: unknown) {
       setManagedError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -566,10 +568,27 @@ const Onboarding = () => {
                       </div>
 
                       <div className="space-y-2">
+                        <Label htmlFor="protected-hostname">Protected Hostname</Label>
+                        <Input
+                          id="protected-hostname"
+                          placeholder="e.g., yourdomain.com or app.heimdallsecurity.io"
+                          value={protectedHostname}
+                          onChange={(e) => {
+                            let val = e.target.value.trim();
+                            try { val = new URL(val).hostname; } catch {}
+                            val = val.replace(/\/+$/, '');
+                            setProtectedHostname(val);
+                          }}
+                          className="rounded-xl"
+                        />
+                        <p className="text-xs text-slate-500">Hostname only — no https:// or trailing slash. e.g., yourdomain.com or app.yourdomain.com</p>
+                      </div>
+
+                      <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <Label htmlFor="destination-url">Origin URL</Label>
                           {detectingOrigin && (
-                            <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                            <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
                               <Loader2 className="h-3 w-3 animate-spin" /> Detecting…
                             </span>
                           )}
@@ -586,24 +605,7 @@ const Onboarding = () => {
                           onChange={(e) => { setDestinationUrl(e.target.value); setOriginAutoDetected(false); }}
                           className="rounded-xl"
                         />
-                        <p className="text-xs text-slate-500">Your real server. Clean traffic gets forwarded here after the WAF inspects it.</p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="protected-hostname">Protected Hostname</Label>
-                        <Input
-                          id="protected-hostname"
-                          placeholder="e.g., app.heimdallsecurity.io"
-                          value={protectedHostname}
-                          onChange={(e) => {
-                            let val = e.target.value.trim();
-                            try { val = new URL(val).hostname; } catch {}
-                            val = val.replace(/\/+$/, '');
-                            setProtectedHostname(val);
-                          }}
-                          className="rounded-xl"
-                        />
-                        <p className="text-xs text-slate-500">Hostname only — no https:// or trailing slash. e.g., app.yourdomain.com</p>
+                        <p className="text-xs text-slate-500">Your real server. Clean traffic gets forwarded here after the WAF inspects it. Auto-detected from your hostname — you can also enter it manually.</p>
                       </div>
 
                       <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-5 dark:border-slate-700/60 dark:bg-slate-800/30">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '@/services/api';
 import { usePlatform } from '@/contexts/PlatformContext';
@@ -19,6 +19,8 @@ import {
   Globe,
   Wifi,
   AlertCircle,
+  Loader2,
+  Sparkles,
 } from 'lucide-react';
 import HeimdallAILogo from '@/components/HeimdallAILogo';
 
@@ -86,6 +88,30 @@ const Onboarding = () => {
   const [verifying, setVerifying] = useState(false);
   const [managedLoading, setManagedLoading] = useState(false);
   const [managedError, setManagedError] = useState<string | null>(null);
+  const [detectingOrigin, setDetectingOrigin] = useState(false);
+  const [originAutoDetected, setOriginAutoDetected] = useState(false);
+  const detectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-detect origin URL from DNS A record when protected hostname changes
+  useEffect(() => {
+    if (detectTimerRef.current) clearTimeout(detectTimerRef.current);
+    const hostname = protectedHostname.trim();
+    if (!hostname || !hostname.includes('.')) { setOriginAutoDetected(false); return; }
+    detectTimerRef.current = setTimeout(async () => {
+      setDetectingOrigin(true);
+      try {
+        const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(hostname)}&type=A`);
+        const data = await res.json();
+        const aRecord = data?.Answer?.find((r: any) => r.type === 1);
+        if (aRecord?.data) {
+          setDestinationUrl(`http://${aRecord.data}`);
+          setOriginAutoDetected(true);
+        }
+      } catch { /* silent — user can fill manually */ }
+      finally { setDetectingOrigin(false); }
+    }, 800);
+    return () => { if (detectTimerRef.current) clearTimeout(detectTimerRef.current); };
+  }, [protectedHostname]);
 
   const navigate = useNavigate();
   const { setSelectedPlatformId } = usePlatform();
@@ -540,12 +566,24 @@ const Onboarding = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="destination-url">Origin URL</Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="destination-url">Origin URL</Label>
+                          {detectingOrigin && (
+                            <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Detecting…
+                            </span>
+                          )}
+                          {originAutoDetected && !detectingOrigin && (
+                            <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                              <Sparkles className="h-3 w-3" /> Auto-detected
+                            </span>
+                          )}
+                        </div>
                         <Input
                           id="destination-url"
                           placeholder="e.g., https://api.heimdallsecurity.io or http://192.168.1.5:8080"
                           value={destinationUrl}
-                          onChange={(e) => setDestinationUrl(e.target.value)}
+                          onChange={(e) => { setDestinationUrl(e.target.value); setOriginAutoDetected(false); }}
                           className="rounded-xl"
                         />
                         <p className="text-xs text-slate-500">Your real server. Clean traffic gets forwarded here after the WAF inspects it.</p>
@@ -613,16 +651,12 @@ const Onboarding = () => {
                             </div>
                           ))}
                         </div>
-                        <p className="mt-3 text-xs text-slate-500">Set TTL to 300 or the lowest value available. DNS changes can take up to 48 hours to propagate.</p>
-                        <p className="mt-2 text-xs text-slate-400 leading-relaxed">This record tells the internet to route traffic for <span className="font-semibold text-slate-500">{protectedHostname}</span> through Heimdall's WAF before it reaches your server. Once propagated, all requests will be inspected and filtered for threats automatically — your origin server stays hidden and protected.</p>
+                        <p className="mt-3 text-xs text-slate-500">Set TTL to 300. Changes can take up to 48 hours to propagate.</p>
                       </div>
 
                       <div className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
                         <p className="text-sm text-slate-600 dark:text-slate-400">
-                          Once you've added the record, click <strong>Verify DNS</strong> below. If it hasn't propagated yet, come back later and try again.
-                        </p>
-                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-500 leading-relaxed">
-                          Prefer to verify later? Click <strong>Proceed to Dashboard</strong> and your platform is already created. You can find your platform ID in the URL once you land on your dashboard (e.g. <span className="font-mono">/platforms/your-platform-id</span>). Share that ID with us to start Heimdall for you as we manage everything on our end.
+                          Once added, click <strong>Verify DNS</strong> below. Not ready yet? Click <strong>Proceed to Dashboard</strong> — we'll detect it automatically.
                         </p>
                       </div>
 

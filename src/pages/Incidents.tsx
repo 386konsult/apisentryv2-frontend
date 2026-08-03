@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1010,6 +1011,7 @@ const Incidents = () => {
   const { toast } = useToast();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
@@ -1082,6 +1084,7 @@ const Incidents = () => {
       setIncidents([]);
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }, [selectedPlatformId, toast]);
 
@@ -1520,6 +1523,55 @@ const Incidents = () => {
   const openIncidents = incidents.filter((i) => i.status === "Open").length;
   const criticalIncidents = incidents.filter((i) => i.severity === "Critical").length;
   const closedIncidents = incidents.filter((i) => i.status === "Closed").length;
+
+  if (initialLoading) {
+    const sk = "bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl p-5";
+    return (
+      <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
+        <div className="w-full space-y-6">
+          <div className="rounded-[24px] bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 shadow-lg">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-3">
+                <Skeleton className="h-5 w-24 rounded-full bg-white/20" />
+                <Skeleton className="h-8 w-56 rounded-2xl bg-white/20" />
+                <Skeleton className="h-4 w-80 rounded-full bg-white/15" />
+              </div>
+              <div className="flex gap-2.5">
+                <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
+                <Skeleton className="h-9 w-36 rounded-full bg-white/20" />
+              </div>
+            </div>
+          </div>
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+            {[1,2,3,4].map(i => (
+              <div key={i} className={sk}>
+                <Skeleton className="h-9 w-9 rounded-xl" />
+                <Skeleton className="h-7 w-12 rounded-full mt-3" />
+                <Skeleton className="h-3 w-20 rounded-full mt-2" />
+              </div>
+            ))}
+          </div>
+          <div className={`${sk} space-y-3`}>
+            <div className="flex justify-between items-center mb-2">
+              <Skeleton className="h-5 w-40 rounded-full" />
+              <Skeleton className="h-8 w-32 rounded-xl" />
+            </div>
+            <div className="space-y-2">
+              {[1,2,3,4,5,6].map(i => (
+                <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-slate-200/60 dark:border-blue-900/20">
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-4 w-48 rounded-full flex-1" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-8 w-8 rounded-lg" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">

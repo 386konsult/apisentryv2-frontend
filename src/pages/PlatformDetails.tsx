@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -18,6 +19,7 @@ import HeatmapCard from '@/components/HeatmapCard';
 import LiveFeedCard from '@/components/LiveFeedCard';
 import { motion } from 'framer-motion';
 import apiService, { API_BASE_URL } from '@/services/api';
+import { usePlatform } from '@/contexts/PlatformContext';
 import { geoMercator, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 
@@ -550,6 +552,10 @@ const PlatformDetails: React.FC = () => {
   const [loading, setLoading] = useState(() => {
     if (!id) return true;
     try {
+      const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+      if (nav?.type === 'reload') return true;
+    } catch {}
+    try {
       const raw = localStorage.getItem('_hc_platform:' + id);
       if (raw && JSON.parse(raw).expires > Date.now()) return false;
     } catch {}
@@ -579,6 +585,7 @@ const PlatformDetails: React.FC = () => {
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [platformMembers, setPlatformMembers] = useState<PlatformMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(true);
+  const [sectionLoading, setSectionLoading] = useState(false);
 
   const [timeRange, setTimeRange] = useState<string>(() => {
     try { return localStorage.getItem(getStorageKey(id)) || '7d'; } catch { return '7d'; }
@@ -588,6 +595,13 @@ const PlatformDetails: React.FC = () => {
   const [isAlertClicked, setIsAlertClicked] = useState(false);
   const navigate = useNavigate();
   const navigateTo = (path: string) => { window.scrollTo({ top: 0, behavior: "instant" }); navigate(path); };
+
+  // Keep context selectedPlatformId in sync with the URL so other pages
+  // (Security Hub, Threat Logs, etc.) know which workspace is active.
+  const { selectedPlatformId: ctxPlatformId, setSelectedPlatformId } = usePlatform();
+  useEffect(() => {
+    if (id && id !== ctxPlatformId) setSelectedPlatformId(id);
+  }, [id]);
 
   // ── Theme detection for Recharts tooltip styles ───────────────────────────
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
@@ -670,9 +684,10 @@ const PlatformDetails: React.FC = () => {
     return () => controller.abort();
   }, [selectedCountryCode, id, timeRange]);
 
-  const fetchData = () => {
+  const fetchData = (retryCount = 0) => {
     if (!id) return;
     setLoading(true);
+    let willRetry = false;
 
     // Fire all non-ranged fetches in parallel
     Promise.all([
@@ -709,10 +724,20 @@ const PlatformDetails: React.FC = () => {
       }));
       setPlatformMembers(formatted);
     }).catch((err: any) => {
+      const status = (err as any)?.status;
+      // On first auth error, retry once after 2s — handles backend propagation delay
+      // right after an invitation is accepted (org membership takes a moment to apply)
+      if (retryCount < 1 && (status === 403 || status === 401)) {
+        willRetry = true;
+        setTimeout(() => fetchData(retryCount + 1), 2000);
+        return;
+      }
       setError(err?.message ?? 'Failed to load workspace');
     }).finally(() => {
-      setLoading(false);
-      setMembersLoading(false);
+      if (!willRetry) {
+        setLoading(false);
+        setMembersLoading(false);
+      }
     });
   };
 
@@ -776,7 +801,7 @@ const PlatformDetails: React.FC = () => {
 
   const fetchAllRangedData = () => {
     if (!id) return;
-    // NOTE: do NOT clear chart state here — keep stale data visible while new data loads
+    setSectionLoading(true);
     Promise.all([
       apiService.getAnalytics(id, { range: timeRange }),
       apiService.getPlatformRequestLogs(id, { num: '10' }),
@@ -788,7 +813,7 @@ const PlatformDetails: React.FC = () => {
       else if (Array.isArray(logs)) logsArray = logs;
       else if (logs?.logs && Array.isArray(logs.logs)) logsArray = logs.logs;
       setThreatLogs(logsArray);
-    }).catch(() => {/* keep stale data on error */});
+    }).catch(() => {/* keep stale data on error */}).finally(() => setSectionLoading(false));
   };
 
   useEffect(() => { fetchData(); }, [id]);
@@ -846,17 +871,265 @@ const PlatformDetails: React.FC = () => {
   };
 
   if (loading) {
+    const skCard = 'bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl p-5';
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#F2F6FE] dark:bg-[#0F1724]">
-        <div className="flex flex-col items-center justify-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500">
-            <Activity className="h-7 w-7 animate-spin text-white" />
+      <div className="w-full min-h-screen bg-[#F2F6FE] dark:bg-[#0F1724] px-5 pb-12 pt-0.5 space-y-5">
+
+        {/* Header banner */}
+        <div className="relative rounded-3xl bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#06b6d4] px-7 py-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-3">
+              <Skeleton className="h-5 w-28 rounded-full bg-white/20" />
+              <Skeleton className="h-8 w-56 rounded-2xl bg-white/20" />
+              <Skeleton className="h-4 w-72 rounded-full bg-white/15" />
+            </div>
+            <div className="flex gap-2.5">
+              <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
+              <Skeleton className="h-9 w-20 rounded-full bg-white/20" />
+            </div>
           </div>
-          <div className="text-center">
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">Loading Dashboard</p>
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Fetching security telemetry…</p>
+          <div className="mt-5 flex gap-2.5">
+            <Skeleton className="h-7 w-16 rounded-full bg-white/20" />
+            <Skeleton className="h-7 w-20 rounded-full bg-white/20" />
+            <Skeleton className="h-7 w-28 rounded-full bg-white/20" />
           </div>
         </div>
+
+        {/* Traffic Overview + Top Threats + Team Members */}
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className={`${skCard} flex flex-col`}>
+            <div className="flex items-center justify-between mb-5 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-2xl" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32 rounded-full" />
+                  <Skeleton className="h-3 w-48 rounded-full" />
+                </div>
+              </div>
+              <Skeleton className="h-7 w-24 rounded-2xl" />
+            </div>
+            <div className="grid grid-cols-4 gap-4 rounded-2xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 p-4 mb-5 flex-shrink-0">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className={i > 0 ? 'border-l border-slate-200/80 dark:border-blue-900/20 pl-4' : ''}>
+                  <Skeleton className="h-2.5 w-10 mb-2.5 rounded-full" />
+                  <Skeleton className="h-7 w-16 rounded-2xl" />
+                </div>
+              ))}
+            </div>
+            <Skeleton className="flex-1 min-h-[150px] w-full rounded-2xl" />
+          </div>
+
+          <div className="space-y-5">
+            <div className={skCard}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-24 rounded-full" />
+                  <Skeleton className="h-3 w-44 rounded-full" />
+                </div>
+                <Skeleton className="h-6 w-16 rounded-2xl" />
+              </div>
+              <div className="space-y-2">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 rounded-2xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/50 dark:bg-[#0F1724]/50 p-3">
+                    <Skeleton className="h-7 w-10 rounded-2xl flex-shrink-0" />
+                    <Skeleton className="h-4 flex-1 rounded-full" />
+                    <Skeleton className="h-1.5 w-14 rounded-full" />
+                    <Skeleton className="h-4 w-8 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className={skCard}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-9 rounded-2xl" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-28 rounded-full" />
+                    <Skeleton className="h-3 w-20 rounded-full" />
+                  </div>
+                </div>
+                <Skeleton className="h-6 w-16 rounded-2xl" />
+              </div>
+              <div className="space-y-2">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-2.5 rounded-2xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-3 py-2.5">
+                    <Skeleton className="h-7 w-7 rounded-full flex-shrink-0" />
+                    <div className="flex-1 space-y-1.5 min-w-0">
+                      <Skeleton className="h-3 w-28 rounded-full" />
+                      <Skeleton className="h-2.5 w-36 rounded-full" />
+                    </div>
+                    <Skeleton className="h-5 w-14 rounded-2xl flex-shrink-0" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 4 stat cards */}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl p-6">
+              <div className="flex items-start justify-between mb-4">
+                <Skeleton className="h-2.5 w-20 rounded-full" />
+                <Skeleton className="h-8 w-8 rounded-2xl" />
+              </div>
+              <Skeleton className="h-9 w-20 mb-2.5 rounded-2xl" />
+              <Skeleton className="h-3 w-32 rounded-full" />
+            </div>
+          ))}
+        </div>
+
+        {/* Heatmap */}
+        <div className={skCard}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-32 rounded-full" />
+              <Skeleton className="h-3 w-52 rounded-full" />
+            </div>
+          </div>
+          <Skeleton className="h-[160px] w-full rounded-2xl" />
+        </div>
+
+        {/* Response Codes + OWASP */}
+        <div className="grid gap-5 xl:grid-cols-2">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className={skCard}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-36 rounded-full" />
+                  <Skeleton className="h-3 w-52 rounded-full" />
+                </div>
+                <Skeleton className="h-7 w-24 rounded-2xl" />
+              </div>
+              <Skeleton className="h-[180px] w-full rounded-2xl mb-4" />
+              <div className="space-y-2">
+                {[...Array(4)].map((_, j) => (
+                  <div key={j} className="flex items-center justify-between px-3 py-2 rounded-2xl border border-slate-100 dark:border-blue-900/20">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                      <Skeleton className="h-3 w-24 rounded-full" />
+                    </div>
+                    <Skeleton className="h-3 w-8 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Geographic Distribution */}
+        <div className={skCard}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-44 rounded-full" />
+              <Skeleton className="h-3 w-56 rounded-full" />
+            </div>
+            <Skeleton className="h-7 w-24 rounded-2xl" />
+          </div>
+          <Skeleton className="w-full min-h-[370px] rounded-2xl" />
+        </div>
+
+        {/* Recent Threat Events */}
+        <div className={skCard}>
+          <div className="flex items-center justify-between mb-5">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-44 rounded-full" />
+              <Skeleton className="h-3 w-48 rounded-full" />
+            </div>
+            <Skeleton className="h-7 w-24 rounded-2xl" />
+          </div>
+          <div className="rounded-2xl border border-slate-100 dark:border-blue-900/20 overflow-hidden">
+            <div className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] gap-3 border-b border-slate-100 dark:border-blue-900/20 bg-slate-50/80 dark:bg-[#0F1724]/60 px-5 py-3">
+              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-2.5 w-16 rounded-full" />)}
+            </div>
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] items-center gap-3 px-5 py-3.5 border-b border-slate-50 dark:border-blue-900/10">
+                <Skeleton className="h-3 w-36 rounded-full" />
+                <Skeleton className="h-3 w-24 rounded-full" />
+                <Skeleton className="h-3 w-20 rounded-full" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Live Request Feed */}
+        <div className={skCard}>
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-2xl" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-36 rounded-full" />
+                <Skeleton className="h-3 w-52 rounded-full" />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-7 w-20 rounded-2xl" />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 dark:border-blue-900/20 overflow-hidden">
+            <div className="grid grid-cols-[auto_2fr_1fr_auto_auto] gap-3 border-b border-slate-100 dark:border-blue-900/20 bg-slate-50/80 dark:bg-[#0F1724]/60 px-5 py-3">
+              {[16, 40, 28, 12, 16].map((w, i) => <Skeleton key={i} className={`h-2.5 w-${w} rounded-full`} />)}
+            </div>
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="grid grid-cols-[auto_2fr_1fr_auto_auto] items-center gap-3 px-5 py-3 border-b border-slate-50 dark:border-blue-900/10">
+                <Skeleton className="h-5 w-10 rounded-lg" />
+                <Skeleton className="h-3 rounded-full" style={{ width: `${55 + (i * 13) % 35}%` }} />
+                <Skeleton className="h-3 w-20 rounded-full" />
+                <Skeleton className="h-4 w-4 rounded-full" />
+                <Skeleton className="h-5 w-14 rounded-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* AI Security Insights */}
+        <div className="bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl overflow-hidden">
+          <div className="bg-slate-50 dark:bg-[#0a1220]/60 px-5 py-4 rounded-t-3xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Skeleton className="h-6 w-6 rounded-xl" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-4 w-36 rounded-full" />
+                  <Skeleton className="h-3 w-52 rounded-full" />
+                </div>
+              </div>
+              <Skeleton className="h-7 w-20 rounded-2xl" />
+            </div>
+          </div>
+          <div className="p-5 space-y-3">
+            <Skeleton className="h-14 w-full rounded-2xl" />
+            <Skeleton className="h-10 w-full rounded-2xl" />
+            <div className="grid grid-cols-3 gap-2">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-2xl" />)}
+            </div>
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Skeleton className="h-3.5 w-3.5 rounded-full flex-shrink-0" />
+                  <Skeleton className="h-3 flex-1 rounded-full" style={{ width: `${60 + (i * 17) % 30}%` }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions grid */}
+        <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-4">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className={skCard}>
+              <Skeleton className="h-11 w-11 rounded-2xl mb-4" />
+              <Skeleton className="h-4 w-28 rounded-full mb-2" />
+              <Skeleton className="h-3 w-full rounded-full mb-1" />
+              <Skeleton className="h-3 w-3/4 rounded-full mb-4" />
+              <Skeleton className="h-8 w-full rounded-2xl" />
+            </div>
+          ))}
+        </div>
+
       </div>
     );
   }
@@ -960,6 +1233,20 @@ const PlatformDetails: React.FC = () => {
               </select>
             </CardHeader>
             <CardContent className="flex flex-col flex-1 p-6 pt-5">
+              {sectionLoading ? (
+                <div className="flex flex-col flex-1 gap-4">
+                  <div className={`flex-shrink-0 grid grid-cols-4 gap-4 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 p-4 ${Rsub}`}>
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className={i > 0 ? 'border-l border-slate-200/80 dark:border-blue-900/20 pl-4' : ''}>
+                        <Skeleton className="h-2.5 w-10 mb-2.5 rounded-full" />
+                        <Skeleton className="h-7 w-16 rounded-2xl" />
+                      </div>
+                    ))}
+                  </div>
+                  <Skeleton className="flex-1 min-h-[150px] w-full rounded-2xl" />
+                </div>
+              ) : (
+              <>
               <div className={`mb-6 flex-shrink-0 grid grid-cols-4 gap-4 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 p-4 ${Rsub}`}>
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Total</div>
@@ -999,6 +1286,8 @@ const PlatformDetails: React.FC = () => {
                   </div>
                 )}
               </div>
+              </>
+              )}
             </CardContent>
           </Card>
 
@@ -1013,7 +1302,18 @@ const PlatformDetails: React.FC = () => {
                 <button onClick={() => navigateTo('/threat-logs')} className="rounded-xl bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">view_all</button>
               </CardHeader>
               <CardContent className="p-5 pt-4">
-                {topThreats.length > 0 ? (
+                {sectionLoading ? (
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className={`flex items-center gap-3 border border-slate-100 dark:border-blue-900/20 bg-slate-50/50 dark:bg-[#0F1724]/50 p-3 ${Rsub}`}>
+                        <Skeleton className="h-7 w-10 rounded-2xl flex-shrink-0" />
+                        <Skeleton className="h-4 flex-1 rounded-full" />
+                        <Skeleton className="h-1.5 w-14 rounded-full" />
+                        <Skeleton className="h-4 w-8 rounded-full" />
+                      </div>
+                    ))}
+                  </div>
+                ) : topThreats.length > 0 ? (
                   <div className="space-y-2">
                     {topThreats.slice(0, 3).map((threat, idx) => {
                       const getThreatCode = (name: string) => { const words = (name || '').split(' '); if (words.length === 1) return (words[0] || '').slice(0, 3).toUpperCase(); return words.map(w => w[0]).join('').slice(0, 3).toUpperCase(); };
@@ -1056,7 +1356,18 @@ const PlatformDetails: React.FC = () => {
               </CardHeader>
               <CardContent className="p-5 pt-4">
                 {membersLoading ? (
-                  <div className="flex h-36 items-center justify-center"><Activity className="h-5 w-5 animate-spin text-blue-500" /></div>
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className={`flex items-center gap-2.5 border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-3 py-2.5 ${Rsub}`}>
+                        <Skeleton className="h-7 w-7 rounded-full flex-shrink-0" />
+                        <div className="flex-1 space-y-1.5 min-w-0">
+                          <Skeleton className="h-3 w-28 rounded-full" />
+                          <Skeleton className="h-2.5 w-36 rounded-full" />
+                        </div>
+                        <Skeleton className="h-5 w-14 rounded-2xl flex-shrink-0" />
+                      </div>
+                    ))}
+                  </div>
                 ) : platformMembers.length === 0 ? (
                   <div className={`flex h-36 flex-col items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 ${Rsub}`}>
                     <Users className="h-7 w-7 text-slate-300 dark:text-slate-700 mb-2" />
@@ -1144,7 +1455,17 @@ const PlatformDetails: React.FC = () => {
               </select>
             </CardHeader>
             <CardContent className="p-5 pt-4">
-              {threatTypes.length > 0 ? (
+              {sectionLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-[180px] w-full rounded-2xl" />
+                  {[...Array(4)].map((_, j) => (
+                    <div key={j} className={`flex items-center justify-between px-3 py-2 ${Rsub} border border-slate-100 dark:border-blue-900/20`}>
+                      <div className="flex items-center gap-2"><Skeleton className="h-2.5 w-2.5 rounded-full" /><Skeleton className="h-3 w-24 rounded-full" /></div>
+                      <Skeleton className="h-3 w-8 rounded-full" />
+                    </div>
+                  ))}
+                </div>
+              ) : threatTypes.length > 0 ? (
                 <div className="space-y-4">
                   <ResponsiveContainer width="100%" height={180}>
                     <PieChart>
@@ -1177,7 +1498,9 @@ const PlatformDetails: React.FC = () => {
               <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Detected risks by category</CardDescription>
             </CardHeader>
             <CardContent className="p-5 pt-4">
-              {activeOwaspThreats.length > 0 ? (
+              {sectionLoading ? (
+                <Skeleton className="h-[220px] w-full rounded-2xl" />
+              ) : activeOwaspThreats.length > 0 ? (
                 <ResponsiveContainer width="100%" height={220}>
                   <AreaChart data={activeOwaspThreats}>
                     <defs><linearGradient id="owaspFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563EB" stopOpacity={0.35} /><stop offset="95%" stopColor="#06B6D4" stopOpacity={0.02} /></linearGradient></defs>
@@ -1211,6 +1534,9 @@ const PlatformDetails: React.FC = () => {
             </select>
           </CardHeader>
           <CardContent className="p-5 pt-2">
+            {sectionLoading ? (
+              <Skeleton className="w-full min-h-[370px] rounded-2xl" />
+            ) : (
             <div className="flex flex-col lg:flex-row gap-5 lg:items-stretch">
 
               <div className="flex-1 min-h-[370px]">
@@ -1280,6 +1606,7 @@ const PlatformDetails: React.FC = () => {
                 )}
               </div>
             </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1292,7 +1619,21 @@ const PlatformDetails: React.FC = () => {
             <button onClick={() => navigateTo('/threat-logs')} className="rounded-xl bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">view_logs()</button>
           </CardHeader>
           <CardContent className="p-6 pt-0">
-            {recentRows.length > 0 ? (
+            {sectionLoading ? (
+              <div className={`overflow-hidden border border-slate-100 dark:border-blue-900/20 ${Rsub}`}>
+                <div className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] gap-3 border-b border-slate-100 dark:border-blue-900/20 bg-slate-50/80 dark:bg-[#0F1724]/60 px-5 py-3">
+                  {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-2.5 w-16 rounded-full" />)}
+                </div>
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] items-center gap-3 px-5 py-3.5 border-b border-slate-50 dark:border-blue-900/10">
+                    <Skeleton className="h-3 w-36 rounded-full" />
+                    <Skeleton className="h-3 w-24 rounded-full" />
+                    <Skeleton className="h-3 w-20 rounded-full" />
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            ) : recentRows.length > 0 ? (
               <div className={`overflow-hidden border border-slate-100 dark:border-blue-900/20 ${Rsub}`}>
                 <div className="grid grid-cols-[2fr_1.4fr_1.2fr_1fr] gap-3 border-b border-slate-100 dark:border-blue-900/20 bg-slate-50/80 dark:bg-[#0F1724]/60 px-5 py-3">
                   {['Endpoint', 'Attack Type', 'Source IP', 'Status'].map((h) => (<span key={h} className="font-mono text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">{h}</span>))}

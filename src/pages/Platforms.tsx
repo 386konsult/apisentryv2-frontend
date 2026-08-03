@@ -3,13 +3,13 @@ import ReactDOM from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
   Shield, Plus, Activity, Globe, Settings, Eye,
-  Server, Zap, AlertTriangle, Trash2, X, Clock, CheckCircle2, Loader2,
+  Server, Zap, AlertTriangle, Trash2, X, Clock, CheckCircle2, Loader2, Mail,
 } from 'lucide-react';
 import HeimdallAILogo from '@/components/HeimdallAILogo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { API_BASE_URL } from '@/services/api';
+import { API_BASE_URL, apiService } from '@/services/api';
 import { usePlatform } from '@/contexts/PlatformContext';
 
 interface Platform {
@@ -50,6 +50,7 @@ const Platforms = () => {
   const [deleteTarget, setDeleteTarget] = useState<Platform | null>(null);
   const [isDeleting, setIsDeleting]     = useState(false);
   const [verifyingDnsId, setVerifyingDnsId] = useState<string | null>(null);
+  const [pendingInvites, setPendingInvites] = useState(0);
   const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const navigate     = useNavigate();
   const { toast }    = useToast();
@@ -97,6 +98,13 @@ const Platforms = () => {
 
         setPlatforms(apiList);
         localStorage.setItem('user_platforms', JSON.stringify(apiList));
+
+        // Check for pending org invitations
+        try {
+          const invites = await apiService.getMyInvitations('received');
+          const pending = Array.isArray(invites) ? invites.filter((i: any) => i.status === 'pending').length : 0;
+          setPendingInvites(pending);
+        } catch {}
       } catch (e: any) {
         // API failed (e.g. network error or 401) — fall back to whatever is cached locally.
         const cached = localStorage.getItem('user_platforms');
@@ -218,6 +226,37 @@ const Platforms = () => {
     <>
     <div className="min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-5 py-6 sm:px-6 lg:px-8">
       <div className="max-w-full space-y-6">
+
+        {/* ── Pending invitation banner ── */}
+        <AnimatePresence>
+          {pendingInvites > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }}
+              className="flex items-center justify-between gap-4 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-5 py-4"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 dark:bg-emerald-500/20">
+                  <Mail className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                    You have {pendingInvites} pending workspace invitation{pendingInvites > 1 ? 's' : ''}
+                  </p>
+                  <p className="text-xs text-emerald-600/80 dark:text-emerald-400/70 truncate">
+                    Accept to access the shared workspace and its dashboard
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/invitations')}
+                className="shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 transition-colors"
+              >
+                View Invitation{pendingInvites > 1 ? 's' : ''}
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Header card ── */}
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}

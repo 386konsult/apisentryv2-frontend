@@ -300,6 +300,11 @@ class APIService {
         credentials: 'include',
         headers: this.authHeaders(),
       });
+      if (!res.ok) {
+        const err = new Error(`Platform not accessible (${res.status})`);
+        (err as any).status = res.status;
+        throw err;
+      }
       const data = await res.json();
       cacheSet(cacheKey, data, 300_000);
       return data;
@@ -316,6 +321,11 @@ class APIService {
         credentials: 'include',
         headers: this.authHeaders(),
       });
+      if (!res.ok) {
+        const err = new Error(`Endpoints not accessible (${res.status})`);
+        (err as any).status = res.status;
+        throw err;
+      }
       const data = await res.json();
       cacheSet(cacheKey, data, 300_000);
       return data;
@@ -332,6 +342,11 @@ class APIService {
         credentials: 'include',
         headers: this.authHeaders(),
       });
+      if (!res.ok) {
+        const err = new Error(`WAF rules not accessible (${res.status})`);
+        (err as any).status = res.status;
+        throw err;
+      }
       const data = await res.json();
       const result = Array.isArray(data) ? data : (data.results || []);
       cacheSet(cacheKey, result, 300_000);

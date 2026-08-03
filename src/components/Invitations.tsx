@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
 import { Send, Mail, Clock, Building2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
@@ -61,6 +62,7 @@ export default function Invitations() {
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const fetchReceived = async () => {
     setLoadingReceived(true);
@@ -96,11 +98,11 @@ export default function Invitations() {
     try {
       await apiService.acceptOrganisationInvitation(inv.token);
       toast({ title: 'Invitation accepted', description: `You now have access to ${inv.organisation_name}.` });
-      fetchReceived();
+      // Navigate to workspaces so the newly accessible workspace appears immediately
+      navigate('/platforms');
     } catch (e: any) {
       const msg = e?.body?.error || e.message || 'Failed to accept invitation';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
-    } finally {
       setAccepting(null);
     }
   };

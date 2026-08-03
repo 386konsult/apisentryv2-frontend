@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -362,6 +363,56 @@ const ThreatLogs = () => {
       default: return { cls: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300", dot: "bg-slate-400" };
     }
   };
+
+  if (loading) {
+    const sk = "bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl p-5";
+    return (
+      <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
+        <div className="w-full space-y-6">
+          <div className="rounded-[24px] bg-gradient-to-r from-red-600 to-orange-500 px-6 py-8 shadow-lg">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-3">
+                <Skeleton className="h-5 w-24 rounded-full bg-white/20" />
+                <Skeleton className="h-8 w-48 rounded-2xl bg-white/20" />
+                <Skeleton className="h-4 w-64 rounded-full bg-white/15" />
+              </div>
+              <div className="flex gap-2.5">
+                <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
+                <Skeleton className="h-9 w-32 rounded-full bg-white/20" />
+              </div>
+            </div>
+          </div>
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
+            {[1,2,3,4,5,6].map(i => (
+              <div key={i} className={sk}>
+                <Skeleton className="h-9 w-9 rounded-xl" />
+                <Skeleton className="h-7 w-16 rounded-full mt-3" />
+                <Skeleton className="h-3 w-24 rounded-full mt-2" />
+              </div>
+            ))}
+          </div>
+          <div className={sk}>
+            <div className="flex gap-2 mb-4">
+              {[1,2,3].map(i => <Skeleton key={i} className="h-9 flex-1 rounded-xl" />)}
+            </div>
+            <div className="space-y-3">
+              {[1,2,3,4,5].map(i => (
+                <div key={i} className="rounded-xl border border-slate-200/60 dark:border-blue-900/20 p-5 space-y-3">
+                  <div className="flex justify-between">
+                    <Skeleton className="h-4 w-48 rounded-full" />
+                    <Skeleton className="h-5 w-20 rounded-full" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[1,2,3].map(j => <Skeleton key={j} className="h-16 rounded-xl" />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">

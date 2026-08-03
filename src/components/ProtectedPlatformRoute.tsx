@@ -13,25 +13,13 @@ const ProtectedPlatformRoute: React.FC<{
     platformOwner,
   } = usePlatform();
 
-  // ① No workspace selected at all
+  // No workspace selected at all
   if (!hasSelectedPlatform) {
     if (fallback) return <>{fallback}</>;
     return <WorkspaceAccessGate variant="no_platform" />;
   }
 
-  // ② Still verifying access — show nothing to avoid a flash
-  if (isPlatformAccessible === null) {
-    return (
-      <div className="flex min-h-[60vh] w-full items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-7 w-7 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
-          <p className="text-sm text-slate-400 dark:text-slate-500">Verifying workspace access…</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ③ Platform selected but user has no access
+  // Platform selected but definitively no access
   if (isPlatformAccessible === false) {
     if (fallback) return <>{fallback}</>;
     return (
@@ -43,7 +31,7 @@ const ProtectedPlatformRoute: React.FC<{
     );
   }
 
-  // ④ All good — render the page
+  // Render immediately — null means still verifying in background, true means confirmed
   return <>{children}</>;
 };
 

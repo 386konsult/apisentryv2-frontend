@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Activity } from 'lucide-react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { Activity, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 
 interface LiveFeedCardProps {
@@ -62,49 +62,53 @@ function formatDate(ts: string | undefined): string {
 
 const LiveFeedCard: React.FC<LiveFeedCardProps> = ({ platformId }) => {
   const [logs, setLogs] = useState<any[]>([]);
-  const [running, setRunning] = useState(true);
   const [flashIds, setFlashIds] = useState<string[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const seenRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (!platformId || !running) return;
+  const baseURL = (import.meta as any).env?.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
 
-    const baseURL = (import.meta as any).env?.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
+  const poll = useCallback(async (manual = false) => {
+    if (manual) setRefreshing(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(
+        `${baseURL}/platforms/${platformId}/request-logs/?ordering=-timestamp&limit=20`,
+        { headers: token ? { Authorization: `Token ${token}` } : {} }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const results: any[] = Array.isArray(data.logs) ? data.logs : Array.isArray(data.results) ? data.results : [];
 
-    const poll = async () => {
-      try {
-        const token = localStorage.getItem('auth_token');
-        const res = await fetch(
-          `${baseURL}/platforms/${platformId}/request-logs/?ordering=-timestamp&limit=20`,
-          { headers: token ? { Authorization: `Token ${token}` } : {} }
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        const results: any[] = Array.isArray(data.logs) ? data.logs : Array.isArray(data.results) ? data.results : [];
-
-        const newIds: string[] = [];
-        results.forEach((l: any) => {
-          const key = String(l.id ?? l.timestamp ?? '');
-          if (key && !seenRef.current.has(key)) {
-            newIds.push(key);
-            seenRef.current.add(key);
-          }
-        });
-
-        setLogs(results);
-        if (newIds.length > 0) {
-          setFlashIds(newIds);
-          setTimeout(() => setFlashIds([]), 1400);
+      const newIds: string[] = [];
+      results.forEach((l: any) => {
+        const key = String(l.id ?? l.timestamp ?? '');
+        if (key && !seenRef.current.has(key)) {
+          newIds.push(key);
+          seenRef.current.add(key);
         }
-      } catch {
-        // swallow network errors silently
-      }
-    };
+      });
 
+      setLogs(results);
+      setLastRefreshed(new Date());
+      if (newIds.length > 0) {
+        setFlashIds(newIds);
+        setTimeout(() => setFlashIds([]), 1400);
+      }
+    } catch {
+      // swallow network errors silently
+    } finally {
+      if (manual) setTimeout(() => setRefreshing(false), 500);
+    }
+  }, [platformId, baseURL]);
+
+  useEffect(() => {
+    if (!platformId) return;
     poll();
-    const timer = setInterval(poll, 5000);
+    const timer = setInterval(() => poll(), 5000);
     return () => clearInterval(timer);
-  }, [platformId, running]);
+  }, [platformId, poll]);
 
   return (
     <Card className="bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-[22px] overflow-hidden">
@@ -118,29 +122,30 @@ const LiveFeedCard: React.FC<LiveFeedCardProps> = ({ platformId }) => {
               Live Request Feed
             </CardTitle>
             <CardDescription className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-              Polls every 3s · new rows flash · blocked entries glow red
+              Auto-refreshes · new rows flash · blocked entries glow red
             </CardDescription>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {running && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              </span>
-              LIVE
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            </span>
+            LIVE
+          </span>
+          {lastRefreshed && (
+            <span className="text-[11px] text-slate-400 dark:text-slate-500">
+              Updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </span>
           )}
           <button
-            onClick={() => setRunning(r => !r)}
-            className={`rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-              running
-                ? 'border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0d1829] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-blue-900/10'
-                : 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-            }`}
+            onClick={() => poll(true)}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-blue-900/30 bg-white dark:bg-[#0d1829] px-3 py-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-blue-900/10 transition-colors disabled:opacity-60"
           >
-            {running ? 'Pause' : 'Resume'}
+            <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
         </div>
       </CardHeader>

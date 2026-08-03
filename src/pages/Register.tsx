@@ -32,6 +32,9 @@ const Register = () => {
 
   const returnUrl = searchParams.get('returnUrl');
 
+  // Simplified flow when registering via an invitation link — no org setup needed
+  const isInvitedFlow = !!returnUrl && returnUrl.includes('invitations');
+
   const validateAccountStep = () => {
     const newErrors: Record<string, string> = {};
 
@@ -46,13 +49,15 @@ const Register = () => {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
-    if (!formData.companyName.trim()) {
-      newErrors.companyName = 'Company name is required';
-    }
-    if (!formData.subdomain.trim()) {
-      newErrors.subdomain = 'Subdomain is required';
-    } else if (!/^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/.test(formData.subdomain)) {
-      newErrors.subdomain = 'Subdomain must be lowercase letters, numbers, and hyphens only';
+    if (!isInvitedFlow) {
+      if (!formData.companyName.trim()) {
+        newErrors.companyName = 'Company name is required';
+      }
+      if (!formData.subdomain.trim()) {
+        newErrors.subdomain = 'Subdomain is required';
+      } else if (!/^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/.test(formData.subdomain)) {
+        newErrors.subdomain = 'Subdomain must be lowercase letters, numbers, and hyphens only';
+      }
     }
 
     setErrors(newErrors);
@@ -118,14 +123,23 @@ const Register = () => {
     setIsLoading(true);
 
     try {
+      // For invited users, auto-generate org fields they don't need
+      const autoSlug = isInvitedFlow
+        ? (formData.firstName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user') +
+          Math.random().toString(36).slice(2, 8)
+        : formData.subdomain;
+      const autoCompany = isInvitedFlow
+        ? `${formData.firstName} ${formData.lastName}`.trim()
+        : formData.companyName;
+
       const userData = {
         email: formData.email,
         password: formData.password,
         password_confirm: formData.confirmPassword,
         first_name: formData.firstName,
         last_name: formData.lastName,
-        company_name: formData.companyName,
-        subdomain: formData.subdomain,
+        company_name: autoCompany,
+        subdomain: autoSlug,
       };
 
       const response = await apiService.register(userData);
@@ -325,10 +339,23 @@ const Register = () => {
             {/* ── STEP 1: Account ── */}
             {activeStep === 'account' && (
               <>
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">Create account</h2>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+                  {isInvitedFlow ? 'Create your account' : 'Create account'}
+                </h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-7">
-                  Provide credentials to create your account
+                  {isInvitedFlow
+                    ? "You've been invited to join a workspace. Set up your account to accept it."
+                    : 'Provide credentials to create your account'}
                 </p>
+
+                {isInvitedFlow && (
+                  <div className="flex items-start gap-2.5 rounded-xl border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 px-4 py-3 mb-4">
+                    <span className="text-blue-500 mt-0.5">✉️</span>
+                    <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+                      You're joining via an invitation — no organisation setup needed. Just fill in your name, email, and a password.
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
@@ -373,6 +400,7 @@ const Register = () => {
                     </div>
                   </div>
 
+                  {!isInvitedFlow && (
                   <div className="space-y-1.5">
                     <Label htmlFor="companyName" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                       Company
@@ -392,6 +420,7 @@ const Register = () => {
                       </p>
                     )}
                   </div>
+                  )}
 
                   <div className="space-y-1.5">
                     <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -414,6 +443,7 @@ const Register = () => {
                     )}
                   </div>
 
+                  {!isInvitedFlow && (
                   <div className="space-y-1.5">
                     <Label htmlFor="subdomain" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                       Subdomain
@@ -428,7 +458,7 @@ const Register = () => {
                       required
                     />
                     <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                      your-company.heimdall.smartcomply.com
+                      e.g. <strong>your-company</strong>.heimdall.smartcomply.com
                     </p>
                     {errors.subdomain && (
                       <p className="flex items-center gap-1 text-xs text-red-500">
@@ -436,6 +466,7 @@ const Register = () => {
                       </p>
                     )}
                   </div>
+                  )}
 
                   <button
                     type="button"

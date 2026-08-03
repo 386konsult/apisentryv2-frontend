@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiService } from "@/services/api";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Table,
@@ -189,11 +190,41 @@ export default function RateLimiting() {
   };
 
   if (loading) {
+    const sk = "bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl p-5";
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
-          <p className="mt-3 text-sm text-slate-500">Loading rate limit rules...</p>
+      <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
+        <div className="w-full space-y-6">
+          <div className="rounded-[24px] bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 shadow-lg">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-3">
+                <Skeleton className="h-5 w-24 rounded-full bg-white/20" />
+                <Skeleton className="h-8 w-52 rounded-2xl bg-white/20" />
+                <Skeleton className="h-4 w-72 rounded-full bg-white/15" />
+              </div>
+              <div className="flex gap-2.5">
+                <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
+                <Skeleton className="h-9 w-36 rounded-full bg-white/20" />
+              </div>
+            </div>
+          </div>
+          <div className={`${sk} space-y-3`}>
+            <div className="flex justify-between items-center mb-2">
+              <Skeleton className="h-5 w-36 rounded-full" />
+              <Skeleton className="h-8 w-28 rounded-xl" />
+            </div>
+            <div className="space-y-3">
+              {[1,2,3,4].map(i => (
+                <div key={i} className="rounded-2xl border border-slate-200/60 dark:border-blue-900/20 p-4 flex items-center gap-4">
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-40 rounded-full" />
+                    <Skeleton className="h-3 w-64 rounded-full" />
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                  <Skeleton className="h-8 w-8 rounded-lg" />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );

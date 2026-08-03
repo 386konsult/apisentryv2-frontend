@@ -35,16 +35,33 @@ const authHeaders = () => {
   return token ? { Authorization: `Token ${token}` } : {};
 };
 
+const accessCacheKey = (id: string) => `platform_accessible_${id}`;
+
 export const PlatformProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [selectedPlatformId, setSelectedPlatformIdState] = useState<string | null>(null);
   const [selectedPlatformName, setSelectedPlatformName] = useState<string | null>(null);
   const [isPlatformAccessible, setIsPlatformAccessible] = useState<boolean | null>(null);
   const [platformOwner, setPlatformOwner] = useState<PlatformOwner | null>(null);
 
-  // Load stored platform ID on mount
+  // On mount: seed from cache so reload skips the verifying spinner entirely
   useEffect(() => {
     const storedId = localStorage.getItem('selected_platform_id');
-    if (storedId) setSelectedPlatformIdState(storedId);
+    if (!storedId) return;
+
+    if (localStorage.getItem(accessCacheKey(storedId)) === 'true') {
+      // Already verified before — skip the spinner, go straight to content
+      setIsPlatformAccessible(true);
+      try {
+        const stored = localStorage.getItem('user_platforms');
+        if (stored) {
+          const platforms = JSON.parse(stored);
+          const match = platforms.find((p: any) => p.id === storedId);
+          if (match?.name) setSelectedPlatformName(match.name);
+        }
+      } catch {}
+    }
+
+    setSelectedPlatformIdState(storedId);
   }, []);
 
   // Validate access + fetch owner info whenever selected platform changes
@@ -56,10 +73,13 @@ export const PlatformProvider: React.FC<{ children: ReactNode }> = ({ children }
       return;
     }
 
-    setIsPlatformAccessible(null); // "checking…"
+    // Only show verifying spinner for platforms not yet cached as accessible
+    if (localStorage.getItem(accessCacheKey(selectedPlatformId)) !== 'true') {
+      setIsPlatformAccessible(null); // "checking…"
+    }
     setPlatformOwner(null);
 
-    // Try to fetch the platform — if accessible we get name, if not we get 403/404
+    // Verify in background — updates state whether cached or not
     fetch(`${API_BASE()}/platforms/${selectedPlatformId}/`, {
       headers: authHeaders(),
     })
@@ -68,14 +88,15 @@ export const PlatformProvider: React.FC<{ children: ReactNode }> = ({ children }
         return res.json();
       })
       .then(data => {
+        localStorage.setItem(accessCacheKey(selectedPlatformId), 'true');
         setIsPlatformAccessible(true);
         setSelectedPlatformName(data.name ?? null);
       })
       .catch(() => {
+        localStorage.removeItem(accessCacheKey(selectedPlatformId));
         setIsPlatformAccessible(false);
         setSelectedPlatformName(null);
 
-        // Fetch public-info so we can show who owns the workspace
         fetch(`${API_BASE()}/platforms/${selectedPlatformId}/public-info/`, {
           headers: authHeaders(),
         })

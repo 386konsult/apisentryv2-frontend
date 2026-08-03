@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,7 @@ import { apiService, API_BASE_URL } from "@/services/api";
 const Settings = () => {
   const { toast } = useToast();
   const [platformDetails, setPlatformDetails] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [isUpdatingPlatform, setIsUpdatingPlatform] = useState(false);
   const [platformFormData, setPlatformFormData] = useState({
     name: "",
@@ -65,6 +67,8 @@ const Settings = () => {
           description: error.message || "Failed to fetch platform details.",
           variant: "destructive",
         });
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -176,6 +180,58 @@ const Settings = () => {
       setIsChangingPassword(false);
     }
   };
+
+  if (loading) {
+    const sk = "bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl p-5";
+    return (
+      <div className="space-y-8 w-full min-w-0 max-w-full">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 pt-7 pb-6 shadow-lg min-h-[140px]">
+          <div className="relative z-10 flex flex-col justify-between h-full gap-4">
+            <div className="flex gap-2">
+              <Skeleton className="h-6 w-20 rounded-full bg-white/20" />
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+              <div className="space-y-2">
+                <Skeleton className="h-9 w-36 rounded-2xl bg-white/20" />
+                <Skeleton className="h-4 w-56 rounded-full bg-white/15" />
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {[1,2,3].map(i => <Skeleton key={i} className="h-9 w-28 rounded-xl" />)}
+        </div>
+        <div className={`${sk} space-y-4`}>
+          <Skeleton className="h-5 w-40 rounded-full" />
+          <Skeleton className="h-3 w-64 rounded-full" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            {[1,2,3,4].map(i => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-3 w-24 rounded-full" />
+                <Skeleton className="h-10 w-full rounded-xl" />
+              </div>
+            ))}
+          </div>
+          <Skeleton className="h-10 w-28 rounded-xl mt-2" />
+        </div>
+        <div className={`${sk} space-y-4`}>
+          <Skeleton className="h-5 w-32 rounded-full" />
+          <Skeleton className="h-3 w-56 rounded-full" />
+          <div className="space-y-3 pt-2">
+            {[1,2,3].map(i => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-3 w-28 rounded-full" />
+                <Skeleton className="h-10 w-full rounded-xl" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 w-full min-w-0 max-w-full">

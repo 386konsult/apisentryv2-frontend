@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Activity } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface HeatmapCardProps {
   platformId: string;
@@ -16,6 +17,7 @@ const LEGEND: [string, string][] = [
 
 const HeatmapCard: React.FC<HeatmapCardProps> = ({ platformId }) => {
   const [heatmapData, setHeatmapData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!platformId) return;
@@ -26,7 +28,8 @@ const HeatmapCard: React.FC<HeatmapCardProps> = ({ platformId }) => {
     })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.heatmap) setHeatmapData(d.heatmap); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [platformId]);
 
   const { grid, maxTotal } = useMemo(() => {
@@ -59,7 +62,13 @@ const HeatmapCard: React.FC<HeatmapCardProps> = ({ platformId }) => {
           </CardDescription>
         </div>
         <div className="flex items-center gap-4 text-[11px] text-slate-400 dark:text-slate-500">
-          {LEGEND.map(([bg, label]) => (
+          {loading ? (
+            <>
+              <Skeleton className="h-3 w-12 rounded" />
+              <Skeleton className="h-3 w-12 rounded" />
+              <Skeleton className="h-3 w-12 rounded" />
+            </>
+          ) : LEGEND.map(([bg, label]) => (
             <span key={label} className="flex items-center gap-1.5">
               <span className="inline-block h-3 w-3 rounded-[3px]" style={{ background: bg }} />
               {label}
@@ -69,7 +78,31 @@ const HeatmapCard: React.FC<HeatmapCardProps> = ({ platformId }) => {
       </CardHeader>
 
       <CardContent className="p-6 pt-5">
-        {heatmapData.length === 0 ? (
+        {loading ? (
+          <div className="w-full">
+            {/* Hour axis skeleton */}
+            <div className="flex gap-1 mb-3 pl-12">
+              {Array.from({ length: 24 }, (_, h) => (
+                <div key={h} className="flex-1 flex justify-center">
+                  {h % 4 === 0 && <Skeleton className="h-3 w-4 rounded" />}
+                </div>
+              ))}
+            </div>
+            {/* Day row skeletons */}
+            <div className="flex flex-col gap-2">
+              {DAYS.map(day => (
+                <div key={day} className="flex items-center gap-1">
+                  <Skeleton className="w-12 shrink-0 h-3 rounded mr-1" />
+                  <div className="flex flex-1 gap-1">
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <Skeleton key={h} className="flex-1 rounded-[4px]" style={{ height: 22 }} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : heatmapData.length === 0 ? (
           <div className="flex h-40 items-center justify-center border border-dashed border-slate-200 dark:border-blue-900/20 rounded-[14px]">
             <div className="text-center">
               <Activity className="mx-auto mb-2 h-7 w-7 text-slate-300 dark:text-slate-700" />

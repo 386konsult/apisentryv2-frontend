@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -148,6 +149,57 @@ const AuditLogs = () => {
     setUserFilter("");
     setPage(1);
   };
+
+  if (loading) {
+    const sk = "bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl p-5";
+    return (
+      <div className="space-y-8 w-full min-w-0 max-w-full p-4">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 sm:px-8 pt-7 pb-6 shadow-lg min-h-[140px]">
+          <div className="relative z-10 flex flex-col justify-between h-full gap-4">
+            <div className="flex gap-2">
+              <Skeleton className="h-6 w-24 rounded-full bg-white/20" />
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+              <div className="space-y-2">
+                <Skeleton className="h-9 w-40 rounded-2xl bg-white/20" />
+                <Skeleton className="h-4 w-64 rounded-full bg-white/15" />
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
+                <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className={`${sk} space-y-3`}>
+          <div className="flex justify-between items-center">
+            <Skeleton className="h-5 w-36 rounded-full" />
+            <Skeleton className="h-8 w-24 rounded-xl" />
+          </div>
+          <div className="flex gap-2">
+            {[1,2,3].map(i => <Skeleton key={i} className="h-9 flex-1 rounded-xl" />)}
+          </div>
+          <div className="space-y-2 pt-2">
+            <div className="flex gap-4 pb-2">
+              {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-4 flex-1 rounded-full" />)}
+            </div>
+            {[1,2,3,4,5,6,7,8].map(i => (
+              <div key={i} className="flex gap-4 py-3 border-t border-slate-100 dark:border-blue-900/10">
+                {[1,2,3,4,5].map(j => <Skeleton key={j} className="h-3 flex-1 rounded-full" />)}
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between items-center pt-2">
+            <Skeleton className="h-4 w-32 rounded-full" />
+            <div className="flex gap-2">
+              <Skeleton className="h-8 w-20 rounded-xl" />
+              <Skeleton className="h-8 w-20 rounded-xl" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 w-full min-w-0 max-w-full p-4">

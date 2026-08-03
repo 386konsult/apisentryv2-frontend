@@ -339,13 +339,7 @@ const SecurityTipCard = ({ p, collapsed }: { p: any; collapsed: boolean }) => {
         : "rgba(248,250,252,1)",
       border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(15,23,42,0.07)"}`,
     }}>
-      {/* Left accent stripe */}
-      <div style={{
-        position: "absolute", left: 0, top: 12, bottom: 12, width: 3, borderRadius: "0 3px 3px 0",
-        background: "linear-gradient(180deg, #2563eb, #06b6d4)",
-      }} />
-
-      <div style={{ padding: "14px 14px 12px 18px" }}>
+      <div style={{ padding: "14px 14px 12px 14px" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

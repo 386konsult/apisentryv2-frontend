@@ -23,9 +23,21 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Seed user from localStorage so reload skips the auth spinner entirely
+const getCachedUser = (): User | null => {
+  try {
+    const raw = localStorage.getItem('cached_user_info');
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const hasToken = apiService.isAuthenticated();
+  const cachedUser = hasToken ? getCachedUser() : null;
+
+  // If we have a cached user + token, start authenticated with no loading flash
+  const [user, setUser] = useState<User | null>(cachedUser);
+  const [isLoading, setIsLoading] = useState(!hasToken || !cachedUser);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -33,10 +45,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (apiService.isAuthenticated()) {
           const userInfo = await apiService.getUserInfo();
           setUser(userInfo);
+          localStorage.setItem('cached_user_info', JSON.stringify(userInfo));
         }
       } catch (error) {
         console.error('Auth check failed:', error);
         apiService.logout();
+        setUser(null);
+        localStorage.removeItem('cached_user_info');
       } finally {
         setIsLoading(false);
       }
@@ -48,11 +63,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string) => {
     const response = await apiService.login({ email, password });
     setUser(response.user);
+    localStorage.setItem('cached_user_info', JSON.stringify(response.user));
   };
 
   const logout = async () => {
     await apiService.logout();
     setUser(null);
+    localStorage.removeItem('cached_user_info');
   };
 
   const value: AuthContextType = {

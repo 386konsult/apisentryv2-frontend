@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -212,6 +213,47 @@ const APIEndpoints = () => {
       toast({ title: "Failed to update", description: "Could not update protection status.", variant: "destructive" });
     }
   };
+
+  if (loading) {
+    const sk = "bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl p-5";
+    return (
+      <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
+        <div className="w-full space-y-6">
+          <div className="rounded-[24px] bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 shadow-lg">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-3">
+                <Skeleton className="h-5 w-24 rounded-full bg-white/20" />
+                <Skeleton className="h-8 w-52 rounded-2xl bg-white/20" />
+                <Skeleton className="h-4 w-72 rounded-full bg-white/15" />
+              </div>
+              <div className="flex gap-2.5">
+                <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
+                <Skeleton className="h-9 w-36 rounded-full bg-white/20" />
+              </div>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[1,2,3,4].map(i => (
+              <div key={i} className={sk}>
+                <Skeleton className="h-9 w-9 rounded-xl" />
+                <Skeleton className="h-4 w-28 rounded-full mt-4" />
+                <Skeleton className="h-8 w-16 rounded-full mt-1" />
+                <Skeleton className="h-3 w-36 rounded-full mt-2" />
+                <Skeleton className="h-1.5 w-full rounded-full mt-4" />
+              </div>
+            ))}
+          </div>
+          <div className={`${sk} space-y-3`}>
+            <Skeleton className="h-5 w-40 rounded-full" />
+            <Skeleton className="h-9 w-full rounded-xl" />
+            <div className="space-y-2 pt-2">
+              {[1,2,3,4,5,6,7].map(i => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">

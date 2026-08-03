@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Download, FileText, ChevronLeft, Calendar, Shield, AlertTriangle,
   Activity, Server, Lock, TrendingUp, BarChart3, CheckCircle,
@@ -462,14 +463,40 @@ const CISOReports = () => {
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading && !selectedReport) {
+    const sk = "bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl p-5";
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#F2F6FE] dark:bg-[#0F1724]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500">
-            <Activity className="h-7 w-7 animate-spin text-white" />
+      <div className="w-full min-h-screen bg-[#F2F6FE] dark:bg-[#0F1724] px-5 pb-12 pt-0.5">
+        <div className="w-full space-y-5">
+          <div className="relative rounded-[28px] bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#06b6d4] px-7 py-7 overflow-hidden">
+            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <Skeleton className="h-6 w-28 rounded-full bg-white/20" />
+                  <Skeleton className="h-6 w-20 rounded-full bg-white/20" />
+                </div>
+                <Skeleton className="h-8 w-56 rounded-2xl bg-white/20" />
+                <Skeleton className="h-4 w-64 rounded-full bg-white/15" />
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
+                <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
+              </div>
+            </div>
           </div>
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">Loading Reports</p>
-          <p className="text-xs text-slate-400">Fetching security intelligence…</p>
+          <div className="grid gap-4 md:grid-cols-3">
+            {[1,2,3].map(i => (
+              <div key={i} className={sk}>
+                <Skeleton className="h-4 w-20 rounded-full" />
+                <Skeleton className="h-4 w-36 rounded-full mt-3" />
+                <Skeleton className="h-3 w-48 rounded-full mt-2" />
+                <Skeleton className="h-24 w-full rounded-2xl mt-4" />
+                <div className="flex gap-2 mt-4">
+                  <Skeleton className="h-8 flex-1 rounded-xl" />
+                  <Skeleton className="h-8 flex-1 rounded-xl" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );

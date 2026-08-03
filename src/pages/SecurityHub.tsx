@@ -650,7 +650,10 @@ const SecurityHub = () => {
     const delay = (searchTerm || ipFilter || endpointFilter) ? 500 : 0;
     const timer = setTimeout(() => {
       setLoading(true);
-      fetchTablePage(platformId, 1, false);
+      fetchTablePage(platformId, 1, false, {
+        searchTerm, ipFilter, endpointFilter,
+        methodFilter, statusCodeFilter, threatLevelFilter, wafBlockedFilter,
+      });
     }, delay);
     return () => clearTimeout(timer);
   }, [searchTerm, ipFilter, endpointFilter, methodFilter, statusCodeFilter, threatLevelFilter, wafBlockedFilter]);

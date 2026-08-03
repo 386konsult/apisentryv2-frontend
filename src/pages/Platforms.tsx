@@ -97,7 +97,10 @@ const Platforms = () => {
         const apiList: Platform[] = Array.isArray(data) ? data : data.results || [];
 
         setPlatforms(apiList);
-        localStorage.setItem('user_platforms', JSON.stringify(apiList));
+        try {
+          const slim = apiList.map((p: any) => ({ id: p.id, name: p.name }));
+          localStorage.setItem('user_platforms', JSON.stringify(slim));
+        } catch { localStorage.removeItem('user_platforms'); }
 
         // Check for pending org invitations
         try {
@@ -148,7 +151,10 @@ const Platforms = () => {
       if (!res.ok && res.status !== 204) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
       setPlatforms(prev => {
         const updated = prev.filter(p => p.id !== deleteTarget.id);
-        localStorage.setItem('user_platforms', JSON.stringify(updated));
+        try {
+          const slim = updated.map((p: any) => ({ id: p.id, name: p.name }));
+          localStorage.setItem('user_platforms', JSON.stringify(slim));
+        } catch { localStorage.removeItem('user_platforms'); }
         return updated;
       });
       toast({ title: 'Workspace deleted', description: `"${deleteTarget.name}" permanently deleted.` });

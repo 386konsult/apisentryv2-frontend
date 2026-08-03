@@ -638,8 +638,9 @@ const SecurityHub = () => {
     if (platformId) fetchStatsForRange(platformId, statsRange);
   }, [statsRange]);
 
-  // Re-fetch table when any filter changes (debounce text inputs).
-  // Skips the initial mount run — the main useEffect above already handles that.
+  // Re-fetch table when text-input filters change (debounced).
+  // Dropdown filters (method, status_code, etc.) are handled directly in
+  // handleFilterChange so there's no async-state race.
   useEffect(() => {
     if (isFilterFirstRun.current) {
       isFilterFirstRun.current = false;
@@ -648,19 +649,18 @@ const SecurityHub = () => {
     const platformId = localStorage.getItem("selected_platform_id");
     if (!platformId) return;
     setPage(1);
-    const delay = (searchTerm || ipFilter || endpointFilter) ? 500 : 0;
     const timer = setTimeout(() => {
       setLoading(true);
       fetchTablePage(platformId, 1, false, {
         searchTerm, ipFilter, endpointFilter,
         methodFilter, statusCodeFilter, threatLevelFilter, wafBlockedFilter,
       });
-    }, delay);
+    }, 500);
     return () => clearTimeout(timer);
-  }, [searchTerm, ipFilter, endpointFilter, methodFilter, statusCodeFilter, threatLevelFilter, wafBlockedFilter]);
+  }, [searchTerm, ipFilter, endpointFilter]);
 
   // Filter state is initialized from URL params above (useState lazy initializer).
-  // No useEffect needed here — handleFilterChange is the single update path.
+  // Dropdown filter changes are handled directly in handleFilterChange below.
 
   // ── IP Intel fetch — fires when modal opens ───────────────────────────────
   useEffect(() => {
@@ -723,14 +723,34 @@ const SecurityHub = () => {
   };
 
   const handleFilterChange = (key: string, value: string) => {
-    if (key === "method") setMethodFilter(value);
-    else if (key === "status_code") setStatusCodeFilter(value);
+    // Build the new filter values synchronously — don't rely on state having updated yet.
+    const newMethod      = key === "method"       ? value : methodFilter;
+    const newStatusCode  = key === "status_code"  ? value : statusCodeFilter;
+    const newThreatLevel = key === "threat_level" ? value : threatLevelFilter;
+    const newBlocked     = key === "blocked"       ? value : wafBlockedFilter;
+
+    // Update React state (for UI display).
+    if (key === "method")       setMethodFilter(value);
+    else if (key === "status_code")  setStatusCodeFilter(value);
     else if (key === "threat_level") setThreatLevelFilter(value);
-    else if (key === "blocked") setWafBlockedFilter(value);
+    else if (key === "blocked")      setWafBlockedFilter(value);
+
+    // Update URL (replace so filter changes don't create history entries).
     const params = new URLSearchParams(searchParams);
     if (value !== "all") params.set(key, value);
     else params.delete(key);
-    setSearchParams(params);
+    setSearchParams(params, { replace: true });
+
+    // Fetch immediately with the known-correct new values — no closure staleness.
+    const platformId = localStorage.getItem("selected_platform_id");
+    if (!platformId) return;
+    setPage(1);
+    setLoading(true);
+    fetchTablePage(platformId, 1, false, {
+      searchTerm, ipFilter, endpointFilter,
+      methodFilter: newMethod, statusCodeFilter: newStatusCode,
+      threatLevelFilter: newThreatLevel, wafBlockedFilter: newBlocked,
+    });
   };
 
   const clearAllFilters = () => {

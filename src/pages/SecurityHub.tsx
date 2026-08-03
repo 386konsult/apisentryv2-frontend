@@ -627,9 +627,10 @@ const SecurityHub = () => {
     setLoading(true); setPage(1); setHasMore(true);
     fetchStatsForRange(platformId, statsRange);
     fetchTablePage(platformId, 1, false);
-  // location.key changes on every React Router navigation to this page,
-  // ensuring data reloads whenever the user arrives here (not just on first mount).
-  }, [location.key]);
+  // location.pathname changes when the user navigates to/from this page.
+  // Using pathname (not location.key) so that setSearchParams filter changes
+  // don't re-trigger this initial unfiltered fetch and race with the filter fetch.
+  }, [location.pathname]);
 
   // Re-fetch stats whenever the time range changes
   useEffect(() => {

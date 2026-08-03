@@ -97,10 +97,6 @@ const Platforms = () => {
         const apiList: Platform[] = Array.isArray(data) ? data : data.results || [];
 
         setPlatforms(apiList);
-        try {
-          const slim = apiList.map((p: any) => ({ id: p.id, name: p.name }));
-          localStorage.setItem('user_platforms', JSON.stringify(slim));
-        } catch { localStorage.removeItem('user_platforms'); }
 
         // Check for pending org invitations
         try {
@@ -109,13 +105,7 @@ const Platforms = () => {
           setPendingInvites(pending);
         } catch {}
       } catch (e: any) {
-        // API failed (e.g. network error or 401) — fall back to whatever is cached locally.
-        const cached = localStorage.getItem('user_platforms');
-        const fallback: Platform[] = cached ? JSON.parse(cached) : [];
-        setPlatforms(fallback);
-        if (fallback.length === 0) {
-          toast({ title: 'Error loading workspaces', description: e.message, variant: 'destructive' });
-        }
+        toast({ title: 'Error loading workspaces', description: e.message, variant: 'destructive' });
       } finally { setLoading(false); }
     };
     fetch_();
@@ -151,10 +141,6 @@ const Platforms = () => {
       if (!res.ok && res.status !== 204) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
       setPlatforms(prev => {
         const updated = prev.filter(p => p.id !== deleteTarget.id);
-        try {
-          const slim = updated.map((p: any) => ({ id: p.id, name: p.name }));
-          localStorage.setItem('user_platforms', JSON.stringify(slim));
-        } catch { localStorage.removeItem('user_platforms'); }
         return updated;
       });
       toast({ title: 'Workspace deleted', description: `"${deleteTarget.name}" permanently deleted.` });

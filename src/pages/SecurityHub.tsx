@@ -524,10 +524,10 @@ const SecurityHub = () => {
   const [searchTerm, setSearchTerm]               = useState("");
   const [ipFilter, setIpFilter]                   = useState("");
   const [countryFilter, setCountryFilter]         = useState<string | null>(null);
-  const [methodFilter, setMethodFilter]           = useState("all");
-  const [statusCodeFilter, setStatusCodeFilter]   = useState("all");
-  const [threatLevelFilter, setThreatLevelFilter] = useState("all");
-  const [wafBlockedFilter, setWafBlockedFilter]   = useState("all");
+  const [methodFilter, setMethodFilter]           = useState(() => searchParams.get("method") || "all");
+  const [statusCodeFilter, setStatusCodeFilter]   = useState(() => searchParams.get("status_code") || "all");
+  const [threatLevelFilter, setThreatLevelFilter] = useState(() => searchParams.get("threat_level") || "all");
+  const [wafBlockedFilter, setWafBlockedFilter]   = useState(() => searchParams.get("blocked") || "all");
   const [platformName, setPlatformName]           = useState<string>("");
 
   // Endpoint autocomplete
@@ -655,12 +655,8 @@ const SecurityHub = () => {
     return () => clearTimeout(timer);
   }, [searchTerm, ipFilter, endpointFilter, methodFilter, statusCodeFilter, threatLevelFilter, wafBlockedFilter]);
 
-  useEffect(() => {
-    setMethodFilter(searchParams.get("method") || "all");
-    setStatusCodeFilter(searchParams.get("status_code") || "all");
-    setThreatLevelFilter(searchParams.get("threat_level") || "all");
-    setWafBlockedFilter(searchParams.get("blocked") || "all");
-  }, [searchParams]);
+  // Filter state is initialized from URL params above (useState lazy initializer).
+  // No useEffect needed here — handleFilterChange is the single update path.
 
   // ── IP Intel fetch — fires when modal opens ───────────────────────────────
   useEffect(() => {
@@ -723,25 +719,21 @@ const SecurityHub = () => {
   };
 
   const handleFilterChange = (key: string, value: string) => {
+    if (key === "method") setMethodFilter(value);
+    else if (key === "status_code") setStatusCodeFilter(value);
+    else if (key === "threat_level") setThreatLevelFilter(value);
+    else if (key === "blocked") setWafBlockedFilter(value);
     const params = new URLSearchParams(searchParams);
-    if (key === "blocked") {
-      setWafBlockedFilter(value);
-      updateQueryParam(key, value);
-    } else {
-      // Set state directly so the fetch fires immediately with the new value,
-      // not one render cycle behind after the URL → useEffect → setState chain.
-      if (key === "method") setMethodFilter(value);
-      else if (key === "status_code") setStatusCodeFilter(value);
-      else if (key === "threat_level") setThreatLevelFilter(value);
-      params.delete("method"); params.delete("status_code"); params.delete("threat_level");
-      if (value !== "all") params.set(key, value);
-      setSearchParams(params);
-    }
+    if (value !== "all") params.set(key, value);
+    else params.delete(key);
+    setSearchParams(params);
   };
 
   const clearAllFilters = () => {
     setSearchParams(new URLSearchParams());
     setSearchTerm(""); setIpFilter(""); setCountryFilter(null);
+    setMethodFilter("all"); setStatusCodeFilter("all");
+    setThreatLevelFilter("all"); setWafBlockedFilter("all");
   };
 
   const loadMore = () => {

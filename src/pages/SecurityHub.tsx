@@ -724,8 +724,15 @@ const SecurityHub = () => {
 
   const handleFilterChange = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams);
-    if (key === "blocked") { updateQueryParam(key, value); }
-    else {
+    if (key === "blocked") {
+      setWafBlockedFilter(value);
+      updateQueryParam(key, value);
+    } else {
+      // Set state directly so the fetch fires immediately with the new value,
+      // not one render cycle behind after the URL → useEffect → setState chain.
+      if (key === "method") setMethodFilter(value);
+      else if (key === "status_code") setStatusCodeFilter(value);
+      else if (key === "threat_level") setThreatLevelFilter(value);
       params.delete("method"); params.delete("status_code"); params.delete("threat_level");
       if (value !== "all") params.set(key, value);
       setSearchParams(params);

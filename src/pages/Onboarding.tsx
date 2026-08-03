@@ -90,15 +90,17 @@ const Onboarding = () => {
   const [managedError, setManagedError] = useState<string | null>(null);
   const [detectingOrigin, setDetectingOrigin] = useState(false);
   const [originAutoDetected, setOriginAutoDetected] = useState(false);
+  const [originDetectFailed, setOriginDetectFailed] = useState(false);
   const detectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-detect origin URL from DNS A record when protected hostname changes
   useEffect(() => {
     if (detectTimerRef.current) clearTimeout(detectTimerRef.current);
     const hostname = protectedHostname.trim();
-    if (!hostname || !hostname.includes('.')) { setOriginAutoDetected(false); return; }
+    if (!hostname || !hostname.includes('.')) { setOriginAutoDetected(false); setOriginDetectFailed(false); return; }
     detectTimerRef.current = setTimeout(async () => {
       setDetectingOrigin(true);
+      setOriginDetectFailed(false);
       try {
         const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(hostname)}&type=A`);
         const data = await res.json();
@@ -106,8 +108,10 @@ const Onboarding = () => {
         if (aRecord?.data) {
           setDestinationUrl(`http://${aRecord.data}`);
           setOriginAutoDetected(true);
+        } else {
+          setOriginDetectFailed(true);
         }
-      } catch { /* silent — user can fill manually */ }
+      } catch { setOriginDetectFailed(true); }
       finally { setDetectingOrigin(false); }
     }, 800);
     return () => { if (detectTimerRef.current) clearTimeout(detectTimerRef.current); };
@@ -597,12 +601,15 @@ const Onboarding = () => {
                               <Sparkles className="h-3 w-3" /> Auto-detected
                             </span>
                           )}
+                          {originDetectFailed && !detectingOrigin && !originAutoDetected && (
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500">Couldn't detect — enter manually</span>
+                          )}
                         </div>
                         <Input
                           id="destination-url"
                           placeholder="e.g., https://api.heimdallsecurity.io or http://192.168.1.5:8080"
                           value={destinationUrl}
-                          onChange={(e) => { setDestinationUrl(e.target.value); setOriginAutoDetected(false); }}
+                          onChange={(e) => { setDestinationUrl(e.target.value); setOriginAutoDetected(false); setOriginDetectFailed(false); }}
                           className="rounded-xl"
                         />
                         <p className="text-xs text-slate-500">Your real server. Clean traffic gets forwarded here after the WAF inspects it. Auto-detected from your hostname — you can also enter it manually.</p>

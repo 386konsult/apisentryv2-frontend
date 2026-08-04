@@ -33,6 +33,11 @@ const Settings = () => {
     listening_port: "",
     forwarded_port: "",
   });
+  const [managedFormData, setManagedFormData] = useState({
+    destination_url: "",
+    protected_hostname: "",
+  });
+  const [isUpdatingManaged, setIsUpdatingManaged] = useState(false);
 
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -61,6 +66,15 @@ const Settings = () => {
           listening_port: details.listening_port || "",
           forwarded_port: details.forwarded_port || "",
         });
+        if (details.is_managed) {
+          try {
+            const mc = await apiService.getManagedDestination(platformId);
+            setManagedFormData({
+              destination_url: mc.destination_url || "",
+              protected_hostname: mc.protected_hostname || "",
+            });
+          } catch { /* managed config not set yet */ }
+        }
       } catch (error: any) {
         toast({
           title: "Error",
@@ -104,6 +118,31 @@ const Settings = () => {
       });
     } finally {
       setIsUpdatingPlatform(false);
+    }
+  };
+
+  const handleManagedUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdatingManaged(true);
+    try {
+      const platformId = localStorage.getItem("selected_platform_id");
+      if (!platformId) throw new Error("No platform selected");
+      if (platformFormData.name) {
+        await apiService.updatePlatform(platformId, { name: platformFormData.name });
+      }
+      await apiService.updateManagedDestination(platformId, managedFormData);
+      toast({
+        title: "Settings Saved",
+        description: "Origin URL saved. Our team has been notified to redeploy your WAF.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update settings.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingManaged(false);
     }
   };
 
@@ -317,6 +356,55 @@ const Settings = () => {
 
               <CardContent className="p-6">
                 {platformDetails ? (
+                  platformDetails.is_managed ? (
+                    <form onSubmit={handleManagedUpdate} className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Platform Name</Label>
+                        <Input
+                          value={platformFormData.name}
+                          onChange={(e) => setPlatformFormData((prev) => ({ ...prev, name: e.target.value }))}
+                          className="rounded-xl border-slate-200/70 bg-slate-50/80 dark:border-slate-700/70 dark:bg-slate-800/50"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          Protected Hostname
+                        </Label>
+                        <Input
+                          value={managedFormData.protected_hostname}
+                          onChange={(e) => setManagedFormData((prev) => ({ ...prev, protected_hostname: e.target.value }))}
+                          placeholder="e.g. yourdomain.com"
+                          className="rounded-xl border-slate-200/70 bg-slate-50/80 dark:border-slate-700/70 dark:bg-slate-800/50"
+                        />
+                        <p className="text-xs text-slate-400">Make sure your DNS A record points to 165.245.217.132</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          Origin URL
+                        </Label>
+                        <Input
+                          value={managedFormData.destination_url}
+                          onChange={(e) => setManagedFormData((prev) => ({ ...prev, destination_url: e.target.value }))}
+                          placeholder="https://your-real-backend.vercel.app"
+                          className="rounded-xl border-slate-200/70 bg-slate-50/80 dark:border-slate-700/70 dark:bg-slate-800/50"
+                        />
+                        <p className="text-xs text-slate-400">Your real server URL — traffic is forwarded here after WAF inspection. Use HTTPS if your origin supports it.</p>
+                      </div>
+                      <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-700 dark:text-amber-300">
+                        Changing the origin URL will notify our team to redeploy your WAF. Changes take effect within a few minutes.
+                      </div>
+                      <div className="flex justify-end pt-2">
+                        <Button
+                          type="submit"
+                          className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20"
+                          disabled={isUpdatingManaged}
+                        >
+                          <Save className={`h-4 w-4 mr-2 ${isUpdatingManaged ? "animate-spin" : ""}`} />
+                          {isUpdatingManaged ? "Saving..." : "Save Changes"}
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
                   <form onSubmit={handlePlatformUpdate} className="space-y-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="platformName" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
@@ -401,6 +489,7 @@ const Settings = () => {
                       </Button>
                     </div>
                   </form>
+                  )
                 ) : (
                   <div className="flex items-center justify-center py-12">
                     <p className="text-sm text-slate-500 dark:text-slate-400">Loading platform details...</p>

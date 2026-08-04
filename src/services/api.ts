@@ -849,6 +849,27 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
     return res.json();
   }
 
+  async getManagedDestination(platformId: string): Promise<any> {
+    const res = await fetch(`${this.baseURL}/platforms/${platformId}/managed-destination/`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch managed WAF config');
+    return res.json();
+  }
+
+  async updateManagedDestination(platformId: string, data: { destination_url: string; protected_hostname: string }): Promise<any> {
+    const res = await fetch(`${this.baseURL}/platforms/${platformId}/managed-destination/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.detail || 'Failed to update managed WAF config');
+    }
+    return res.json();
+  }
+
   // Utility methods
   isAuthenticated(): boolean {
     return !!this.token;

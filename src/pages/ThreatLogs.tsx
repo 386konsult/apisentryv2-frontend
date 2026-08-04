@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   AlertTriangle,
+  Activity,
   Search,
   Eye,
   Download,
@@ -119,6 +120,7 @@ const ThreatLogs = () => {
   const [ipFilter, setIpFilter] = useState("all");
   const [endpointFilter, setEndpointFilter] = useState("");
   const [timeRange, setTimeRange] = useState(() => searchParams.get("time") || localStorage.getItem('heimdall_threatlogs_range') || 'all');
+  const [replayState, setReplayState] = useState<{ id: string; loading: boolean; result: any } | null>(null);
 
   const handleTimeRangeChange = (value: string) => {
     setTimeRange(value);
@@ -679,6 +681,45 @@ const ThreatLogs = () => {
                               {threat.response_headers && Object.keys(threat.response_headers).length > 0 && <div><Label>Response Headers</Label><pre className="rounded-xl bg-slate-900 dark:bg-slate-950 p-4 font-mono text-xs text-slate-100 overflow-x-auto">{JSON.stringify(threat.response_headers, null, 2)}</pre></div>}
                               {threat.response_body && <div><Label>Response Body</Label><pre className="rounded-xl bg-slate-900 dark:bg-slate-950 p-4 font-mono text-xs text-slate-100 overflow-x-auto">{typeof threat.response_body === "object" ? JSON.stringify(threat.response_body, null, 2) : threat.response_body}</pre></div>}
                               {typeof threat.response_time_ms === "number" && <div><Label>Response Time</Label><p className="text-sm">{threat.response_time_ms} ms</p></div>}
+
+                              {/* Replay */}
+                              <div className="pt-2">
+                                <button
+                                  onClick={async () => {
+                                    const platformId = localStorage.getItem('selected_platform_id') || '';
+                                    setReplayState({ id: threat.id, loading: true, result: null });
+                                    try {
+                                      const result = await apiService.replayRequestLog(platformId, threat.id);
+                                      setReplayState({ id: threat.id, loading: false, result });
+                                    } catch {
+                                      setReplayState({ id: threat.id, loading: false, result: { success: false, message: 'Replay failed' } });
+                                    }
+                                  }}
+                                  disabled={replayState?.id === threat.id && replayState?.loading}
+                                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-sm font-semibold text-white transition-all disabled:opacity-60"
+                                >
+                                  <Activity className={`h-4 w-4 ${replayState?.id === threat.id && replayState?.loading ? 'animate-spin' : ''}`} />
+                                  {replayState?.id === threat.id && replayState?.loading ? 'Replaying…' : 'Replay Request'}
+                                </button>
+                                {replayState?.id === threat.id && replayState?.result && (
+                                  <div className={`mt-3 rounded-xl border p-3 space-y-2 ${replayState.result.success ? 'border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/10' : 'border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10'}`}>
+                                    {replayState.result.success ? (
+                                      <>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">{replayState.result.method} {replayState.result.replay_url}</span>
+                                          <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${replayState.result.status_code < 400 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>{replayState.result.status_code}</span>
+                                          <span className="text-xs text-slate-500">{replayState.result.response_time_ms}ms</span>
+                                        </div>
+                                        <pre className="text-xs bg-slate-900 rounded-xl p-3 overflow-auto text-slate-100 max-h-36">
+                                          {typeof replayState.result.response_body === 'object' ? JSON.stringify(replayState.result.response_body, null, 2) : replayState.result.response_body}
+                                        </pre>
+                                      </>
+                                    ) : (
+                                      <p className="text-sm text-red-600 dark:text-red-400">{replayState.result.message}</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </DialogContent>
                         </Dialog>

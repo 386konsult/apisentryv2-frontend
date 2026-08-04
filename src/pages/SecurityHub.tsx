@@ -332,6 +332,24 @@ const LogDetailModal = ({
   ipLoading: boolean;
   onBlockIP: (ip: string) => void;
 }) => {
+  const [replaying, setReplaying] = useState(false);
+  const [replayResult, setReplayResult] = useState<any>(null);
+
+  const handleReplay = async () => {
+    if (!log) return;
+    const platformId = localStorage.getItem('selected_platform_id') || '';
+    setReplaying(true);
+    setReplayResult(null);
+    try {
+      const result = await apiService.replayRequestLog(platformId, log.id);
+      setReplayResult(result);
+    } catch {
+      setReplayResult({ success: false, message: 'Replay failed' });
+    } finally {
+      setReplaying(false);
+    }
+  };
+
   if (!log) return null;
 
   const methodColor: Record<string, string> = {
@@ -437,11 +455,39 @@ const LogDetailModal = ({
           <IPIntelPanel ip={log.client_ip} info={ipInfo} abuse={abuse} loading={ipLoading} />
 
           {/* Block IP button */}
-          <button onClick={() => { onClose(); onBlockIP(log.client_ip); }}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-[14px] bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-sm font-semibold text-white shadow-md shadow-red-500/20 transition-all active:scale-[0.99]">
-            <Ban className="h-4 w-4" />
-            Block IP {log.client_ip}
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => { onClose(); onBlockIP(log.client_ip); }}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-[14px] bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-sm font-semibold text-white shadow-md shadow-red-500/20 transition-all active:scale-[0.99]">
+              <Ban className="h-4 w-4" />
+              Block IP {log.client_ip}
+            </button>
+            <button onClick={handleReplay} disabled={replaying}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-[14px] bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition-all active:scale-[0.99] disabled:opacity-60">
+              <Activity className={`h-4 w-4 ${replaying ? 'animate-spin' : ''}`} />
+              {replaying ? 'Replaying…' : 'Replay Request'}
+            </button>
+          </div>
+
+          {/* Replay result */}
+          {replayResult && (
+            <div className={`rounded-[14px] border p-4 space-y-2 ${replayResult.success ? 'border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/60 dark:bg-emerald-900/10' : 'border-red-200 dark:border-red-800/40 bg-red-50/60 dark:bg-red-900/10'}`}>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Replay Result</p>
+              {replayResult.success ? (
+                <>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">{replayResult.method} {replayResult.replay_url}</span>
+                    <Badge className={replayResult.status_code < 400 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}>{replayResult.status_code}</Badge>
+                    <span className="text-xs text-slate-500">{replayResult.response_time_ms}ms</span>
+                  </div>
+                  <pre className="text-xs bg-white dark:bg-slate-800/60 rounded-xl p-3 overflow-auto border border-slate-200/60 dark:border-slate-700/40 text-slate-700 dark:text-slate-300 max-h-40">
+                    {typeof replayResult.response_body === 'object' ? JSON.stringify(replayResult.response_body, null, 2) : replayResult.response_body}
+                  </pre>
+                </>
+              ) : (
+                <p className="text-sm text-red-600 dark:text-red-400">{replayResult.message}</p>
+              )}
+            </div>
+          )}
 
           {/* Request / Response data */}
           <div className="space-y-3 pt-1">

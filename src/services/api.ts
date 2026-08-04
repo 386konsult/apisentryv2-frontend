@@ -984,6 +984,16 @@ async updateUserStatus(status: 'active' | 'away'): Promise<{ status: 'active' | 
     return await this.request<any[]>(`/platforms/${platformId}/request-logs/?blocked=true`);
   }
 
+  async replayRequestLog(platformId: string, logId: string): Promise<any> {
+    const fullUrl = `${this.baseURL}/platforms/${platformId}/request-logs/${logId}/replay/`;
+    const res = await fetch(fullUrl, {
+      method: 'POST',
+      credentials: 'include',
+      headers: this.authHeaders(),
+    });
+    return res.json();
+  }
+
   // Invitation Management (platform-level)
   async sendInvitation(platformId: string, invitationData: InviteRequest): Promise<Invitation> {
     return await this.request<Invitation>(`/platforms/${platformId}/invitations/`, {

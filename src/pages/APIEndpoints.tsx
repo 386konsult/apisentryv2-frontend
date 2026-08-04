@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +35,7 @@ const APIEndpoints = () => {
   const [endpointStatus, setEndpointStatus] = useState<EndpointStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [shadowLoading, setShadowLoading] = useState(false);
+  const isFirstLoad = useRef(true);
   const [platformName, setPlatformName] = useState<string>("");
   const [trafficData, setTrafficData] = useState<Array<{ hour: string; requests: number }>>([]);
   const [endpointsAddedThisWeek, setEndpointsAddedThisWeek] = useState<number | null>(null);
@@ -88,6 +89,7 @@ const APIEndpoints = () => {
     } catch {
       toast({ title: "Error loading endpoints", description: "Failed to fetch API endpoints", variant: "destructive" });
     } finally {
+      isFirstLoad.current = false;
       setLoading(false);
     }
   }, [platformId, toast]);
@@ -214,8 +216,8 @@ const APIEndpoints = () => {
     }
   };
 
-  if (loading) {
-    const sk = "bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl p-5";
+  if (loading && isFirstLoad.current) {
+    const sk = "bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 rounded-2xl p-5";
     return (
       <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
         <div className="w-full space-y-6">
@@ -226,10 +228,7 @@ const APIEndpoints = () => {
                 <Skeleton className="h-8 w-52 rounded-2xl bg-white/20" />
                 <Skeleton className="h-4 w-72 rounded-full bg-white/15" />
               </div>
-              <div className="flex gap-2.5">
-                <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
-                <Skeleton className="h-9 w-36 rounded-full bg-white/20" />
-              </div>
+              <Skeleton className="h-9 w-36 rounded-full bg-white/20" />
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -273,9 +272,6 @@ const APIEndpoints = () => {
               <p className="text-sm text-blue-100 max-w-xl">Monitor endpoint health, traffic, protection coverage, and discover undocumented shadow APIs.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" size="sm" className="rounded-full border-white/50 bg-white/15 px-5 py-2 text-white font-medium hover:!bg-white/25 hover:!text-white">
-                <BarChart3 className="mr-2 h-4 w-4" /> Analytics
-              </Button>
               <Dialog>
                 <DialogTrigger asChild>
                   <Button size="sm" className="rounded-full bg-white px-5 py-2 text-blue-600 font-medium hover:bg-white/90">
@@ -418,7 +414,26 @@ const APIEndpoints = () => {
                 </div>
 
                 {loading ? (
-                  <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+                  <div className="space-y-2 p-4">
+                    {Array.from({ length: 7 }).map((_, i) => (
+                      <div key={i} className="grid grid-cols-[2fr_80px_90px_110px_90px_110px_110px] gap-3 items-center px-4 py-3 rounded-xl">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <Skeleton className="h-4 w-4 rounded" />
+                            <Skeleton className="h-5 w-12 rounded-md" />
+                            <Skeleton className="h-4 rounded-full" style={{ width: `${100 + (i * 23) % 80}px` }} />
+                          </div>
+                          <Skeleton className="h-3 w-32 rounded-full ml-6" />
+                        </div>
+                        <Skeleton className="h-6 w-16 rounded-full" />
+                        <Skeleton className="h-4 w-16 rounded-full" />
+                        <Skeleton className="h-4 w-16 rounded-full" />
+                        <Skeleton className="h-4 w-12 rounded-full" />
+                        <Skeleton className="h-6 w-24 rounded-full" />
+                        <Skeleton className="h-7 w-24 rounded-lg" />
+                      </div>
+                    ))}
+                  </div>
                 ) : filteredEndpointStatus.length === 0 ? (
                   <div className="text-center py-16">
                     <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800"><Globe className="h-8 w-8 text-slate-400" /></div>
@@ -521,7 +536,26 @@ const APIEndpoints = () => {
                 </div>
 
                 {shadowLoading ? (
-                  <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" /></div>
+                  <div className="space-y-2 p-4">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="grid grid-cols-[2fr_120px_80px_200px] gap-3 items-center px-4 py-3 rounded-xl">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <Skeleton className="h-3.5 w-3.5 rounded" />
+                            <Skeleton className="h-5 w-12 rounded-md" />
+                            <Skeleton className="h-4 rounded-full" style={{ width: `${90 + (i * 19) % 90}px` }} />
+                          </div>
+                          <Skeleton className="h-3 w-28 rounded-full ml-6" />
+                        </div>
+                        <Skeleton className="h-4 w-24 rounded-full" />
+                        <Skeleton className="h-6 w-16 rounded-full" />
+                        <div className="flex gap-2">
+                          <Skeleton className="h-7 w-24 rounded-lg" />
+                          <Skeleton className="h-7 w-20 rounded-lg" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : filteredShadow.length === 0 ? (
                   <div className="text-center py-16">
                     <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-500/10">

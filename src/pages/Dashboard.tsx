@@ -1,4 +1,4 @@
-
+import CountryFlag from '@/components/CountryFlag';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,12 +50,6 @@ interface CountryData {
   count: number;
 }
 
-const countryFlag = (code?: string | null): string => {
-  if (!code || code.length !== 2) return '';
-  try {
-    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
-  } catch { return ''; }
-};
 
 const OWASP_TOP_10 = [
   { id: 'A01', name: 'Broken Access Control', category: 'Access Control', severity: 'critical' },
@@ -850,7 +844,7 @@ const Dashboard = () => {
                     <span className="text-sm">{threat.request_path}</span>
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       from
-                      {countryFlag(threat.country_code || threat.country) && <span className="text-sm leading-none">{countryFlag(threat.country_code || threat.country)}</span>}
+                      <CountryFlag code={threat.country_code || threat.country} size={14} />
                       {threat.source_ip}
                     </span>
                   </div>

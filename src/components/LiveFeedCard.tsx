@@ -1,17 +1,12 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Activity, RefreshCw } from 'lucide-react';
+import CountryFlag from '@/components/CountryFlag';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 
 interface LiveFeedCardProps {
   platformId: string;
 }
 
-const countryFlag = (code?: string | null): string => {
-  if (!code || code.length !== 2) return '';
-  try {
-    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
-  } catch { return ''; }
-};
 
 const METHOD_COLORS: Record<string, string> = {
   GET:    'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10',
@@ -183,7 +178,7 @@ const LiveFeedCard: React.FC<LiveFeedCardProps> = ({ platformId }) => {
                   </span>
 
                   <span className="shrink-0 font-mono text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                    {countryFlag((log as any).country_code || (log as any).country) && <span className="text-xs leading-none">{countryFlag((log as any).country_code || (log as any).country)}</span>}
+                    <CountryFlag code={(log as any).country_code || (log as any).country} size={14} />
                     {log.client_ip || '—'}
                   </span>
 

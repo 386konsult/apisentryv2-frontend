@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import CountryFlag from '@/components/CountryFlag';
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,11 +48,6 @@ const TIME_RANGES = [
   { label: "All Time",   value: "all"     },
 ];
 
-// Helper: country code → flag emoji
-const countryFlag = (code?: string | null): string => {
-  if (!code || code.length !== 2) return '';
-  return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
-};
 
 // Helper: parse timestamp to milliseconds (client‑side filtering)
 const parseLogTimestamp = (log: any): number | null => {
@@ -101,7 +97,9 @@ const AnimatedNumber = ({ value, decimals = 0, suffix = "", className = "" }: an
 const ThreatLogs = () => {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const isFirstLoad = useRef(true);
   const [hasMore, setHasMore] = useState(false);
   const [nextPageUrl, setNextPageUrl] = useState<string | null>(null);
   const [stats, setStats] = useState({ total: 0, blocked: 0, rate: 0, uniqueIPs: 0, highSeverity: 0, mediumSeverity: 0 });
@@ -187,13 +185,22 @@ const ThreatLogs = () => {
   }, [navigate, countryFilter, searchTerm, severityFilter, ipFilter, endpointFilter, timeRange]);
 
   const loadInitial = useCallback(async () => {
-    setLoading(true);
+    if (isFirstLoad.current) {
+      setLoading(true);
+    } else {
+      setTableLoading(true);
+    }
     const { logs: initialLogs, total, blocked, rate, uniqueIPs, highSeverity, mediumSeverity, next } = await fetchLogs();
     setLogs(initialLogs);
     setNextPageUrl(next);
     setHasMore(!!next);
     setStats({ total, blocked, rate, uniqueIPs, highSeverity, mediumSeverity });
-    setLoading(false);
+    if (isFirstLoad.current) {
+      setLoading(false);
+      isFirstLoad.current = false;
+    } else {
+      setTableLoading(false);
+    }
   }, [fetchLogs]);
 
   const loadMore = async () => {
@@ -560,8 +567,31 @@ const ThreatLogs = () => {
             <p className="text-sm text-slate-500">Detailed view of detected threats and security incidents</p>
           </div>
           <div className="p-6">
-            {loading ? (
-              <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" /></div>
+            {tableLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="rounded-xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 p-5">
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div className="flex items-start gap-3 flex-1">
+                        <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+                        <div className="space-y-2 flex-1">
+                          <Skeleton className="h-4 w-32 rounded-full" />
+                          <Skeleton className="h-3 w-24 rounded-full" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Skeleton className="h-6 w-16 rounded-full" />
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <Skeleton className="h-12 rounded-lg" />
+                      <Skeleton className="h-12 rounded-lg" />
+                      <Skeleton className="h-12 rounded-lg" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : filteredThreats.length === 0 ? (
               <div className="text-center py-16"><Shield className="h-12 w-12 mx-auto text-slate-400 mb-4" /><p className="text-lg font-semibold">No threat logs match your filters</p></div>
             ) : (
@@ -590,10 +620,14 @@ const ThreatLogs = () => {
                           <p className="text-xs text-slate-500 mb-1">Source IP</p>
                           <div className="flex items-center gap-1.5">
                             <MapPin className="h-3 w-3 text-slate-400" />
-                            {countryFlag(threat.country) && <span className="text-xl leading-none flex-shrink-0">{countryFlag(threat.country)}</span>}
                             <div className="min-w-0">
                               <span className="text-sm font-mono truncate block">{threat.client_ip}</span>
-                              {(threat.country_name || threat.country) && <span className="text-xs text-slate-400">{threat.country_name || threat.country}</span>}
+                              {(threat.country_name || threat.country) && (
+                                <span className="flex items-center gap-1 text-xs text-slate-400">
+                                  <CountryFlag code={threat.country_code || threat.country} size={14} />
+                                  {threat.country_name || threat.country}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -629,7 +663,7 @@ const ThreatLogs = () => {
                               <div>
                                 <Label>Source IP</Label>
                                 <div className="flex items-center gap-2 mt-1">
-                                  {countryFlag(threat.country) && <span className="text-2xl leading-none">{countryFlag(threat.country)}</span>}
+                                  <CountryFlag code={threat.country} size={20} />
                                   <span className="text-sm font-mono">{threat.client_ip}</span>
                                   {(threat.country_name || threat.country) && (
                                     <span className="text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{threat.country_name || threat.country}</span>

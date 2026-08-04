@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +34,6 @@ import {
   Upload,
   Code,
   Filter,
-  Activity,
 } from "lucide-react";
 import { apiService, WAFRule } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
@@ -82,6 +82,47 @@ const WAFRules = () => {
     };
     return colors[priority as keyof typeof colors] || "bg-gray-500";
   };
+
+  if (loading) {
+    const sk = "bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 rounded-2xl p-5";
+    return (
+      <div className="space-y-6 p-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-36 rounded-xl" />
+            <Skeleton className="h-4 w-72 rounded-full" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-24 rounded-lg" />
+            <Skeleton className="h-9 w-24 rounded-lg" />
+            <Skeleton className="h-9 w-28 rounded-lg" />
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-4">
+          {[1,2,3,4].map(i => (
+            <div key={i} className={sk}>
+              <Skeleton className="h-4 w-24 rounded-full" />
+              <Skeleton className="h-8 w-16 rounded-xl mt-3" />
+              <Skeleton className="h-3 w-32 rounded-full mt-2" />
+            </div>
+          ))}
+        </div>
+        <div className={sk}>
+          <div className="flex gap-4">
+            <Skeleton className="h-9 flex-1 rounded-lg" />
+            <Skeleton className="h-9 w-44 rounded-lg" />
+          </div>
+        </div>
+        <div className={`${sk} space-y-3`}>
+          <Skeleton className="h-5 w-32 rounded-full" />
+          <Skeleton className="h-4 w-56 rounded-full" />
+          <div className="space-y-3 pt-2">
+            {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -274,12 +315,7 @@ const WAFRules = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {loading ? (
-              <div className="text-center py-8">
-                <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
-                <p>Loading WAF rules...</p>
-              </div>
-            ) : rules.length === 0 ? (
+            {rules.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-muted-foreground">No WAF rules found</p>
               </div>

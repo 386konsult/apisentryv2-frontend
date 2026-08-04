@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import CountryFlag from '@/components/CountryFlag';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -111,11 +112,6 @@ function extractSignaturePattern(trigger: any): string | null {
   return match ? match[1].trim() : null;
 }
 
-// Helper: country code → flag emoji
-const countryFlag = (code?: string | null): string => {
-  if (!code || code.length !== 2) return '';
-  return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
-};
 
 const SecurityAlerts = () => {
   const navigate = useNavigate();
@@ -881,8 +877,29 @@ const SecurityAlerts = () => {
           </div>
 
           {triggersLoading ? (
-            <div className="flex justify-center py-16">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+            <div className="space-y-3 p-6">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 p-4">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3 flex-1">
+                      <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+                      <div className="space-y-1.5 flex-1">
+                        <Skeleton className="h-4 w-40 rounded-full" />
+                        <Skeleton className="h-3 w-24 rounded-full" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                      <Skeleton className="h-6 w-20 rounded-full" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Skeleton className="h-10 rounded-lg" />
+                    <Skeleton className="h-10 rounded-lg" />
+                    <Skeleton className="h-10 rounded-lg" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : triggers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -944,11 +961,10 @@ const SecurityAlerts = () => {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            {countryFlag(trigger.extra?.country_code) ? (
-                              <span className="text-xl leading-none flex-shrink-0">{countryFlag(trigger.extra?.country_code)}</span>
-                            ) : (
-                              <MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" />
-                            )}
+                            {trigger.extra?.country_code
+                              ? <CountryFlag code={trigger.extra?.country_code} size={18} />
+                              : <MapPin className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                            }
                             <div className="min-w-0">
                               <span className="text-xs font-mono text-slate-600 dark:text-slate-400 truncate block">{trigger.client_ip || trigger.ip || '—'}</span>
                               {(trigger.extra?.country || trigger.extra?.country_code) && <span className="text-xs text-slate-400">{trigger.extra?.country || trigger.extra?.country_code}</span>}
@@ -993,7 +1009,7 @@ const SecurityAlerts = () => {
                                   <div>
                                     <Label className="text-xs font-semibold text-slate-500">Source IP</Label>
                                     <div className="flex items-center gap-2 mt-1">
-                                      {countryFlag(trigger.extra?.country_code) && <span className="text-2xl leading-none">{countryFlag(trigger.extra?.country_code)}</span>}
+                                      <CountryFlag code={trigger.extra?.country_code} size={20} />
                                       <span className="text-sm font-mono">{trigger.client_ip || trigger.ip}</span>
                                       {(trigger.extra?.country || trigger.extra?.country_code) && (
                                         <span className="text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{trigger.extra?.country || trigger.extra?.country_code}</span>

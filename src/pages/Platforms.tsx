@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import {
   Shield, Plus, Activity, Globe, Settings, Eye,
@@ -203,16 +204,88 @@ const Platforms = () => {
     document.body
   ) : null;
 
-  if (loading) return (
-    <div className="flex min-h-[60vh] items-center justify-center bg-[#F4F8FF] dark:bg-[#0F1724]">
-      <div className="flex flex-col items-center gap-4 text-center">
-        <div className="h-14 w-14 flex items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 shadow-lg shadow-blue-500/25">
-          <Server className="h-6 w-6 text-white animate-pulse" />
+  if (loading) {
+    const skCard = "rounded-3xl bg-white dark:bg-[#111c2e] border border-slate-200/60 dark:border-blue-900/20 shadow-sm overflow-hidden";
+    return (
+      <div className="min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-5 py-6 sm:px-6 lg:px-8">
+        <div className="max-w-full space-y-6">
+          {/* Header card skeleton */}
+          <div className={`${skCard} p-7`}>
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0 flex-1 space-y-3">
+                <div className="flex flex-wrap items-center gap-3 mb-3">
+                  <Skeleton className="h-9 w-52 rounded-2xl" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-full max-w-lg rounded-full" />
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <Skeleton className="h-7 w-32 rounded-xl" />
+                  <Skeleton className="h-7 w-36 rounded-xl" />
+                  <Skeleton className="h-7 w-28 rounded-xl" />
+                </div>
+              </div>
+              <Skeleton className="h-10 w-40 rounded-2xl flex-shrink-0" />
+            </div>
+          </div>
+
+          {/* Workspace cards grid skeleton */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className={`${skCard} flex flex-col`}>
+                <div className="flex-1 p-5">
+                  {/* Row 1: icon + name + tags + status + gear */}
+                  <div className="flex items-start gap-3 mb-4">
+                    <Skeleton className="h-11 w-11 rounded-2xl flex-shrink-0" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-32 rounded-full" />
+                      <div className="flex items-center gap-1.5">
+                        <Skeleton className="h-4 w-20 rounded-lg" />
+                        <Skeleton className="h-3 w-12 rounded-full" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
+                      <Skeleton className="h-6 w-16 rounded-xl" />
+                      <Skeleton className="h-7 w-7 rounded-xl" />
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="mb-4 h-px bg-slate-100 dark:bg-blue-900/20" />
+
+                  {/* 3 stat boxes */}
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {[1, 2, 3].map(j => (
+                      <div key={j} className="flex flex-col items-center justify-center rounded-2xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0d1829]/60 py-3 px-2 gap-1.5">
+                        <Skeleton className="h-4 w-4 rounded-md" />
+                        <Skeleton className="h-5 w-8 rounded-md" />
+                        <Skeleton className="h-3 w-14 rounded-full" />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Block rate bar */}
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Skeleton className="h-3 w-16 rounded-full" />
+                      <Skeleton className="h-3 w-10 rounded-full" />
+                    </div>
+                    <Skeleton className="h-1.5 w-full rounded-full" />
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="border-t border-slate-100 dark:border-blue-900/20 px-5 py-3 flex items-center justify-between gap-3">
+                  <Skeleton className="h-5 w-24 rounded-full" />
+                  <Skeleton className="h-8 w-32 rounded-xl" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Loading workspaces…</p>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <>

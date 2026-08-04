@@ -24,6 +24,7 @@ import {
   Wifi, WifiOff, ExternalLink,
 } from "lucide-react";
 import HeimdallAILogo from '@/components/HeimdallAILogo';
+import CountryFlag from '@/components/CountryFlag';
 import { apiService } from "@/services/api";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -53,12 +54,6 @@ interface RequestLog {
   endpoint: string;
 }
 
-const countryFlag = (code?: string | null): string => {
-  if (!code || code.length !== 2) return '';
-  try {
-    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
-  } catch { return ''; }
-};
 
 type TimeRangeKey = "today" | "week" | "month" | "3months" | "6months" | "1year";
 
@@ -422,7 +417,7 @@ const LogDetailModal = ({
             <div className="rounded-[14px] border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/50 px-4 py-3">
               <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Client IP</p>
               <p className="font-mono text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                {countryFlag((log as any).country_code || (log as any).country) && <span className="text-base leading-none">{countryFlag((log as any).country_code || (log as any).country)}</span>}
+                <CountryFlag code={(log as any).country_code || (log as any).country} size={16} />
                 {log.client_ip}
               </p>
             </div>
@@ -494,6 +489,7 @@ const SecurityHub = () => {
 
   const [tableLogs, setTableLogs]         = useState<RequestLog[]>([]);
   const [loading, setLoading]             = useState(true);
+  const [tableLoading, setTableLoading]   = useState(false);
   const [statsLoading, setStatsLoading]   = useState(true);
   const [loadingMore, setLoadingMore]     = useState(false);
   const [hasMore, setHasMore]             = useState(true);
@@ -532,17 +528,15 @@ const SecurityHub = () => {
   const [platformName, setPlatformName]           = useState<string>("");
 
   // Endpoint autocomplete
-  const [endpointSearch, setEndpointSearch]       = useState("");
-  const [endpointFilter, setEndpointFilter]       = useState("");
-  const [showEndpointDropdown, setShowEndpointDropdown] = useState(false);
-  const endpointRef = React.useRef<HTMLDivElement>(null);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchRef = React.useRef<HTMLDivElement>(null);
 
-  const endpointSuggestions = useMemo(() => {
-    if (!endpointSearch.trim()) return [];
-    const lower = endpointSearch.toLowerCase();
+  const searchSuggestions = useMemo(() => {
+    if (!searchTerm.trim()) return [];
+    const lower = searchTerm.toLowerCase();
     const paths = [...new Set(tableLogs.map(l => l.path).filter(Boolean))];
     return paths.filter(p => p.toLowerCase().includes(lower)).slice(0, 10);
-  }, [endpointSearch, tableLogs]);
+  }, [searchTerm, tableLogs]);
 
   // ── Stats fetch — uses start_date so backend filters on full dataset ────────
   const fetchStatsForRange = async (platformId: string, range: TimeRangeKey) => {
@@ -584,14 +578,12 @@ const SecurityHub = () => {
       const params: Record<string, any> = { page: pageNum, page_size: PAGE_SIZE };
       const s = overrides?.searchTerm  ?? searchTerm;
       const ip = overrides?.ipFilter   ?? ipFilter;
-      const ep = overrides?.endpointFilter ?? endpointFilter;
       const m  = overrides?.methodFilter   ?? methodFilter;
       const sc = overrides?.statusCodeFilter ?? statusCodeFilter;
       const tl = overrides?.threatLevelFilter ?? threatLevelFilter;
       const wb = overrides?.wafBlockedFilter  ?? wafBlockedFilter;
       if (s)           params.search       = s;
       if (ip)          params.ip           = ip;
-      if (ep)          params.endpoint     = ep;
       if (m  !== "all") params.method      = m;
       if (sc !== "all") params.status_code = sc;
       if (tl !== "all") params.threat_level = tl;
@@ -608,6 +600,7 @@ const SecurityHub = () => {
     } finally {
       setLoadingMore(false);
       setLoading(false);
+      setTableLoading(false);
     }
   };
 
@@ -651,14 +644,14 @@ const SecurityHub = () => {
     if (!platformId) return;
     setPage(1);
     const timer = setTimeout(() => {
-      setLoading(true);
+      setTableLoading(true);
       fetchTablePage(platformId, 1, false, {
-        searchTerm, ipFilter, endpointFilter,
+        searchTerm, ipFilter,
         methodFilter, statusCodeFilter, threatLevelFilter, wafBlockedFilter,
       });
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchTerm, ipFilter, endpointFilter]);
+  }, [searchTerm, ipFilter]);
 
   // Filter state is initialized from URL params above (useState lazy initializer).
   // Dropdown filter changes are handled directly in handleFilterChange below.
@@ -746,9 +739,9 @@ const SecurityHub = () => {
     const platformId = localStorage.getItem("selected_platform_id");
     if (!platformId) return;
     setPage(1);
-    setLoading(true);
+    setTableLoading(true);
     fetchTablePage(platformId, 1, false, {
-      searchTerm, ipFilter, endpointFilter,
+      searchTerm, ipFilter,
       methodFilter: newMethod, statusCodeFilter: newStatusCode,
       threatLevelFilter: newThreatLevel, wafBlockedFilter: newBlocked,
     });
@@ -769,7 +762,7 @@ const SecurityHub = () => {
   const handleRefresh = () => {
     const platformId = localStorage.getItem("selected_platform_id");
     if (!platformId) return;
-    setLoading(true); setPage(1); setHasMore(true);
+    setTableLoading(true); setPage(1); setHasMore(true);
     fetchStatsForRange(platformId, statsRange);
     fetchTablePage(platformId, 1, false);
   };
@@ -952,12 +945,14 @@ const SecurityHub = () => {
                 </div>
                 <div className="mt-4">
                   {statsLoading
-                    ? <div className="h-9 w-24 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                    ? <Skeleton className="h-9 w-28 rounded-lg" />
                     : <AnimatedNumber value={m.value} className="font-sans tabular-nums text-3xl font-semibold leading-none tracking-[-0.05em] text-slate-900 dark:text-white" />}
                 </div>
-                <p className="mt-3 text-sm font-medium text-slate-400 dark:text-slate-500">{m.sub}</p>
+                {statsLoading
+                  ? <Skeleton className="h-4 w-40 rounded-full mt-3" />
+                  : <p className="mt-3 text-sm font-medium text-slate-400 dark:text-slate-500">{m.sub}</p>}
                 <div className={`mt-4 h-1.5 rounded-full ${m.barBg}`}>
-                  <div className={`h-1.5 rounded-full bg-gradient-to-r ${m.bar} transition-all duration-700`} style={{ width: `${m.pct}%` }} />
+                  <div className={`h-1.5 rounded-full bg-gradient-to-r ${m.bar} transition-all duration-700`} style={{ width: statsLoading ? "0%" : `${m.pct}%` }} />
                 </div>
               </div>
             </div>
@@ -977,9 +972,13 @@ const SecurityHub = () => {
               {s.icon}
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-2">{s.label}</p>
               {statsLoading
-                ? <div className="h-8 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse mt-1" />
+                ? <Skeleton className="h-8 w-16 rounded-lg mt-1" />
                 : <p className="text-2xl font-bold text-slate-900 dark:text-white"><AnimatedNumber value={s.value} />{s.label === "Avg Response" ? "ms" : ""}</p>}
-              {s.sub && s.label !== "Avg Response" && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{s.sub}</p>}
+              {s.sub && s.label !== "Avg Response" && (
+                statsLoading
+                  ? <Skeleton className="h-3 w-12 rounded-full mt-1" />
+                  : <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{s.sub}</p>
+              )}
             </div>
           ))}
         </div>
@@ -995,34 +994,26 @@ const SecurityHub = () => {
               <button onClick={clearAllFilters} className="text-sm font-medium text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-lg">Clear All</button>
             )}
           </div>
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
-            <Input placeholder="Search logs by IP, path, endpoint, user agent..."
-              value={searchTerm} onChange={e => { setSearchTerm(e.target.value); updateQueryParam("search", e.target.value); }}
-              className="pl-10 rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50" />
-          </div>
-
-          {/* Endpoint autocomplete search */}
-          <div className="relative w-full" ref={endpointRef}>
+          <div className="relative w-full" ref={searchRef}>
             <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
             <Input
-              placeholder="Filter by endpoint path (e.g. /api/users)…"
-              value={endpointSearch}
-              onChange={e => { setEndpointSearch(e.target.value); setShowEndpointDropdown(true); if (!e.target.value) setEndpointFilter(""); }}
-              onFocus={() => setShowEndpointDropdown(true)}
-              onBlur={() => setTimeout(() => setShowEndpointDropdown(false), 150)}
-              className="pl-10 rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
+              placeholder="Search by IP, path, endpoint, user agent…"
+              value={searchTerm}
+              onChange={e => { setSearchTerm(e.target.value); updateQueryParam("search", e.target.value); setShowSearchDropdown(true); }}
+              onFocus={() => setShowSearchDropdown(true)}
+              onBlur={() => setTimeout(() => setShowSearchDropdown(false), 150)}
+              className="pl-10 pr-8 rounded-lg border-slate-200/70 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
             />
-            {endpointFilter && (
-              <button onClick={() => { setEndpointFilter(""); setEndpointSearch(""); }}
+            {searchTerm && (
+              <button onClick={() => { setSearchTerm(""); updateQueryParam("search", ""); setShowSearchDropdown(false); }}
                 className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600">
                 <X className="h-4 w-4" />
               </button>
             )}
-            {showEndpointDropdown && endpointSuggestions.length > 0 && (
+            {showSearchDropdown && searchSuggestions.length > 0 && (
               <div className="absolute z-50 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg overflow-hidden">
-                {endpointSuggestions.map(path => (
-                  <button key={path} onMouseDown={() => { setEndpointFilter(path); setEndpointSearch(path); setShowEndpointDropdown(false); }}
+                {searchSuggestions.map(path => (
+                  <button key={path} onMouseDown={() => { setSearchTerm(path); updateQueryParam("search", path); setShowSearchDropdown(false); }}
                     className="w-full text-left px-4 py-2.5 text-xs font-mono text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/10 truncate">
                     {path}
                   </button>
@@ -1057,8 +1048,22 @@ const SecurityHub = () => {
             <p className="text-sm text-slate-500 dark:text-slate-400">{filteredTableLogs.length > 0 ? `Showing ${filteredTableLogs.length} requests` : "No logs to display"}</p>
           </div>
           <div className="p-6 pt-0">
-            {loading ? (
-              <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+            {tableLoading ? (
+              <div className="space-y-2 pt-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="grid grid-cols-[120px_80px_1fr_70px_130px_80px_100px_80px_50px] gap-3 items-center px-4 py-3 rounded-xl">
+                    <Skeleton className="h-4 w-28 rounded-full" />
+                    <Skeleton className="h-6 w-14 rounded-md" />
+                    <Skeleton className="h-4 rounded-full" style={{ width: `${55 + (i * 17) % 40}%` }} />
+                    <Skeleton className="h-6 w-12 rounded-md" />
+                    <Skeleton className="h-4 w-28 rounded-full" />
+                    <Skeleton className="h-4 w-12 rounded-full" />
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                    <Skeleton className="h-4 w-14 rounded-full" />
+                    <Skeleton className="h-6 w-6 rounded-md" />
+                  </div>
+                ))}
+              </div>
             ) : filteredTableLogs.length === 0 ? (
               <div className="text-center py-16"><Shield className="h-12 w-12 mx-auto text-blue-400 mb-4" /><p className="text-lg font-semibold text-slate-900 dark:text-white">No logs match your filters</p></div>
             ) : (
@@ -1081,7 +1086,7 @@ const SecurityHub = () => {
                           <td className="px-4 py-3"><Badge className={getStatusCodeColor(log.status_code)}>{log.status_code}</Badge></td>
                           <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
                             <span className="flex items-center gap-1">
-                              {countryFlag((log as any).country_code || (log as any).country) && <span className="text-sm leading-none">{countryFlag((log as any).country_code || (log as any).country)}</span>}
+                              <CountryFlag code={(log as any).country_code || (log as any).country} size={14} />
                               {log.client_ip}
                             </span>
                           </td>
@@ -1115,7 +1120,7 @@ const SecurityHub = () => {
                       <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-800/70">
                         <div className="flex items-center gap-2">
                           <MapPin className="h-3 w-3 text-slate-400" />
-                          {countryFlag((log as any).country_code || (log as any).country) && <span className="text-sm leading-none">{countryFlag((log as any).country_code || (log as any).country)}</span>}
+                          <CountryFlag code={(log as any).country_code || (log as any).country} size={14} />
                           <span className="text-xs font-mono">{log.client_ip}</span>
                         </div>
                         <Button variant="ghost" size="sm" onClick={() => { setSelectedLog(log); setIsDetailsOpen(true); }}>Details</Button>

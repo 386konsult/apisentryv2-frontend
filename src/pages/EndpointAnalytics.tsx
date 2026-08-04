@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -107,8 +108,7 @@ const KpiCard = ({ title, value, suffix = "", subtitle, icon, color }: any) => {
   const barWidth = Math.min(100, Math.max(0, isNaN(numericValue) ? 0 : numericValue > 100 ? 100 : numericValue));
   return (
     <div className={`relative overflow-hidden ${cardClass}`}>
-      <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l-[22px] bg-gradient-to-b ${tokens.accent}`} />
-      <div className="p-6 pl-7">
+      <div className="p-6">
         <div className="flex items-start justify-between mb-4">
           <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{title}</span>
           <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${tokens.iconBg} [&>svg]:h-3.5 [&>svg]:w-3.5`}>{icon}</div>
@@ -117,9 +117,6 @@ const KpiCard = ({ title, value, suffix = "", subtitle, icon, color }: any) => {
           {isNaN(numericValue) ? value : <AnimatedNumber value={numericValue} suffix={suffix} />}
         </p>
         {subtitle && <div className="mt-2 text-xs">{subtitle}</div>}
-        <div className={`mt-4 h-1 rounded-full ${tokens.bar}`}>
-          <div className={`h-1 rounded-full bg-gradient-to-r ${tokens.accent} transition-all duration-700`} style={{ width: `${barWidth}%` }} />
-        </div>
       </div>
     </div>
   );
@@ -232,14 +229,49 @@ const EndpointAnalytics = () => {
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
+    const sk = "bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 rounded-2xl p-5";
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#F2F6FE] dark:bg-[#0F1724]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500">
-            <Activity className="h-7 w-7 animate-spin text-white" />
+      <div className="w-full min-h-screen bg-[#F2F6FE] dark:bg-[#0F1724] px-5 pb-12 pt-0.5">
+        <div className="w-full space-y-5">
+          {/* Header */}
+          <div className="relative rounded-[28px] bg-gradient-to-br from-[#1e3a8a] via-[#2563eb] to-[#06b6d4] px-7 py-7 overflow-hidden">
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <Skeleton className="h-8 w-36 rounded-full bg-white/20" />
+              <Skeleton className="h-6 w-48 rounded-full bg-white/20" />
+              <Skeleton className="h-6 w-14 rounded-full bg-white/20" />
+            </div>
+            <Skeleton className="h-8 w-52 rounded-xl bg-white/20" />
+            <Skeleton className="h-4 w-64 rounded-full bg-white/15 mt-2" />
           </div>
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">Loading Analytics</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500">Fetching endpoint telemetry…</p>
+          {/* 5 KPI cards */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {[1,2,3,4,5].map(i => (
+              <div key={i} className={sk + " space-y-3"}>
+                <Skeleton className="h-4 w-24 rounded-full" />
+                <Skeleton className="h-8 w-20 rounded-xl" />
+                <Skeleton className="h-1 w-full rounded-full" />
+              </div>
+            ))}
+          </div>
+          {/* Traffic chart */}
+          <div className={sk + " space-y-3"}>
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-36 rounded-full" />
+              <Skeleton className="h-8 w-32 rounded-full" />
+            </div>
+            <Skeleton className="h-48 w-full rounded-xl" />
+          </div>
+          {/* Security + Performance issues */}
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className={sk + " space-y-3"}>
+              <Skeleton className="h-5 w-32 rounded-full" />
+              {[1,2,3].map(i => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
+            </div>
+            <div className={sk + " space-y-3"}>
+              <Skeleton className="h-5 w-36 rounded-full" />
+              {[1,2,3].map(i => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
+            </div>
+          </div>
         </div>
       </div>
     );

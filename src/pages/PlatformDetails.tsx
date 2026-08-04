@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import CountryFlag from '@/components/CountryFlag';
 import { Skeleton } from "@/components/ui/skeleton";
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -24,12 +25,6 @@ import { geoMercator, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 
 
-const countryFlag = (code?: string | null): string => {
-  if (!code || code.length !== 2) return '';
-  try {
-    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
-  } catch { return ''; }
-};
 
 const ALPHA2_TO_NUMERIC: Record<string, number> = {
   US:840,CN:156,RU:643,GB:826,DE:276,FR:250,IN:356,BR:76,JP:392,CA:124,
@@ -419,8 +414,8 @@ const CountryDetailPanel = ({
       <div className={`px-3 py-2.5 border border-blue-200 dark:border-blue-500/30 bg-blue-50/60 dark:bg-blue-500/5 ${Rsub}`}>
         <div className="flex items-center justify-between mb-1">
           <p className="text-sm font-bold text-slate-900 dark:text-white">{countryName}</p>
-          <span className="text-2xl leading-none">
-            {countryFlag(countryCode) || <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/15 px-1.5 py-0.5 rounded">{countryCode}</span>}
+          <span className="leading-none">
+            {countryCode ? <CountryFlag code={countryCode} size={20} /> : null}
           </span>
         </div>
         <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -1581,8 +1576,8 @@ const PlatformDetails: React.FC = () => {
                             className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-100 dark:border-blue-900/20 bg-slate-50/60 dark:bg-[#0F1724]/60 cursor-pointer hover:bg-blue-50/60 dark:hover:bg-blue-500/5 hover:border-blue-200 dark:hover:border-blue-800/40 transition-colors"
                             onClick={() => setSelectedCountryCode(country.code)}
                           >
-                            <span className="text-lg leading-none flex-shrink-0">
-                              {countryFlag(country.code) || <span className="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded px-1.5 py-0.5">{country.code}</span>}
+                            <span className="leading-none flex-shrink-0">
+                              <CountryFlag code={country.code} size={16} />
                             </span>
                             <span className="flex-1 text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{country.name}</span>
                             <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
@@ -1644,7 +1639,7 @@ const PlatformDetails: React.FC = () => {
                       <span className="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">{row.path}</span>
                       <span className={`text-xs font-semibold ${getAttackTextClass(row.attack)}`}>{row.attack}</span>
                       <span className="font-mono text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                        {countryFlag(row.country_code) && <span className="text-sm leading-none">{countryFlag(row.country_code)}</span>}
+                        <CountryFlag code={row.country_code} size={14} />
                         {row.source}
                       </span>
                       <span className={`inline-flex w-fit items-center rounded-lg px-2.5 py-1 text-[10px] font-bold ${getStatusClass(row.status)}`}>

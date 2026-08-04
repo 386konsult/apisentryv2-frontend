@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import CountryFlag from '@/components/CountryFlag';
 import { apiService } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,17 +42,12 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 
-const countryFlag = (code?: string | null): string => {
-  if (!code || code.length !== 2) return '';
-  try {
-    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
-  } catch { return ''; }
-};
 
 const IPBlacklist = () => {
   const [platformName, setPlatformName] = useState<string | null>(null);
   const [blacklist, setBlacklist] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const isFirstLoad = useRef(true);
   const [newIP, setNewIP] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; ip: any | null; id: string | null }>({
@@ -62,7 +58,7 @@ const IPBlacklist = () => {
   const { toast } = useToast();
 
   const fetchBlacklist = async () => {
-    setLoading(true);
+    if (isFirstLoad.current) setLoading(true);
     try {
       const platformId = localStorage.getItem("selected_platform_id");
       if (!platformId) throw new Error("No platform selected");
@@ -77,6 +73,7 @@ const IPBlacklist = () => {
         variant: "destructive",
       });
     } finally {
+      isFirstLoad.current = false;
       setLoading(false);
     }
   };
@@ -181,7 +178,7 @@ const IPBlacklist = () => {
   }).length;
 
   if (loading) {
-    const sk = "bg-white dark:bg-[#0d1829] border border-slate-200/60 dark:border-blue-900/20 rounded-3xl p-5";
+    const sk = "bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 rounded-2xl p-5";
     return (
       <div className="w-full min-h-screen bg-[#F4F8FF] dark:bg-[#0F1724] px-6 pb-10 pt-6">
         <div className="w-full space-y-6">
@@ -189,13 +186,10 @@ const IPBlacklist = () => {
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="space-y-3">
                 <Skeleton className="h-5 w-24 rounded-full bg-white/20" />
-                <Skeleton className="h-8 w-52 rounded-2xl bg-white/20" />
+                <Skeleton className="h-8 w-44 rounded-2xl bg-white/20" />
                 <Skeleton className="h-4 w-72 rounded-full bg-white/15" />
               </div>
-              <div className="flex gap-2.5">
-                <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
-                <Skeleton className="h-9 w-32 rounded-full bg-white/20" />
-              </div>
+              <Skeleton className="h-9 w-28 rounded-full bg-white/20" />
             </div>
           </div>
           <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
@@ -205,14 +199,17 @@ const IPBlacklist = () => {
                 <Skeleton className="h-4 w-28 rounded-full mt-4" />
                 <Skeleton className="h-8 w-16 rounded-full mt-1" />
                 <Skeleton className="h-3 w-36 rounded-full mt-2" />
+                <Skeleton className="h-1.5 w-full rounded-full mt-4" />
               </div>
             ))}
           </div>
-          <div className={`${sk} space-y-3`}>
-            <Skeleton className="h-9 w-full rounded-xl" />
-            <div className="space-y-2 pt-2">
-              {[1,2,3,4,5,6,7].map(i => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
-            </div>
+          <div className={sk}>
+            <Skeleton className="h-5 w-40 rounded-full mb-4" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+          </div>
+          <div className={`${sk} space-y-2`}>
+            <Skeleton className="h-5 w-48 rounded-full mb-3" />
+            {[1,2,3,4,5,6,7].map(i => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}
           </div>
         </div>
       </div>
@@ -390,12 +387,19 @@ const IPBlacklist = () => {
 
             <CardContent className="p-0">
               {loading ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="relative mb-4 h-14 w-14">
-                    <div className="absolute inset-0 rounded-full bg-blue-100 dark:bg-blue-500/20 animate-pulse" />
-                    <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-blue-600 dark:border-t-blue-400 animate-spin" />
-                  </div>
-                  <p className="font-medium text-slate-700 dark:text-slate-300">Loading blacklist...</p>
+                <div className="space-y-2 p-4">
+                  {Array.from({ length: 7 }).map((_, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_160px_140px_90px_70px] gap-3 items-center px-4 py-3 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-4 w-4 rounded" />
+                        <Skeleton className="h-4 w-32 rounded-full" />
+                      </div>
+                      <Skeleton className="h-4 w-28 rounded-full" />
+                      <Skeleton className="h-4 w-24 rounded-full" />
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                      <Skeleton className="h-7 w-14 rounded-lg" />
+                    </div>
+                  ))}
                 </div>
               ) : filteredBlacklist.length === 0 ? (
                 <div className="text-center py-16 px-6">
@@ -444,9 +448,7 @@ const IPBlacklist = () => {
                                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10">
                                   <MapPin className="h-4 w-4 text-blue-500" />
                                 </div>
-                                {countryFlag(item.country_code || item.country) && (
-                                  <span className="text-lg leading-none">{countryFlag(item.country_code || item.country)}</span>
-                                )}
+                                <CountryFlag code={item.country_code || item.country} size={16} />
                                 <span className="font-mono text-sm font-medium text-slate-900 dark:text-white">
                                   {item.ip}
                                 </span>
@@ -520,7 +522,7 @@ const IPBlacklist = () => {
                             </div>
                             <div className="min-w-0">
                               <span className="font-mono text-sm font-semibold text-slate-900 dark:text-white break-all flex items-center gap-1.5">
-                                {countryFlag(item.country_code || item.country) && <span className="text-base leading-none">{countryFlag(item.country_code || item.country)}</span>}
+                                <CountryFlag code={item.country_code || item.country} size={14} />
                                 {item.ip}
                               </span>
                               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">

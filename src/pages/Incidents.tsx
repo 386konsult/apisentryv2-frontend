@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import CountryFlag from '@/components/CountryFlag';
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
@@ -755,12 +756,6 @@ interface ViewIncidentDialogProps {
   incident: Incident;
 }
 
-const countryFlag = (code?: string | null): string => {
-  if (!code || code.length !== 2) return '';
-  try {
-    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)));
-  } catch { return ''; }
-};
 
 const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
   open,
@@ -882,9 +877,7 @@ const ViewIncidentDialog: React.FC<ViewIncidentDialogProps> = ({
                 <div className="mt-3 flex flex-wrap gap-2">
                   {String(incident.sourceIPs).split(/[,\s]+/).filter(Boolean).map((ip, i) => (
                     <span key={i} className="inline-flex items-center gap-2 rounded-xl bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800/40 px-3 py-1.5">
-                      {countryFlag(ipCountries[ip]) && (
-                        <span className="text-base leading-none">{countryFlag(ipCountries[ip])}</span>
-                      )}
+                      <CountryFlag code={ipCountries[ip]} size={14} />
                       <span className="font-mono text-sm font-semibold text-slate-800 dark:text-slate-200">{ip}</span>
                       {ipCountries[ip] && (
                         <span className="text-[10px] text-slate-400 font-medium">{ipCountries[ip]}</span>
@@ -1744,8 +1737,17 @@ const Incidents = () => {
 
           <div className="p-0">
             {loading ? (
-              <div className="flex justify-center py-16">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="space-y-2 p-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_100px_100px_120px_120px_80px] gap-3 items-center px-4 py-3 rounded-xl">
+                    <Skeleton className="h-4 rounded-full" style={{ width: `${50 + (i * 13) % 40}%` }} />
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                    <Skeleton className="h-4 w-24 rounded-full" />
+                    <Skeleton className="h-4 w-20 rounded-full" />
+                    <Skeleton className="h-7 w-16 rounded-lg" />
+                  </div>
+                ))}
               </div>
             ) : filteredIncidents.length === 0 ? (
               <div className="text-center py-16">

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -111,6 +112,8 @@ const CreateAlert = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { setLoading(false); }, []);
   const [selectedAlertType, setSelectedAlertType] = useState<string>('');
   const [alertName, setAlertName] = useState<string>('');
   const [severity, setSeverity] = useState<string>('medium');
@@ -1098,6 +1101,80 @@ const CreateAlert = () => {
       bg: 'bg-orange-50 dark:bg-orange-500/10',
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="space-y-8 w-full min-w-0 max-w-full">
+        {/* Header banner skeleton */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 sm:px-8 sm:py-10">
+          <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0 flex-1 space-y-4">
+              <Skeleton className="h-8 w-28 rounded-xl bg-white/20" />
+              <Skeleton className="h-9 w-48 rounded-xl bg-white/20" />
+              <Skeleton className="h-4 w-80 rounded-full bg-white/20" />
+              <div className="flex gap-2 mt-4">
+                <Skeleton className="h-6 w-32 rounded-full bg-white/20" />
+                <Skeleton className="h-6 w-28 rounded-full bg-white/20" />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:w-[380px]">
+              <Skeleton className="h-24 rounded-2xl bg-white/20" />
+              <Skeleton className="h-24 rounded-2xl bg-white/20" />
+            </div>
+          </div>
+        </div>
+
+        {/* Stat cards skeleton */}
+        <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-white p-6 shadow-sm dark:border-slate-800/50 dark:bg-slate-900 space-y-3">
+              <Skeleton className="h-10 w-10 rounded-xl" />
+              <Skeleton className="h-4 w-24 rounded-full" />
+              <Skeleton className="h-7 w-12 rounded-md" />
+              <Skeleton className="h-3 w-32 rounded-full" />
+            </div>
+          ))}
+        </div>
+
+        {/* Two-column layout skeleton */}
+        <div className="grid gap-6 xl:grid-cols-[1.05fr_1.2fr]">
+          {/* Alert type list */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md dark:border-slate-800/60 dark:bg-slate-900/60">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 space-y-2">
+              <Skeleton className="h-5 w-28 rounded-full" />
+              <Skeleton className="h-3 w-52 rounded-full" />
+            </div>
+            <div className="p-6 space-y-3">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-slate-800 p-3">
+                  <Skeleton className="h-9 w-9 rounded-xl flex-shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-32 rounded-full" />
+                    <Skeleton className="h-3 w-full rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Configuration panel */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md dark:border-slate-800/60 dark:bg-slate-900/60">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 space-y-2">
+              <Skeleton className="h-5 w-40 rounded-full" />
+              <Skeleton className="h-3 w-56 rounded-full" />
+            </div>
+            <div className="p-6 space-y-4">
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-24 w-full rounded-xl" />
+              <Skeleton className="h-10 w-36 rounded-xl" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 w-full min-w-0 max-w-full">
